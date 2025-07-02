@@ -1,3 +1,33 @@
+# Multimodal Feature Extraction
+
+## Installation
+
+Ensure you have Python (version ≥ 3.10) installed. You can find all required packages in `requirements.txt`. Please note that may not need all packages listed in `requirements.txt` if you only want to run a subset of all provided scripts. In the future, we plan to streamline this process. It's recommended to install the packages into new virtual environment.
+
+`python -m pip install -r requirements.txt`
+
+Please note that certain scripts depend on PyTorch. For best performance it's recommended to run them on systems with GPU and CUDA capabilities. Please make sure to install PyTorch version that is compatible with CUDA version available on your system.
+
+## Usage
+
+In the following, we describe how to extract a multitude of features using the provided scripts.
+
+### Audio
+
+*Content will follow soon*
+
+### Video
+
+*Content will follow soon*
+
+### Gaze
+
+*Content will follow soon*
+
+### Digital Notes
+
+*Content will follow soon*
+
 ## License and Third-Party Notices
 
 This project includes third-party software:

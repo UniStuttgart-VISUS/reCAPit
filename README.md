@@ -5,7 +5,7 @@
 
 ## About
 
-reCAPit is a user interface designed for analyzing, exploring, and documenting outcomes of collaborative design processes using speech, video, gaze, and other data modalities. Its integrated visualizations provide an overview of recorded data and enable users to author visual summaries of their analysis results.
+reCAPit is an application designed for analyzing, exploring, and documenting outcomes of collaborative design processes using speech, video, gaze, and other data modalities. Its integrated visualizations provide an overview of recorded data and enable users to author visual summaries of their analysis results. Our application includes a preprocessing pipeline capable of extracting a wide range of features from the rich, multimodal data collected
 
 ## Recommendations
 
@@ -39,7 +39,7 @@ Ensure you have Python (version ≥ 3.10) installed. Then install all the requir
 
 ## Launching
 
-To launch the user interface, navigate to the `frontend` directory and run the following command in your terminal:
+To launch the app, navigate to the `frontend` directory and run the following command in your terminal:
 
 `python App.py --meta [PATH_TO_META.json]`
 
@@ -48,8 +48,13 @@ The `meta.json` file should contain paths to the processed data sources and addi
 
 ## Future Roadmap
 
-We will soon release a test dataset that can be used to demo our application.
+We will soon release a test dataset that can be used to demo our application. Further, we plan the add following features and improvements:
 
+- [ ] Provide installer-ready binaries for all major platforms, including Windows, macOS, and Linux
+
+- [ ] Develop a streamlined preprocessing pipeline with a dedicated user interface to enhance accessibility
+
+- [ ] Integrate facial detection, human trajectory tracking, and additional features into the preprocessing pipeline
 
 ## References
 
