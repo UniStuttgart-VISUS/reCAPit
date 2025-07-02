@@ -1,6 +1,4 @@
-# reCAPit - Reflecting on Collaborative Design Processes
-
-![Logo of reCAPit](logo.svg)
+<img src="logo.svg" width="500" title="Logo of reCAPit"/>
 
 ## About
 
