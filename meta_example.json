@@ -1,0 +1,81 @@
+
+{
+  "recordings": [
+    {
+      "dir": "recordings/R1/export", 
+      "has_gaze": true,
+      "id": "Carl", 
+      "role": "domain",
+      "start_time_system_s": 1710496975338000000
+    },
+	{
+      "dir": "recordings/R2/export", 
+      "has_gaze": true,
+      "id": "Randy", 
+      "role": "vis",
+      "start_time_system_s": 1710497182251000000
+    },
+	{
+      "dir": "recordings/R3/export", 
+      "has_gaze": false,
+      "id": "Joe", 
+      "role": "vis",
+      "start_time_system_s": -1
+    },
+	{
+      "dir": "recordings/R4/export", 
+      "has_gaze": true,
+      "id": "Bob", 
+      "role": "vis",
+      "start_time_system_s": 1710497059136000000
+    },
+	{
+      "dir": "recordings/R5/export", 
+      "has_gaze": true,
+      "id": "Mike", 
+      "role": "domain",
+      "start_time_system_s": 1710497030063000000
+    },
+	{
+      "dir": "recordings/R6/export", 
+      "has_gaze": false,
+      "id": "Moderator", 
+      "role": "moderator",
+      "start_time_system_s": -1
+    }
+  ],
+
+  "topic_segments": "public/topic_segments.csv",
+  "notes": "public/diffs.csv",
+  "heatmap_dir": "public/heatmaps",
+  "attention": "public/attention.csv",
+  "movement": "scene/activity.csv",
+  "speaker_transcript": "utterances.csv", 
+  "utterances": "utterances.csv",
+  "audio": "scene/audio.wav",
+  "notes_snapshot_dir": "notes",
+  "areas_of_interests": "aois.json",
+
+  "roles": ["moderator", "vis", "domain"],
+  "language": "english",
+
+  "start_time_system_s": 1710497342337999872,
+  "duration_s": 4915.0,
+
+  "visualization": {
+    "colormap_aoi": "OBSERVABLE10"
+  },
+
+  "scene_videos": {
+    "top_down": {
+      "source": "scene/top_down.mp4", 
+      "start_time_system_s": 1710497030063000313
+    },
+    "peripherals": [
+      {
+        "source": "scene/external_01.mp4", 
+        "start_time_system_s": 1710497030063000313
+      }
+    ]
+  }
+}
