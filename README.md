@@ -1,3 +1,5 @@
+[![reCAPit-frontend](https://github.com/UniStuttgart-VISUS/reCAPit/actions/workflows/python-app.yml/badge.svg)](https://github.com/UniStuttgart-VISUS/reCAPit/actions/workflows/python-app.yml)
+
 <img src="logo.svg" width="500" title="Logo of reCAPit"/>
 
 ## About
