@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
         heatmap_info = pd.read_csv(heatmap_dir / 'gaze.csv')
         heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: heatmap_dir / x)
-        gaze_provider = HeatmapOverlayProvider(heatmap_info, cmap='plasma')
+        gaze_provider = HeatmapOverlayProvider(heatmap_info, cmap='CET_L8')
 
         topic_segments.set_heatmap_provider_gaze(gaze_provider)
         engine.addImageProvider('heatmaps_gaze', gaze_provider)
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
         heatmap_info = pd.read_csv(heatmap_dir / 'move.csv')
         heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: heatmap_dir / x)
-        move_provider = HeatmapOverlayProvider(heatmap_info, cmap='viridis')
+        move_provider = HeatmapOverlayProvider(heatmap_info, cmap='CET_L16')
 
         topic_segments.set_heatmap_provider_move(move_provider)
         engine.addImageProvider('heatmaps_move', move_provider)

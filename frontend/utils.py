@@ -1,21 +1,15 @@
 import numpy as np
 import logging
 
-from qpsolvers import solve_qp, available_solvers
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPainter
 
 
+import cvxpy as cp
 
+"""
 def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
     target_loc = np.array(target_loc)
-    """
-    print()
-    print(target_loc)
-    print(elem_width)
-    print(max_xpos)
-    print()
-    """
     count = len(target_loc)
     d = target_loc
 
@@ -46,6 +40,33 @@ def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
 
     x = solve_qp(P, q, G, h, lb=lb, ub=ub, solver=solver)
     return x
+"""
+
+def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
+    target_loc = np.array(target_loc)
+    count = len(target_loc)
+    d = target_loc
+
+    # Decision variable
+    x = cp.Variable(count)
+
+    # Objective: minimize ||x - target_loc||^2
+    objective = cp.Minimize(cp.sum_squares(x - d))
+
+    # Inequality constraints: x[i+1] - x[i] >= elem_width
+    constraints = [x[i + 1] - x[i] >= elem_width for i in range(count - 1)]
+
+    # Bounds
+    constraints += [x >= min_xpos, x <= max_xpos]
+
+    # Problem definition and solving
+    prob = cp.Problem(objective, constraints)
+    prob.solve()
+
+    if x.value is None:
+        raise RuntimeError("Optimization failed.")
+
+    return x.value
 
 
 def longest_common_substring(s1, s2):

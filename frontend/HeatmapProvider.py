@@ -1,13 +1,20 @@
 import numpy as np
-import matplotlib.cm as cm
 import logging
+import colorcet as cc
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage
 from PyQt6.QtQuick import QQuickImageProvider
 
 
-def create_heatmap_img(heatmap, colormap=cm.get_cmap('plasma', 9)):
+def get_colormap(name, n_colors=256):
+    colormap = getattr(cc.cm, name)
+    return colormap.resampled(n_colors)
+
+
+def create_heatmap_img(heatmap, colormap=None):
+    if colormap is None:
+        colormap = get_colormap('plasma', 9)
     if heatmap.max() > 0:
         heatmap = heatmap / heatmap.max()
 
@@ -20,12 +27,12 @@ def create_heatmap_img(heatmap, colormap=cm.get_cmap('plasma', 9)):
 
 
 class HeatmapOverlayProvider(QQuickImageProvider):
-    def __init__(self, files, cmap='plasma'):
+    def __init__(self, files, cmap='CET_L8'):
         super(HeatmapOverlayProvider, self).__init__(QQuickImageProvider.ImageType.Image)
         self.files = files
         self.segments_start = []
         self.segments_end = []
-        self.colormap = cm.get_cmap(cmap, 9)
+        self.colormap = get_colormap(cmap, 9)
 
     def img_id(self, segment_idx):
         return f'{segment_idx:05d}' 
