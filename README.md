@@ -37,10 +37,10 @@ To launch the app, navigate to the `frontend` directory and run the following co
 
 `uv run App.py --meta [PATH_TO_META.json]`
 
-Please note that upon the first execution, all necessary dependencies are resolved.
-This process might take some time.
-
 The `meta.json` file should contain paths to the processed data sources and additional configuration information. You can use `meta_example.json` as a reference.
+
+> [!NOTE]
+> During the first execution, all required dependencies are automatically resolved. This process may take some time.
 
 
 ## Future Roadmap
