@@ -28,17 +28,17 @@ As described above, reCAPit supports data from multiple sensors. These data stre
 
 Please refer to the `processing` documentation for detailed instructions on data preprocessing.
 
-## Installation
-
-Ensure you have Python (version ≥ 3.10) installed. Then install all the required packages by entering the following command into your terminal. It's recommended to install the packages into new virtual environment.
-
-`python -m pip install -r frontend/requirements.txt`
-
 ## Launching
+
+Please make sure [astral-sh/uv](https://github.com/astral-sh/uv) is installed on your system.
+UV is a Python package and project manager that eases the deployment of applications written in Python.
 
 To launch the app, navigate to the `frontend` directory and run the following command in your terminal:
 
-`python App.py --meta [PATH_TO_META.json]`
+`uv run App.py --meta [PATH_TO_META.json]`
+
+Please note that upon the first execution, all necessary dependencies are resolved.
+This process might take some time.
 
 The `meta.json` file should contain paths to the processed data sources and additional configuration information. You can use `meta_example.json` as a reference.
 
