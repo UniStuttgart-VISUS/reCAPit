@@ -7,9 +7,34 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtQuick import QQuickImageProvider
 
 
-def get_colormap(name, n_colors=256):
-    colormap = getattr(cc.cm, name)
-    return colormap.resampled(n_colors)
+def get_colormap(name="CET_L8", n_colors=10):
+    # 1. Convert hex to RGB in [0, 1]
+    def hex_to_rgb(h):
+        h = h.lstrip('#')
+        return tuple(int(h[i:i+2], 16)/255 for i in (0, 2, 4))
+
+    raw_hex = cc.palette[name]
+    rgb_array = np.array([hex_to_rgb(h) for h in raw_hex])  # shape (256, 3)
+
+    # 2. Interpolate to exactly `bins` colors
+    positions = np.linspace(0, len(rgb_array)-1, n_colors)
+    quantized_rgb = np.array([
+        np.interp(positions, np.arange(len(rgb_array)), rgb_array[:, i])
+        for i in range(3)
+    ]).T  # shape (bins, 3)
+
+    quantized_rgba = np.hstack([quantized_rgb, np.full((n_colors, 1), 1.0)])  # shape: (bins, 4)
+
+    # 3. Return a function that maps val in [0, 1] → RGBA tuple
+
+    def cmap(values):
+        values_clipped = np.clip(values.flatten(), 0, 1)
+        indices = np.floor(values_clipped * n_colors).astype(int)
+        indices = np.clip(indices, 0, n_colors - 1)
+        colors = quantized_rgba[indices]  # shape: (..., 4)
+        return colors.reshape(*values.shape, 4)  # Reshape to original shape with RGB channels
+    
+    return cmap
 
 
 def create_heatmap_img(heatmap, colormap=None):
@@ -20,6 +45,7 @@ def create_heatmap_img(heatmap, colormap=None):
 
     heatmap = np.clip(heatmap, 0, 1)
     heatmap_img = colormap(heatmap)
+    print(heatmap_img.shape)
     heatmap_img[..., 3] = heatmap
 
     heatmap_img = (255 * heatmap_img).astype(np.uint8)
