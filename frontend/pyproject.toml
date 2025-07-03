@@ -1,0 +1,15 @@
+[project]
+name = "reCAPit"
+version = "0.1.0"
+description = "reCAPit is an application designed for analyzing, exploring, and documenting outcomes of collaborative design processes using speech, video, gaze, and other data modalities."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "colorcet>=3.1.0",
+    "cvxpy>=1.6.6",
+    "pandas>=2.3.0",
+    "pyqt6>=6.9.1",
+    "pyqt6-charts>=6.9.0",
+    "scipy>=1.16.0",
+    "shapely>=2.1.1",
+]
