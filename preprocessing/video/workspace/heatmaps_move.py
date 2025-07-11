@@ -10,7 +10,7 @@ from tqdm import tqdm
 from scipy.ndimage import correlate1d
 from pathlib import Path
 from utils import *
-from scene_activity import get_aois, get_merged_aois_masks
+from movement import get_aois, get_merged_aois_masks
 
 
 def mean_activity(cap, hand_detector, back_sub, aoi_mask, start_msec, end_msec, downscale_factor=.5, show_output=True):
@@ -80,42 +80,47 @@ def activity_heatmap(cap, aois, start_timestamps, end_timestamps, kernel_size, d
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--meta', type=Path, required=True)
-    parser.add_argument('--delta_step_sec', type=float, required=True)
+    parser.add_argument('--delta_step_sec', type=float, required=False, default=30.)
     parser.add_argument('--kernel_size', type=int, required=False, default=211)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--show_output', action='store_true')
     args = parser.parse_args()
 
-    meta = json.load(open(args.meta, 'r'))
+    with open(args.meta, 'r+') as f:
+        meta = json.load(f)
 
-    root_dir = args.out_dir
-    out_dir = root_dir / 'move'
-    out_dir.mkdir(exist_ok=True, parents=True)
+        root_dir = args.out_dir
+        out_dir = root_dir / 'move'
+        out_dir.mkdir(exist_ok=True, parents=True)
 
-    aois = get_aois(args.meta.parent / meta['areas_of_interests'])
+        aois = get_aois(meta['sources']['areas_of_interests']['path'])
 
-    cap = cv.VideoCapture(str(args.meta.parent / meta['scene_videos']['top_down']['source']))
-    dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
+        cap = cv.VideoCapture(meta['sources']['videos']['workspace']['path'])
+        dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
 
-    start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
-    end_timestamps = start_timestamps + args.delta_step_sec - 1e-1
+        start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
+        end_timestamps = start_timestamps + args.delta_step_sec - 1e-1
 
-    filenames = [f'move/{n:04d}.npy' for n in range(len(start_timestamps))]
-    heatmaps = activity_heatmap(cap, aois, start_timestamps, end_timestamps, kernel_size=args.kernel_size, downscale_factor=.5, show_output=args.show_output)
+        filenames = [f'move/{n:04d}.npy' for n in range(len(start_timestamps))]
+        heatmaps = activity_heatmap(cap, aois, start_timestamps, end_timestamps, kernel_size=args.kernel_size, downscale_factor=.5, show_output=args.show_output)
 
-    df = pd.DataFrame(data=zip(filenames, start_timestamps, end_timestamps), columns=('filename', 'start timestamp [sec]', 'end timestamp [sec]'))
-    df.to_csv(root_dir / 'move.csv', index=False)
+        df = pd.DataFrame(data=zip(filenames, start_timestamps, end_timestamps), columns=('filename', 'start timestamp [sec]', 'end timestamp [sec]'))
+        df.to_csv(root_dir / 'move.csv', index=False)
 
-    with tqdm(total=len(start_timestamps), desc='compute heatmaps', unit='heatmap') as t:
-        for heatmap, filename in zip(heatmaps, filenames):
-            heatmap = heatmap.astype(np.float16)
-            np.save(root_dir / filename, heatmap)
+        with tqdm(total=len(start_timestamps), desc='compute heatmaps', unit='heatmap') as t:
+            for heatmap, filename in zip(heatmaps, filenames):
+                heatmap = heatmap.astype(np.float16)
+                np.save(root_dir / filename, heatmap)
 
-            if args.show_output:
-                img = create_heatmap_img(heatmap, colormap=cm.get_cmap('plasma', 9))
-                cv.imshow('heatmap', img)
+                if args.show_output:
+                    img = create_heatmap_img(heatmap, colormap=cm.get_cmap('plasma', 9))
+                    cv.imshow('heatmap', img)
 
-                key = cv.waitKey(1)
-                if key & 0xff == ord('q'):
-                    break
-            t.update()
+                    key = cv.waitKey(1)
+                    if key & 0xff == ord('q'):
+                        break
+                t.update()
+
+        meta['artifacts']['spatial']['movement'] = str(args.out_dir / 'move.csv')
+        f.seek(0)
+        json.dump(meta, f, indent=4)

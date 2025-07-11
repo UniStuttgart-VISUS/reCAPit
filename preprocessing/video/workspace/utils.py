@@ -1,6 +1,5 @@
 import cv2 as cv
 import numpy as np
-import grid_compare as gc
 import matplotlib.cm as cm
 import shapely
 
