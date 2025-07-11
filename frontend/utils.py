@@ -1,46 +1,10 @@
 import numpy as np
 import logging
+import cvxpy as cp
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPainter
 
-
-import cvxpy as cp
-
-"""
-def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
-    target_loc = np.array(target_loc)
-    count = len(target_loc)
-    d = target_loc
-
-    # Constraint least squares: min || x - q ||
-    P = np.eye(count)
-    q = -target_loc
-
-    # Inequality lhs: Distance between adjacent elements
-    G = np.eye(N=count) + np.diag(np.ones(count-1) * -1, k=1)
-    # For the last element there is no next element
-    G[count-1, count-1] = -1
-
-    # Inequality rhs: Minimum distance between adjacent elements
-    h = np.array(elem_width) * -1
-    #h = np.ones(count) * elem_width * -1
-
-    # Positions are bounded between provided min and max pos
-    lb = np.ones_like(d) * min_xpos
-    ub = np.ones_like(d) * max_xpos
-
-    if len(available_solvers) == 0:
-        logging.error('No qpsolvers installed!')
-        return np.zeros_like(target_loc)
-    elif 'proxqp' in available_solvers:
-        solver = 'proxqp'
-    else:
-        solver = available_solvers[0]
-
-    x = solve_qp(P, q, G, h, lb=lb, ub=ub, solver=solver)
-    return x
-"""
 
 def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
     target_loc = np.array(target_loc)
@@ -64,7 +28,8 @@ def linear_layout(target_loc, elem_width, min_xpos, max_xpos):
     prob.solve()
 
     if x.value is None:
-        raise RuntimeError("Optimization failed.")
+        logging.error('No valid layout found. Quadratic program has no solution.')
+        return np.zeros_like(target_loc)
 
     return x.value
 
