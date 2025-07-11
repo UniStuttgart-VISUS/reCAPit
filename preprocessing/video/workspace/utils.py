@@ -1,7 +1,6 @@
 import cv2 as cv
 import numpy as np
 import matplotlib.cm as cm
-import shapely
 
 def gaussian_kernel(l):
     sig = (l - 1) / 8.

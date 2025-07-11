@@ -63,6 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--detect_shadows', action='store_true')
     parser.add_argument('--show_output', action='store_true')
+    parser.add_argument('--store_video', action='store_true')
     parser.add_argument('--downsampling_factor', type=float, default=1)
     args = parser.parse_args()
 
@@ -79,8 +80,9 @@ if __name__ == '__main__':
         back_sub = cv.createBackgroundSubtractorKNN(history=3000, dist2Threshold=1000, detectShadows=False)
         hand_detector = hand_detection.HandDetector(num_hands=10, model_asset_path='hand_landmarker_latest.task')
 
-        fourcc = cv.VideoWriter_fourcc(*'avc1')
-        writer = cv.VideoWriter(str(args.out_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width//2, frame_height//2))
+        if args.store_video:
+            fourcc = cv.VideoWriter_fourcc(*'avc1')
+            writer = cv.VideoWriter(str(args.out_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
         aois = get_aois(meta['sources']['areas_of_interests']['path'])
         masks = get_masks(aois, frame_width, frame_height)
@@ -106,8 +108,12 @@ if __name__ == '__main__':
 
                 frame_mask = (fg_mask == 255) & hand_mask
                 out_mask = (255*frame_mask).astype(np.uint8)
+                
+                if args.store_video:
+                    out_frame = np.stack([out_mask, out_mask, out_mask], axis=2)
+                    out_frame = cv.resize(out_frame, dsize=(frame_width, frame_height), interpolation=cv.INTER_AREA)
+                    writer.write(out_frame)
 
-                writer.write(np.stack([out_mask, out_mask, out_mask], axis=2))
                 total_foreground = frame_mask.sum() / (img.shape[0]*img.shape[1])
 
                 if args.show_output:
@@ -128,7 +134,7 @@ if __name__ == '__main__':
                     break
 
                 t.update()
-                
+
             columns = ['frame', 'timestamp [sec]', 'full'] + list(aois.keys())
             df = pd.DataFrame(out, columns=columns)
             df.to_csv(out_path, index=False)
@@ -139,4 +145,5 @@ if __name__ == '__main__':
             json.dump(meta, f, indent=4)
         
             cap.release()
-            writer.release()
+            if args.store_video:
+                writer.release()
