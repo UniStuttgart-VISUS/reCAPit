@@ -1,11 +1,76 @@
 import pandas as pd
 from PyQt6.QtCore import QObject, pyqtSlot
-from pathlib import Path
+
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
+def merge_surface(df, time_delta_threshold=.5):
+    merged_rows = []
+    for _, row in df.iterrows():
+        if len(merged_rows) > 1:
+            time_delta = row['start timestamp [sec]'] - merged_rows[-1]['end timestamp [sec]']
+            event_data_match = row['event data'] == merged_rows[-1]['event data']
+
+            if time_delta < time_delta_threshold and event_data_match:
+                merged_rows[-1]['end timestamp [sec]'] = row['end timestamp [sec]']
+            else:
+                merged_rows.append(row)
+        else:
+            merged_rows.append(row)
+    return pd.DataFrame(merged_rows)
+
+
 def merge_speech(df, time_delta_threshold=.5):
+    merged_rows = []
+    for _, row in df.iterrows():
+        if len(merged_rows) > 1:
+            time_delta = row['start timestamp [sec]'] - merged_rows[-1]['end timestamp [sec]']
+
+            if time_delta < time_delta_threshold:
+                merged_rows[-1]['end timestamp [sec]'] = row['end timestamp [sec]']
+                merged_rows[-1]['event data'] = merged_rows[-1]['event data'] + " " + row['event data']
+            else:
+                merged_rows.append(row)
+        else:
+            merged_rows.append(row)
+    return pd.DataFrame(merged_rows)
+
+
+def merge_table(table):
+    merged_surf = merge_surface(table[table['event type'] == 'Surface hit'], time_delta_threshold=1)
+    if not merged_surf.empty:
+        merged_surf = merged_surf[(merged_surf['end timestamp [sec]'] - merged_surf['start timestamp [sec]']) >= 0.1]
+        merged_surf = merge_surface(merged_surf, time_delta_threshold=1)
+
+    merged_speech = merge_speech(table[table['event type'] == 'Speech'], time_delta_threshold=1)
+    merged_table = pd.concat([merged_surf, merged_speech], axis=0)
+    merged_table = merged_table.sort_values('start timestamp [sec]')
+    return merged_table
+
+
+def rec_table(rec_root):
+    table = []
+
+    if 'mapped_fixations' in rec_root['artifacts']:
+        mapped_fix = pd.read_csv(rec_root['artifacts']['mapped_fixations'])
+        mapped_fix = mapped_fix[mapped_fix['within_surface'] & mapped_fix['mapped_aoi'].notna()]
+
+        for _, row in mapped_fix.iterrows():
+            table.append((row['start timestamp [sec]'], row['end timestamp [sec]'], 'Surface hit', 'Scene', row['mapped_aoi']))
+
+    if 'transcript' in rec_root['artifacts']:
+        transcript = pd.read_csv(rec_root['artifacts']['transcript'])
+
+        for _, row in transcript.iterrows():
+            table.append((row['start timestamp [sec]'], row['end timestamp [sec]'], 'Speech', 'na' , row['text']))
+
+    df = pd.DataFrame(data=table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'event type', 'event subtype', 'event data'])
+    df = df.sort_values('start timestamp [sec]')
+    return df
+
+
+def merge_entries(df, time_delta_threshold=.5):
     merged_rows = []
 
     for _, row in df.iterrows():
@@ -21,6 +86,7 @@ def merge_speech(df, time_delta_threshold=.5):
             merged_rows.append(row)
 
     return pd.DataFrame(merged_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'event type', 'event data', 'event subtype', 'category'])
+
 
 class SubjectData(QObject):
     pass
@@ -42,13 +108,14 @@ class SubjectMultimodalData(QObject):
 
         self.out = {}
 
+
     @classmethod
-    def from_recordings(cls, rec_root, meta, min_timestamp, max_timestamp):
+    def from_recordings(cls, meta, min_timestamp, max_timestamp):
         speech_lines = []
         aoi_lines = []
 
         for rec in meta['recordings']:
-            data_table = pd.read_csv(Path(rec_root / rec['dir']) / 'data.csv')
+            data_table = merge_table(rec_table(rec))
             data_table = data_table[(data_table['start timestamp [sec]'] >= min_timestamp) & (data_table['end timestamp [sec]'] <= max_timestamp)]
             
             speech_data = data_table[data_table['event type'] == 'Speech']
@@ -171,7 +238,7 @@ class SubjectMultimodalData(QObject):
 class SubjectData(QObject):
     def __init__(self, table, sid, parent=None):
         super().__init__(parent)
-        self.table = table
+        self.table = table.copy()
         self.sid = sid
         self.start_ts = table['start timestamp [sec]'].tolist()
         self.end_ts = table['end timestamp [sec]'].tolist()
@@ -179,14 +246,13 @@ class SubjectData(QObject):
         self.category = table['category'].tolist()
         self.max_timestamp = 0
         self.min_timestamp = 0
-        
 
     @pyqtSlot(float, float, result=SubjectData)
     def slice(self, start_ts, end_ts):
         mask = (self.table['start timestamp [sec]'] >= start_ts) & (self.table['end timestamp [sec]'] < end_ts)
 
-        speech_data = merge_speech(self.table[mask], time_delta_threshold=1.0)
-        tm = SubjectData(speech_data, self.sid, parent=self)
+        #speech_data = merge_entries(self.table[mask], time_delta_threshold=1.0)
+        tm = SubjectData(self.table[mask], self.sid, parent=self)
 
         tm.min_timestamp = start_ts
         tm.max_timestamp = end_ts

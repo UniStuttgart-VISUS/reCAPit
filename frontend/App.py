@@ -124,7 +124,7 @@ if __name__ == '__main__':
     topics = fill_between(topics, max_ts=max_timestamp)
 
     meta_model = MetaModel(root_dir, meta)
-    dialogue_line = SubjectMultimodalData.from_recordings(root_dir, meta, min_timestamp, max_timestamp)
+    dialogue_line = SubjectMultimodalData.from_recordings(meta, min_timestamp, max_timestamp)
 
     video_src = meta['sources']['videos']
 
