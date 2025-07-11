@@ -100,12 +100,13 @@ if __name__ == '__main__':
     root_dir = args.meta.parent
     meta = json.load(open(args.meta, 'r'))
 
-    aoi_file = root_dir / meta['areas_of_interests']
-    attention_file = root_dir / meta['attention']
-    activity_file = root_dir / meta['movement']
-    topic_segments_file = root_dir / meta['topic_segments']
-    notes_diffs_file = root_dir / meta['notes']
-    heatmap_dir = root_dir / meta['heatmap_dir']
+    aoi_file = Path(meta['sources']['areas_of_interests']['path'])
+    attention_file = Path(meta['artifacts']['time']['attention'])
+    activity_file = Path(meta['artifacts']['time']['movement'])
+    topic_segments_file = Path(meta['artifacts']['segments']['refined'])
+    notes_diffs_file = Path(meta['artifacts']['notes_diff'])
+    spatial_attention = Path(meta['artifacts']['spatial']['attention'])
+    spatial_movement = Path(meta['artifacts']['spatial']['movement'])
 
     if not topic_segments_file.is_file(): 
         logging.error(f'Path "{topic_segments_file}" does to refer to valid topic segments!')
@@ -116,7 +117,7 @@ if __name__ == '__main__':
         exit()
 
     min_timestamp = 0
-    max_timestamp = meta['duration_s']
+    max_timestamp = meta['duration_sec']
 
     original_topics = pd.read_csv(topic_segments_file)
     topics = filter_segments(original_topics, min_dur_1=30, min_dur_2=45.0)
@@ -125,12 +126,8 @@ if __name__ == '__main__':
     meta_model = MetaModel(root_dir, meta)
     dialogue_line = SubjectMultimodalData.from_recordings(root_dir, meta, min_timestamp, max_timestamp)
 
-    video_src = meta['scene_videos']
-    video_src['top_down']['source'] = root_dir / video_src['top_down']['source']
+    video_src = meta['sources']['videos']
 
-    for peripheral in video_src['peripherals']:
-        peripheral['source'] = root_dir / peripheral['source']
-    
     topic_segments = TopicRootModel(topics, dialogue_line, meta_model, video_src=video_src)
     
     qf = QSurfaceFormat()
@@ -160,11 +157,11 @@ if __name__ == '__main__':
         notes_model = NotesModel(fix_notes(pd.read_csv(notes_diffs_file)))
         topic_segments.set_notes(notes_model)
 
-    if (heatmap_dir / 'gaze').is_dir():
-        logging.info(f'Registering gaze heatmaps {(heatmap_dir / "gaze")} ...')
+    if spatial_attention.is_file():
+        logging.info(f'Registering gaze heatmaps {(spatial_attention.parent / "gaze")} ...')
 
-        heatmap_info = pd.read_csv(heatmap_dir / 'gaze.csv')
-        heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: heatmap_dir / x)
+        heatmap_info = pd.read_csv(spatial_attention)
+        heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: spatial_attention.parent / x)
         gaze_provider = HeatmapOverlayProvider(heatmap_info, cmap='CET_L8')
 
         topic_segments.set_heatmap_provider_gaze(gaze_provider)
@@ -172,11 +169,11 @@ if __name__ == '__main__':
 
         resampled_gaze = load_gaze(meta)
 
-    if (heatmap_dir / 'move').is_dir():
-        logging.info(f'Registering hand activity heatmaps {(heatmap_dir / "move")} ...')
+    if spatial_movement.is_file():
+        logging.info(f'Registering hand activity heatmaps {(spatial_movement.parent / "move")} ...')
 
-        heatmap_info = pd.read_csv(heatmap_dir / 'move.csv')
-        heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: heatmap_dir / x)
+        heatmap_info = pd.read_csv(spatial_movement)
+        heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: spatial_movement.parent / x)
         move_provider = HeatmapOverlayProvider(heatmap_info, cmap='CET_L16')
 
         topic_segments.set_heatmap_provider_move(move_provider)

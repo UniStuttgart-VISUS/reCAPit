@@ -18,7 +18,7 @@ class MetaModel(QObject):
     def __init__(self, root_dir, meta, parent=None):
         super().__init__(parent)
 
-        aois = json.load(open(root_dir / meta['areas_of_interests'], 'r'))
+        aois = json.load(open(meta['sources']['areas_of_interests']['path'], 'r'))
 
         width = aois['imageWidth']
         height = aois['imageHeight']
@@ -36,7 +36,7 @@ class MetaModel(QObject):
         self.colormap_aoi = COLORMAPS[meta['visualization']['colormap_aoi']]
         self.roles = meta['roles']
         self.ids = [r['id'] for r in meta['recordings']]
-        self.audio_src = str(root_dir / meta['audio'])
+        self.audio_src = meta['sources']['audio']['path']
 
     @pyqtSlot(str, result=list)
     def AoiPolygonPoints(self, aoi_name):

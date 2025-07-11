@@ -275,11 +275,11 @@ class TopicRootModel(QObject):
 
     @pyqtSlot(result=str)
     def VideoSourceTopDown(self):
-        return "file:///" + str(self.video_src['top_down']['source'])
+        return "file:///" + self.video_src['workspace']['path']
 
     @pyqtSlot(result=list)
     def VideoSourcesPeripheral(self):
-        return ["file:///" + str(p['source']) for p in self.video_src['peripherals']]
+        return ["file:///" + str(self.video_src['room']['path'])]
 
     @pyqtSlot(result=int)
     def SpeechLineCount(self):
