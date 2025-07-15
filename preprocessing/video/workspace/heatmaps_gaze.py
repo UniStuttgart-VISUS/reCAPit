@@ -30,22 +30,18 @@ def fix_in_range(recordings, from_time_sec, to_time_sec):
     fix_dur_ms = []
 
     for rec in recordings:
-        if 'surface_fixations' not in rec['sources']:
+        if 'mapped_fixations' not in rec['artifacts']:
             continue
 
-        surface_fix = pd.read_csv(rec['sources']['surface_fixations']['path'])
+        surface_fix = pd.read_csv(rec['artifacts']['mapped_fixations'])
         surface_fix['duration [ms]'] = 1e3 * (surface_fix['end timestamp [sec]'] - surface_fix['start timestamp [sec]'])
-        surface_fix['start timestamp [sec]'] = surface_fix['start timestamp [sec]'] - rec['sources']['surface_fixations']['offset_sec']
-        surface_fix['end timestamp [sec]'] = surface_fix['end timestamp [sec]'] - rec['sources']['surface_fixations']['offset_sec']
 
         within_range = (surface_fix['start timestamp [sec]'] >= from_time_sec) & (surface_fix['end timestamp [sec]'] <= to_time_sec) 
-
         surface_fix = surface_fix[within_range]
-        surface_fix = surface_fix[surface_fix['within_surface']]
 
         dur_ms = surface_fix['duration [ms]'].astype(int)
-        pos_x = surface_fix['mapped x [px]'].astype(int)
-        pos_y = surface_fix['mapped y [px]'].astype(int)
+        pos_x = surface_fix['event data'].map(lambda d: int(d.split(';')[0]))
+        pos_y = surface_fix['event data'].map(lambda d: int(d.split(';')[1]))
 
         fix_pos_x.extend(pos_x)
         fix_pos_y.extend(pos_y)
@@ -114,7 +110,7 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        meta['artifacts']['spatial']['attention'] = str(args.out_dir / 'gaze.csv')
+        meta['artifacts']['video_overlay']['attention'] = str(args.out_dir / 'gaze.csv')
         f.seek(0)
         json.dump(meta, f, indent=4)
 
