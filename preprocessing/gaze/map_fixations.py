@@ -40,23 +40,28 @@ if __name__ == '__main__':
                 surface_gaze['start timestamp [sec]'] = surface_gaze['start timestamp [sec]'] - offset_sec
                 surface_gaze['end timestamp [sec]'] = surface_gaze['end timestamp [sec]'] - offset_sec
 
+                surface_gaze = surface_gaze[surface_gaze['within_surface']]
+
                 aois = get_aois(meta['sources']['areas_of_interests']['path'])
                 labels = []
 
                 for _, row in surface_gaze.iterrows():
-                    if not row['within_surface']:
-                        labels.append('')
-                        continue
-
                     point = shapely.Point((row[['mapped x [px]', 'mapped y [px]']]))
                     for label, poly in aois.items():
                         if poly.contains(point):
                             labels.append(label)
                             break
                     else:
-                        labels.append('')
+                        labels.append('__NA__')
 
                 surface_gaze['mapped_aoi'] = labels
+                surface_gaze = surface_gaze[surface_gaze['mapped_aoi'] != '__NA__'].copy()
+
+                surface_gaze['event data'] = surface_gaze.apply(lambda row: f'{row["mapped x [px]"]};{row["mapped y [px]"]}', axis=1)
+                surface_gaze['event type'] = 'attention'
+                surface_gaze['event subtype'] = surface_gaze['mapped_aoi']
+                surface_gaze = surface_gaze.drop(['mapped_aoi', 'within_surface', 'mapped x [px]', 'mapped y [px]'], axis=1)
+
                 surface_gaze.to_csv(out_path, index=None)
 
                 rec['artifacts']['mapped_fixations'] = str(out_path)
