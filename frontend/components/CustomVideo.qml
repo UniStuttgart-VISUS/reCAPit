@@ -25,15 +25,7 @@ Rectangle {
     property var active: false
     property int selectionMode: 0
     property var videoSink
-
-    property var heatmapGazeSource
-    property var heatmapMoveSource
-
-    property bool hasGazeHeatmap
-    property bool hasMoveHeatmap
-    
-    property var gazeOverlayData: {}
-    property var gazeOverlayIds: []
+    property var videoOverlaySources
 
     property bool aoiOverlayEnabled: false
 
@@ -77,26 +69,6 @@ Rectangle {
             }
             control.value = 100 * (pos - startPosition) / (endPosition - startPosition);
             const gaze_idx = Math.floor(0.001 * position * 4);
-
-            for (var i = 0; i < gazeOverlayIds.length; i++) {
-                const rec_id = gazeOverlayIds[i];
-                if (gaze_idx < gazeOverlayData[rec_id].length) {
-                    const entry = gazeOverlayData[rec_id][gaze_idx];
-                    if (entry.valid) {
-                        const pos_x = entry.x_norm * videoOutput.contentRect.width;
-                        const pos_y = entry.y_norm * videoOutput.contentRect.height;
-
-                        gazeOverlay.children[i].visible = true;
-                        gazeOverlay.children[i].x = Math.floor(pos_x);
-                        gazeOverlay.children[i].y = Math.floor(pos_y);
-                        //console.log("%1, %2".arg(pos_x).arg(pos_y));
-                    }
-
-                    else {
-                        gazeOverlay.children[i].visible = false;
-                    }
-                }
-            }
         }
 
         onMediaStatusChanged: (status) => {
@@ -203,8 +175,8 @@ Rectangle {
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
 
-                source: childGroup.checkedButton.text === "Gaze" ? heatmapGazeSource : heatmapMoveSource
-                // Only show heatmap on top-down video
+                source: videoOverlaySources[childGroup.checkedButton.text]
+                // Only show overlays on top-down video
                 visible: (childGroup.checkedButton.text !== "None" && bar.currentIndex === 0)
             }
 
@@ -219,36 +191,6 @@ Rectangle {
 
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-
-                Repeater {
-                    model: gazeOverlayIds
-
-                    delegate: 
-                    Column {
-                        Shape {
-                            width: 8
-                            height: 8
-
-                            ShapePath {
-                                fillColor: "transparent"
-                                strokeColor: "black"
-                                strokeWidth: 3
-
-                                PathAngleArc {
-                                    radiusX: 8; radiusY: 8
-                                    startAngle: -180
-                                    sweepAngle: 360
-                                }
-                            }
-                        }
-                        Text {
-                            text: modelData
-                            color: "black"
-                            font.bold: true
-                            font.pointSize: 10
-                        }
-                    }
-                }
             }
 
             Rectangle {
@@ -373,7 +315,7 @@ Rectangle {
                 Layout.preferredWidth: 20
                 id: control2
 
-                property list<string> model: ["None", "Gaze", "Activity"]
+                property list<string> model: Object.keys(videoOverlaySources)
 
                 MouseArea {
                     anchors.fill: parent

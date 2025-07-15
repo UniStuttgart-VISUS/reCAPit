@@ -26,7 +26,6 @@ ApplicationWindow {
 
     property var cmapAOI
     property var cmapRole
-    property var timeDistr
 
     property int selectedSnippetIndex : -1
 
@@ -147,7 +146,6 @@ ApplicationWindow {
     Component.onCompleted: {
         appwin.cmapAOI = Utils.createColorscheme(aoiModel.Labels(), aoiModel.ColormapAOI())
         appwin.cmapRole = Utils.createColorscheme(aoiModel.Roles(), aoiModel.ColormapRole());
-        appwin.timeDistr = topicSegments.SpeakerTimeDistribution([]);
 
         appwin.reset.connect(resetNow);
         resetNow();
@@ -291,7 +289,6 @@ ApplicationWindow {
             deleteAllSegments();
             deleteAllCards();
 
-            appwin.timeDistr = topicSegments.SpeakerTimeDistribution(targetIndices);
             createSegments(targetIndices);
             findCardLayout();
         }
@@ -323,11 +320,14 @@ ApplicationWindow {
                 }
                 var ccObject = ccComponent.createObject(tsRoot, 
                     {title: topicSegments.GetLabel(i), 
-                    dia: topicSegments.GetDialogueLine(i), 
+                    dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    sac: topicSegments.GetAoiActivity(i),
-                    sat: topicSegments.HasAttention() ? topicSegments.GetAoiAttention(i) : topicSegments.GetAoiActivity(i),
+                    sac: topicSegments.GetTopMultiTime(i),
+                    sat: topicSegments.HasAttention() ? topicSegments.GetBottomMultiTime(i) : topicSegments.GetTopMultiTime(i),
+                    min_ts: start_ts,
+                    max_ts: end_ts,
                     color: topicSegments.HasCard(i) ? "#f8f8f8" : "#fff",
+                    meta: aoiModel,
                     cmapAOI: appwin.cmapAOI,
                     cmapRole: appwin.cmapRole,
                     x: currX,

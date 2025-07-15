@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import decimate
+from scipy.signal import decimate, resample
 from PyQt6.QtCore import QObject, pyqtSlot
 
     
@@ -74,9 +74,9 @@ class StackedSeries(QObject):
 
         if log_transform:
             downsampled = [np.log(1 + log_factor*s) for s in downsampled] 
-            #downsampled = [gaussian_filter1d(s, 20) for s in downsampled] 
 
-        downsampled = [decimate(s, downsampling_factor) for s in downsampled] 
+        downsampled = [resample(s, num=1000) for s in downsampled] 
+        #downsampled = [decimate(s, downsampling_factor) for s in downsampled] 
         preprocessed = preprocess_signals(downsampled)
         signal_stacks = compute_stacks(preprocessed)
 

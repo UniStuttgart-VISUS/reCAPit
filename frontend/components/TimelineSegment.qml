@@ -19,8 +19,11 @@ Rectangle {
     required property var sat
     required property var cmapAOI
     required property var cmapRole
+    required property var meta
     required property int topicIndex
     required property bool hasCard
+    required property int min_ts
+    required property int max_ts
 
     property int cardIndex : -1
     property bool editing: false
@@ -28,7 +31,7 @@ Rectangle {
     border.color: "#ffad33"
     border.width: editing ? 3 : 0
 
-    height: 90 + 175 + dia.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+    height: 90 + 175 + Object.keys(dia).length * (appwin.timelineHeight + appwin.timelineVSpace)
     clip: false
 
     signal cardVisibilityChanged(int topicIndex, bool visible)
@@ -38,9 +41,7 @@ Rectangle {
     signal mergeWithRight(int topicIndex)
 
     function xScaleG(ts) {
-        const start = dia.MinTimestamp();
-        const end = dia.MaxTimestamp();
-        return (ts - start) * root.width / (end - start);
+        return (ts - min_ts) * root.width / (max_ts - min_ts);
     }
 
     MouseArea {
@@ -121,8 +122,8 @@ Rectangle {
             z: 10
 
             //color: root.timelineBackgroundColor
-            fromTimestamp: dia.MinTimestamp();
-            toTimestamp: dia.MaxTimestamp();
+            fromTimestamp: min_ts
+            toTimestamp: max_ts
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
             showLabels: true
@@ -142,7 +143,7 @@ Rectangle {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: dia.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+            Layout.preferredHeight: Object.keys(dia).length * (appwin.timelineHeight + appwin.timelineVSpace)
             clip: true
 
             SwipeView {
@@ -152,6 +153,33 @@ Rectangle {
 
                 anchors.fill: parent
 
+                Repeater {
+                    id: repDataTypes
+
+                    model: Object.values(dia)[0].AvailableDataTypes()
+                    property var recIds: Object.keys(dia)
+
+                    delegate: ListView {
+                        property var currDatatype: modelData
+
+                        model: repDataTypes.recIds
+                        spacing: appwin.timelineVSpace
+                        interactive: false
+
+                        delegate: Timeline {
+                            required property int index
+
+                            width: root.width
+                            height: appwin.timelineHeight
+
+                            cmap: root.meta.GetColormap(currDatatype)
+                            modelData: dia[repDataTypes.recIds[index]].SubjectData(currDatatype)
+                            xScale: xScaleG
+                        }
+                    }
+                }
+
+                /*
                 ListView {
                     model: dia.SpeechLineCount()
                     spacing: appwin.timelineVSpace
@@ -185,6 +213,7 @@ Rectangle {
                         xScale: xScaleG
                     }
                 }
+                */
             }
 
             PageIndicator {
@@ -207,8 +236,8 @@ Rectangle {
             modelData2: tan
             //color: root.timelineBackgroundColor
 
-            fromTimestamp: dia.MinTimestamp();
-            toTimestamp: dia.MaxTimestamp();
+            fromTimestamp: Object.values(dia)[0].MinTimestamp()
+            toTimestamp: Object.values(dia)[0].MaxTimestamp()
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
             showLabels: false

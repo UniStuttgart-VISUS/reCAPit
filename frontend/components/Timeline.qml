@@ -22,7 +22,7 @@ Item {
                 radius: 2
                 width: w
                 height: timeline.height
-                color: cmap.get(modelData.Category(index))
+                color: cmap[modelData.Category(index)]
                 /*
                 Rectangle {
                     anchors.centerIn: parent

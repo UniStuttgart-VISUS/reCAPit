@@ -24,19 +24,18 @@ Drawer {
     }
 
 
-    function formattedDialogue(dialogue, target_tokens) {
-        const dial = dialogue.FullDialogue()
+    function formattedDialogue(utterance_speaker_pairs, target_tokens) {
         var dialogueStr = "";
-        var srcCount = {};
+        var speaker_count = {};
 
-        for (var idx = 0; idx < dial.length; ++idx) {
-            const subject_id = dial[idx].src;
-            if (!srcCount[subject_id])
-                srcCount[subject_id] = 1;
+        for (var idx = 0; idx < utterance_speaker_pairs.length; ++idx) {
+            const speaker = utterance_speaker_pairs[idx].speaker;
+            if (!speaker_count[speaker])
+                speaker_count[speaker] = 1;
 
-            const utterance_id = "%1%2".arg(subject_id.toUpperCase().slice(0, 2)).arg(srcCount[subject_id]);
-            dialogueStr += "<h3>%1 <font color=\"#aaa\">(%2)</font></h3><p>%3</p>".arg(subject_id).arg(utterance_id).arg(dial[idx].text);
-            srcCount[subject_id] = srcCount[subject_id] + 1;
+            const utterance_id = "%1%2".arg(speaker.toUpperCase().slice(0, 2)).arg(speaker_count[speaker]);
+            dialogueStr += "<h3>%1 <font color=\"#aaa\">(%2)</font></h3><p>%3</p>".arg(speaker).arg(utterance_id).arg(utterance_speaker_pairs[idx].text);
+            speaker_count[speaker] = speaker_count[speaker] + 1;
         }
 
         for (var idx = 0; idx < target_tokens.length; ++idx) {
@@ -101,15 +100,7 @@ Drawer {
                     Layout.preferredWidth: 550
                     Layout.preferredHeight: 550
 
-                    heatmapGazeSource: topicSegments.HeatmapGazeSource(drawer.cardIndex)
-                    heatmapMoveSource: topicSegments.HeatmapMoveSource(drawer.cardIndex)
-
-                    hasGazeHeatmap: topicSegments.HasGazeHeatmap()
-                    hasMoveHeatmap: topicSegments.HasMoveHeatmap()
-
-                    gazeOverlayData: topicSegments.GazeOverlayData()
-                    gazeOverlayIds: topicSegments.GazeOverlayIDs()
-
+                    videoOverlaySources: topicSegments.VideoOverlaySources(drawer.cardIndex)
                     startPosition: drawer.cardData.PosStartSec() * 1000
                     endPosition: drawer.cardData.PosEndSec() * 1000
                     active: drawer.drawerOpened
@@ -247,7 +238,7 @@ Drawer {
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
                     //textContentQuote: drawer.cardData.TextDialoguesOriginal()
-                    textContent: drawer.formattedDialogue(topicSegments.GetDialogueLine(drawer.cardIndex), keywordDialog.userKeywords)
+                    textContent: drawer.formattedDialogue(topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex), keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
                 }

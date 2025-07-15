@@ -1,5 +1,6 @@
 import numpy as np
 import json
+import logging
 from PyQt6.QtCore import QObject, QPointF, pyqtSlot
 
 
@@ -11,11 +12,12 @@ COLORMAPS = {
   "ACCENT": ["#7fc97f","#beaed4","#fdc086","#ffff99","#386cb0","#f0027f","#bf5b17","#666666"],
   "TABLEAU": ["#4e79a7","#f28e2c","#e15759","#76b7b2","#59a14f","#edc949","#af7aa1","#ff9da7","#9c755f","#bab0ab"],
   "CATEGORY10": ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"],
-  "OBSERVABLE10": ["#4269d0","#efb118","#ff725c","#6cc5b0","#3ca951","#ff8ab7","#a463f2","#97bbf5","#9c6b4e","#9498a0"]
+  "OBSERVABLE10": ["#4269d0","#efb118","#ff725c","#6cc5b0","#3ca951","#ff8ab7","#a463f2","#97bbf5","#9c6b4e","#9498a0"],
+  "PURPLE6": ["#dadaeb","#bcbddc","#9e9ac8","#807dba","#6a51a3","#4a1486"]
 }
 
 class MetaModel(QObject):
-    def __init__(self, root_dir, meta, parent=None):
+    def __init__(self, meta, event_subtypes, parent=None):
         super().__init__(parent)
 
         aois = json.load(open(meta['sources']['areas_of_interests']['path'], 'r'))
@@ -33,10 +35,15 @@ class MetaModel(QObject):
 
             self.shapes[s['label']] = {'points': norm_points, 'shape_type': s['shape_type']}
 
+        self.event_subtypes = event_subtypes
         self.colormap_aoi = COLORMAPS[meta['visualization']['colormap_aoi']]
         self.roles = meta['roles']
         self.ids = [r['id'] for r in meta['recordings']]
+        self.id2roles = {r['id']: r['role'] for r in meta['recordings']}
         self.audio_src = meta['sources']['audio']['path']
+
+    def speaker_role(self, speaker_id):
+        return self.id2roles[speaker_id]
 
     @pyqtSlot(str, result=list)
     def AoiPolygonPoints(self, aoi_name):
@@ -45,6 +52,28 @@ class MetaModel(QObject):
     @pyqtSlot(result=str)
     def AudioSource(self):
         return self.audio_src
+
+    @pyqtSlot(str, result='QVariantMap')
+    def GetColormap(self, data_type):
+        if data_type == 'transcript':
+            colors = COLORMAPS['PURPLE6']
+            domain = self.Roles()
+        elif data_type == 'mapped_fixations':
+            colors = COLORMAPS['OBSERVABLE10']
+            domain = self.Labels()
+        else:
+            colors = COLORMAPS["CATEGORY10"]
+
+        step = len(colors) // len(domain)
+
+        if step == 0:
+            logging.warning("Not enough colors for all domains!");
+            fill_colors = ['#000'] * (len(domain) - len(colors)) 
+            colors = colors + fill_colors
+            step = 1
+
+        mapping = {v: colors[idx*step] for idx, v in enumerate(domain)}
+        return mapping
 
     @pyqtSlot(result=list)
     def ColormapAOI(self):
