@@ -26,6 +26,7 @@ ApplicationWindow {
 
     property var cmapAOI
     property var cmapRole
+    property var cmapCategories: {}
 
     property int selectedSnippetIndex : -1
 
@@ -123,7 +124,7 @@ ApplicationWindow {
         height: 300
 
         onKeywordSearch: (keywords) => {
-            appwin.keywordMatchedIndices = topicSegments.KeywordMatchesAtTitles(keywords);
+            appwin.keywordMatchedIndices = topicSegments.KeywordMatches(keywords);
             var targetIndices = [];
 
             for (var i = 0; i < appwin.allCardData.length; ++i) {
@@ -146,6 +147,13 @@ ApplicationWindow {
     Component.onCompleted: {
         appwin.cmapAOI = Utils.createColorscheme(aoiModel.Labels(), aoiModel.ColormapAOI())
         appwin.cmapRole = Utils.createColorscheme(aoiModel.Roles(), aoiModel.ColormapRole());
+
+        const cc = aoiModel.ColormapCategories()
+        appwin.cmapCategories = new Object()
+
+        for (const [name, data] of Object.entries(cc)) {
+            appwin.cmapCategories[name] = Utils.createColorscheme(data.labels, data.colormap);
+        }
 
         appwin.reset.connect(resetNow);
         resetNow();
@@ -322,14 +330,14 @@ ApplicationWindow {
                     {title: topicSegments.GetLabel(i), 
                     dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    sac: topicSegments.GetTopMultiTime(i),
-                    sat: topicSegments.HasAttention() ? topicSegments.GetBottomMultiTime(i) : topicSegments.GetTopMultiTime(i),
+                    stacksTop: topicSegments.GetTimeSeries("movement", i),
+                    stacksBottom:  topicSegments.GetTimeSeries("attention", i),
                     min_ts: start_ts,
                     max_ts: end_ts,
                     color: topicSegments.HasCard(i) ? "#f8f8f8" : "#fff",
                     meta: aoiModel,
-                    cmapAOI: appwin.cmapAOI,
-                    cmapRole: appwin.cmapRole,
+                    cmapTop: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("movement")],
+                    cmapBottom: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("attention")],
                     x: currX,
                     width: width,
                     height: appwin.timelineSegmentHeight,

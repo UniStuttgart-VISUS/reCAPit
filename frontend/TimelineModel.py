@@ -54,7 +54,7 @@ class SubjectMultimodalData(QObject):
             multimodal_data = {}
 
             for data_type in rec['artifacts']:
-                data_table = pd.read_csv(rec['artifacts'][data_type])
+                data_table = pd.read_csv(rec['artifacts'][data_type]['path'])
                 data_table = merge_entries(data_table)
                 data_table = data_table[(data_table['start timestamp [sec]'] >= min_timestamp) & (data_table['end timestamp [sec]'] <= max_timestamp)]
 

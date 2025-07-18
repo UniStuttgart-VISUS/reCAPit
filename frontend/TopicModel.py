@@ -58,7 +58,7 @@ class TopicRootModel(QObject):
         self.card_sizes = [385 for _ in self.start_ts]
         self.active_labels = self.meta_model.Labels()
         self.multimodal_recordings = multimodal_recordings
-        self.multi_time = []
+        self.multi_time = {}
         self.transcript = pd.DataFrame()
 
         self.has_attention = False
@@ -71,8 +71,8 @@ class TopicRootModel(QObject):
             multimodal_data.setParent(self)
 
         self.set_notes(NotesModel.empty())
-        self.set_attention(StackedSeries.empty(meta_model.Labels(), self.start_ts[0], self.end_ts[-1]))
-        self.set_activity(StackedSeries.empty(meta_model.Labels(), self.start_ts[0], self.end_ts[-1]))
+        self.set_attention(StackedSeries.empty(self.start_ts[0], self.end_ts[-1], self.meta_model.Labels()))
+        self.set_activity(StackedSeries.empty(self.start_ts[0], self.end_ts[-1], self.meta_model.Labels()))
 
     def set_transcript(self, transcript: pd.DataFrame):
         self.transcript = merge_transcript(transcript)
@@ -90,9 +90,9 @@ class TopicRootModel(QObject):
         self.activity.setParent(self)
         self.has_activity = True
 
-    def register_multi_time(self, ts: StackedSeries):
+    def register_multi_time(self, name, ts: StackedSeries):
         ts.setParent(self)
-        self.multi_time.append(ts)
+        self.multi_time[name] = ts
 
     def set_attention(self, attention: StackedSeries):
         self.attention = attention
@@ -374,8 +374,13 @@ class TopicRootModel(QObject):
         tcd.marked = self.marked[index]
         tcd.summary = self.summaries[index]
         tcd.speaker_role_time_distr = self.speaker_time_by_role(index)
-        tcd.aoi_activity_distr = self.multi_time[0].slice(start_ts[index], end_ts[index]).LabelDistribution()
-        tcd.aoi_attention_distr = self.multi_time[1].slice(start_ts[index], end_ts[index]).LabelDistribution()
+
+        #tcd.aoi_activity_distr = self.multi_time[0].slice(start_ts[index], end_ts[index]).LabelDistribution()
+        #tcd.aoi_attention_distr = self.multi_time[1].slice(start_ts[index], end_ts[index]).LabelDistribution()
+
+        tcd.aoi_activity_distr = self.GetTimeSeries("movement", index).LabelDistribution()
+        tcd.aoi_attention_distr = self.GetTimeSeries("attention", index).LabelDistribution()
+
         tcd.text_notes = self.quotes_note[index]
         tcd.text_dialogues = self.quotes_text[index]
         tcd.pos_start_sec = start_ts[index]
@@ -415,6 +420,22 @@ class TopicRootModel(QObject):
     @pyqtSlot(int, str)
     def SetQuoteNote(self, index, text):
         self.quotes_note[index] = text
+        
+    @pyqtSlot(list, result=list)
+    def KeywordMatches(self, keywords):
+        matched_indices = []
+
+        for segment_idx in range(len(self.start_ts)):
+            pairs = self.GetUtteranceSpeakerPairs(segment_idx)
+            segment_txt = '.'.join([p['text'].lower() for p in pairs])
+
+            for kw in keywords:
+                kw = kw.lower()
+                if kw in segment_txt:
+                    matched_indices.append(segment_idx)
+                    break
+
+        return matched_indices
 
     @pyqtSlot(int, str)
     def SetQuoteText(self, index, text):
@@ -471,6 +492,7 @@ class TopicRootModel(QObject):
         self.multi_time[0].recompute(self.active_labels)
         return self.multi_time[0].slice(start_ts, end_ts)
 
+
     @pyqtSlot(int, result=StackedSeries)
     def GetBottomMultiTime(self, index):
         start_ts = self.start_ts[index]
@@ -478,6 +500,18 @@ class TopicRootModel(QObject):
 
         self.multi_time[1].recompute(self.active_labels)
         return self.multi_time[1].slice(start_ts, end_ts)
+
+    @pyqtSlot(str, int, result=StackedSeries)
+    def GetTimeSeries(self, key, index):
+        if key not in self.multi_time:
+            logging.error(f'Cannot access time series "{key}". Currently registered timelines: {self.multi_time.keys()}.')
+            self.register_multi_time(key, StackedSeries.empty(self.MinTimestamp(), self.MaxTimestamp(), self.meta_model.Labels()))
+
+        start_ts = self.start_ts[index]
+        end_ts = self.end_ts[index]
+
+        self.multi_time[key].recompute(self.active_labels)
+        return self.multi_time[key].slice(start_ts, end_ts)
 
     @pyqtSlot(int, result=str)
     def GetNotesCard(self, index):

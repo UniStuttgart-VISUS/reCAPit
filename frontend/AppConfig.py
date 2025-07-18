@@ -16,11 +16,11 @@ COLORMAPS = {
   "PURPLE6": ["#dadaeb","#bcbddc","#9e9ac8","#807dba","#6a51a3","#4a1486"]
 }
 
-class MetaModel(QObject):
-    def __init__(self, meta, event_subtypes, parent=None):
+class AppConfig(QObject):
+    def __init__(self, manifest, user_config, event_subtypes, parent=None):
         super().__init__(parent)
 
-        aois = json.load(open(meta['sources']['areas_of_interests']['path'], 'r'))
+        aois = json.load(open(manifest['sources']['areas_of_interests']['path'], 'r'))
 
         width = aois['imageWidth']
         height = aois['imageHeight']
@@ -35,12 +35,15 @@ class MetaModel(QObject):
 
             self.shapes[s['label']] = {'points': norm_points, 'shape_type': s['shape_type']}
 
+            
+        self.manifest = manifest
+        self.colormaps = {name: COLORMAPS[cm] for name, cm in user_config['colormaps'].items()}
         self.event_subtypes = event_subtypes
-        self.colormap_aoi = COLORMAPS[meta['visualization']['colormap_aoi']]
-        self.roles = meta['roles']
-        self.ids = [r['id'] for r in meta['recordings']]
-        self.id2roles = {r['id']: r['role'] for r in meta['recordings']}
-        self.audio_src = meta['sources']['audio']['path']
+        self.colormap_aoi = COLORMAPS[user_config['colormaps']['areas_of_interests']]
+        self.roles = manifest['roles']
+        self.ids = [r['id'] for r in manifest['recordings']]
+        self.id2roles = {r['id']: r['role'] for r in manifest['recordings']}
+        self.audio_src = manifest['sources']['audio']['path']
 
     def speaker_role(self, speaker_id):
         return self.id2roles[speaker_id]
@@ -56,10 +59,10 @@ class MetaModel(QObject):
     @pyqtSlot(str, result='QVariantMap')
     def GetColormap(self, data_type):
         if data_type == 'transcript':
-            colors = COLORMAPS['PURPLE6']
+            colors = self.ColormapRole()
             domain = self.Roles()
         elif data_type == 'mapped_fixations':
-            colors = COLORMAPS['OBSERVABLE10']
+            colors = self.ColormapAOI()
             domain = self.Labels()
         else:
             colors = COLORMAPS["CATEGORY10"]
@@ -74,6 +77,20 @@ class MetaModel(QObject):
 
         mapping = {v: colors[idx*step] for idx, v in enumerate(domain)}
         return mapping
+
+    @pyqtSlot(str, result=str)
+    def CategoryOfTimeSeries(self, key):
+        categories = self.manifest['artifacts']['multi_time'][key]['categories']
+        print(categories)
+        return categories
+        #return self.colormaps[categories]
+
+    @pyqtSlot(result='QVariantMap')
+    def ColormapCategories(self):
+        return {
+            'areas_of_interests': {'colormap': self.colormaps['areas_of_interests'], 'labels': self.Labels()},
+            'roles': {'colormap': self.colormaps['roles'], 'labels': self.Roles()}
+        }
 
     @pyqtSlot(result=list)
     def ColormapAOI(self):

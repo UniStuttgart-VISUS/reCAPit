@@ -32,20 +32,21 @@ Component {
 
 Item {
     id: aoiRiver
-    required property var stacksAttention
-    required property var stacksActivity
+    required property var stacksTop
+    required property var stacksBottom
     required property var xScale
     required property real tickIntervalMajor
     required property real tickIntervalMinor
-    required property var cmap
+    required property var cmapTop
+    required property var cmapBottom
 
     Column {
         anchors.fill: parent
 
         Streamgraph {
             id: streamAttention
-            cmap: aoiRiver.cmap
-            mtsModel: stacksAttention
+            cmap: aoiRiver.cmapTop
+            mtsModel: stacksTop
             width: parent.width
             height: (parent.height - 0) / 2
             flipped: false
@@ -114,8 +115,8 @@ Item {
 
         Streamgraph {
             id: streamActivity
-            cmap: aoiRiver.cmap
-            mtsModel: stacksActivity
+            cmap: aoiRiver.cmapBottom
+            mtsModel: stacksBottom
             //anchors.top: streamAttention.bottom
             width: parent.width
             height: (parent.height - 0) / 2

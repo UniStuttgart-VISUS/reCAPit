@@ -12,7 +12,7 @@ from NotesModel import *
 from TimelineModel import *
 from TopicCard import *
 from TopicModel import *
-from MetaModel import *
+from AppConfig import *
 from CustomVideoOutput import CustomVideoOutput
 from HeatmapProvider import HeatmapOverlayProvider
 
@@ -73,22 +73,19 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
+    parser.add_argument('--user_config', type=Path, required=True)
     parser.add_argument('--state_id', type=str, required=False)
     parser.add_argument('--multisampling', type=int, required=False, default=4)
     args = parser.parse_args()
 
-    root_dir = args.meta.parent
-    meta = json.load(open(args.meta, 'r'))
+    root_dir = args.manifest.parent
+    manifest = json.load(open(args.manifest, 'r'))
+    user_config = json.load(open(args.user_config, 'r'))
 
-    transcript_file = Path(meta['artifacts']['transcript'])
-    aoi_file = Path(meta['sources']['areas_of_interests']['path'])
-    attention_file = Path(meta['artifacts']['multi_time']['attention'])
-    activity_file = Path(meta['artifacts']['multi_time']['movement'])
-    topic_segments_file = Path(meta['artifacts']['segments']['refined'])
-    notes_diffs_file = Path(meta['artifacts']['notes_diff'])
-    spatial_attention = Path(meta['artifacts']['video_overlay']['attention'])
-    spatial_movement = Path(meta['artifacts']['video_overlay']['movement'])
+    transcript_file = Path(manifest['artifacts']['transcript']['path'])
+    aoi_file = Path(manifest['sources']['areas_of_interests']['path'])
+    topic_segments_file = Path(manifest['artifacts']['segments']['refined']['path'])
 
     if not topic_segments_file.is_file(): 
         logging.error(f'Path "{topic_segments_file}" does to refer to valid topic segments!')
@@ -99,19 +96,20 @@ if __name__ == '__main__':
         exit()
 
     min_timestamp = 0
-    max_timestamp = meta['duration_sec']
+    max_timestamp = manifest['duration_sec']
 
     original_topics = pd.read_csv(topic_segments_file)
-    topics = filter_segments(original_topics, min_dur_1=30, min_dur_2=45.0)
+    topics = filter_segments(original_topics, min_dur_1=user_config['segments']['min_dur_sec'], min_dur_2=user_config['segments']['display_dur_sec'])
     topics = fill_between(topics, max_ts=max_timestamp)
 
-    dialogue_line, event_subtypes = SubjectMultimodalData.from_recordings(meta, min_timestamp, max_timestamp)
+    dialogue_line, event_subtypes = SubjectMultimodalData.from_recordings(manifest, min_timestamp, max_timestamp)
     SubjectMultimodalData.fill_missing_datatype(dialogue_line)
-    meta_model = MetaModel(meta, event_subtypes)
-    topic_segments = TopicRootModel(topics, dialogue_line, meta_model, video_src=meta['sources']['videos'])
+
+    manifest_model = AppConfig(manifest, user_config, event_subtypes)
+    topic_segments = TopicRootModel(topics, dialogue_line, manifest_model, video_src=manifest['sources']['videos'])
     
     qf = QSurfaceFormat()
-    qf.setSamples(args.multisampling)
+    qf.setSamples(user_config['multisampling'])
     QSurfaceFormat.setDefaultFormat(qf);
 
     app = QApplication(sys.argv)
@@ -120,26 +118,25 @@ if __name__ == '__main__':
     engine = QQmlApplicationEngine()
     engine.addImageProvider('thumbnails', topic_segments.thumbnail_provider)
 
-    for mt in meta['artifacts']['multi_time']:
-        path = Path(meta['artifacts']['multi_time'][mt])
+    for mt in manifest['artifacts']['multi_time']:
+        path = Path(manifest['artifacts']['multi_time'][mt]['path'])
         if not path.is_file():
             continue
 
         logging.info(f'Processing multi time signal {path} ...')
-
         signal = pd.read_csv(path)
-        stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=meta_model.Labels(), downsampling_factor=7, log_transform=False)
-        topic_segments.register_multi_time(stacks)
+        stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=manifest_model.Labels(), log_transform=user_config['streamgraph'][mt]['log_scale'])
+        topic_segments.register_multi_time(mt, stacks)
 
-    for vo in meta['artifacts']['video_overlay']:
-        path = Path(meta['artifacts']['video_overlay'][vo])
+    for vo in manifest['artifacts']['video_overlay']:
+        path = Path(manifest['artifacts']['video_overlay'][vo]['path'])
         if not path.is_file():
             continue
 
         logging.info(f'Processing video overlay {path} ...')
         heatmap_info = pd.read_csv(path)
         heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: path.parent / x)
-        heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap='CET_L16')
+        heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap=user_config['video_overlay'][vo]['colormap'])
         overlay_root = topic_segments.add_video_overlay_provider(vo, heatmap_overlay_provider)
         engine.addImageProvider(overlay_root, heatmap_overlay_provider)
 
@@ -148,7 +145,8 @@ if __name__ == '__main__':
         transcript = pd.read_csv(transcript_file)
         topic_segments.set_transcript(transcript)
 
-    if notes_diffs_file.is_file():
+    if 'notes_diff' in manifest['artifacts']:
+        notes_diffs_file = Path(manifest['artifacts']['notes_diff']['path'])
         logging.info(f'Registering notes file {notes_diffs_file} ...')
         notes_model = NotesModel(fix_notes(pd.read_csv(notes_diffs_file)))
         topic_segments.set_notes(notes_model)
@@ -158,7 +156,7 @@ if __name__ == '__main__':
         topic_segments.import_state(in_dir=Path(load_dir))
         logging.info(f'Successfully loaded state from: "{load_dir}"!')
 
-    engine.rootContext().setContextProperty('aoiModel', meta_model)
+    engine.rootContext().setContextProperty('aoiModel', manifest_model)
     engine.rootContext().setContextProperty('topicSegments', topic_segments)
     engine.load('App.qml')
 

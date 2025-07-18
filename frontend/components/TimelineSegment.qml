@@ -15,10 +15,10 @@ Rectangle {
     required property var title
     required property var dia
     required property var tan
-    required property var sac
-    required property var sat
-    required property var cmapAOI
-    required property var cmapRole
+    required property var stacksTop
+    required property var stacksBottom
+    required property var cmapTop
+    required property var cmapBottom
     required property var meta
     required property int topicIndex
     required property bool hasCard
@@ -94,11 +94,12 @@ Rectangle {
             Layout.fillWidth: true
             height: 175
 
-            cmap: root.cmapAOI
+            cmapTop: root.cmapTop
+            cmapBottom: root.cmapBottom
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
-            stacksActivity: sac
-            stacksAttention: sat
+            stacksTop: root.stacksTop
+            stacksBottom: root.stacksBottom
             xScale: xScaleG
         }
 

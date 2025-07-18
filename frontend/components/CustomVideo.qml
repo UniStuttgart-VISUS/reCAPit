@@ -34,6 +34,8 @@ Rectangle {
     property alias selectionWidth: selectionRect.width
     property alias selectionHeight: selectionRect.height
 
+    property bool hasVideoOverlays: Object.keys(videoOverlaySources).length > 0
+
     signal selectionChanged(var frame, real pos, real xpos, real ypos, real width, real height, string overlay_src)
 
     color: "black"
@@ -174,10 +176,9 @@ Rectangle {
                 height: videoOutput.contentRect.height
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-
-                source: videoOverlaySources[childGroup.checkedButton.text]
+                source: hasVideoOverlays ? videoOverlaySources[childGroup.checkedButton.text] : ""
                 // Only show overlays on top-down video
-                visible: (childGroup.checkedButton.text !== "None" && bar.currentIndex === 0)
+                visible:  hasVideoOverlays && childGroup.checkedButton.text !== "None" && bar.currentIndex === 0
             }
 
             Item {
@@ -316,6 +317,7 @@ Rectangle {
                 id: control2
 
                 property list<string> model: Object.keys(videoOverlaySources)
+                visible: hasVideoOverlays
 
                 MouseArea {
                     anchors.fill: parent
