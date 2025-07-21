@@ -101,6 +101,8 @@ ApplicationWindow {
             const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
             var targetCard = cardsRoot.children[appwin.currentEditCardIndex];
 
+            console.log("cardIndex: %1. currentEditCardIndex: %2".arg(cardIndex).arg(currentEditCardIndex));
+
             for (var idx = 0; idx < tsRoot.children.length; ++idx) {
                 if (tsRoot.children[idx].topicIndex === cardIndex) {
                     tsRoot.children[idx].title = heading;
@@ -154,7 +156,6 @@ ApplicationWindow {
         for (const [name, data] of Object.entries(cc)) {
             appwin.cmapCategories[name] = Utils.createColorscheme(data.labels, data.colormap);
         }
-
         appwin.reset.connect(resetNow);
         resetNow();
     }
@@ -202,7 +203,6 @@ ApplicationWindow {
                     //appwin.segmentIndicesMarkers[output_indices[i]] = "💡";
                 }
             }
-
             highlightHistoryEntries.setSuggestedTopicIndices(snippet_index, output_indices);
         }
     }
@@ -274,8 +274,6 @@ ApplicationWindow {
             appwin.segmentIndicesMarkers.push("");
             appwin.segmentIndicesScores.push(0);
         }
-
-        //segmentIndicesMarkers = Array(topicSegments.rowCount()).fill("");
 
         segmentIndicesWithCards = indicesWithCards;
         targetSegmentIndices = [...indicesWithCards];
@@ -421,11 +419,9 @@ ApplicationWindow {
                 const mark = topicSegments.ToggleMark(index);
 
                 if (mark) {
-                    //highlightHistoryEntries.addSelectedTopic(appwin.selectedSnippetIndex, index);
                     appwin.segmentIndicesMarkers[index] = "⭐";
                 }
                 else {
-                    //highlightHistoryEntries.removeSelectedTopic(appwin.selectedSnippetIndex, index);
                     appwin.segmentIndicesMarkers[index] = "";
                 }
             });
@@ -535,45 +531,6 @@ ApplicationWindow {
                 }
             }
         }
-
-        /*
-        Frame {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 50
-
-            background: Rectangle {
-                color: "#f8f8f8"
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 25
-
-                Repeater {
-                    //model: aoiModel.Identifiers()
-                    model: Object.keys(appwin.timeDistr)
-                    delegate: Text {
-                        required property string modelData
-                        text: "%1: %2 %".arg(modelData).arg((100*appwin.timeDistr[modelData]).toFixed())
-                    }
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-            }
-        }
-        */
-
-        /*
-        Connections {
-            target: textEditor
-            function onCodeSnippetSelected(index) { 
-                topicSegments.FindSimilarSegments(highlightHistoryEntries.get(index).text, index);
-                appwin.selectedSnippetIndex = index;
-            }
-        }
-        */
 
         RowLayout {
             Layout.fillWidth: true
@@ -707,49 +664,13 @@ ApplicationWindow {
                     return color;
                 }
 
-                /*
-                function interpolateColor(value, bins) {
-                    // Ensure bins is at least 1
-                    bins = Math.max(1, bins);
-
-                    // Clamp value between 0 and 1
-                    value = Math.max(0, Math.min(1, value));
-
-                    // Calculate the size of each bin
-                    const binSize = 1 / bins;
-
-                    // Snap value to the nearest bin
-                    const snappedValue = Math.floor(value / binSize) * binSize;
-
-                    // Define the colors as RGB components
-                    const startColor = { r: 248, g: 248, b: 248 }; // #f8f8f8
-                    const endColor = { r: 49, g: 130, b: 189 };    // #ff9933
-
-                    // Interpolate each color component using the snapped value
-                    const r = Math.round(startColor.r + snappedValue * (endColor.r - startColor.r));
-                    const g = Math.round(startColor.g + snappedValue * (endColor.g - startColor.g));
-                    const b = Math.round(startColor.b + snappedValue * (endColor.b - startColor.b));
-
-                    // Return the interpolated color as a hex string
-                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-                }
-                */
-
                 delegate: Rectangle {
                     required property int index
                     required property string modelData
 
                     width: repB.boxW
                     height: repB.boxH
-
-                    //radius: 5
-                    //color: appwin.cmapRole.get(appwin.allCardData[segmentIndicesWithCards[index]].DominantSpeakerRoleTime())
-                    //color: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? "#dadada" : "#f8f8f8"
-                    //opacity: targetSegmentIndices.includes(segmentIndicesWithCards[index]) ? 1.0 : 0.25
-
-                    //color: "#f8f8f8"
                     color: appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn")
-
                     border.color: '#d9d9d9'
 
                     MouseArea {
@@ -771,42 +692,11 @@ ApplicationWindow {
                         //text: "⭐"
                         //text: "💡"
                         text: modelData
-                        //color: "#ccc"
                         opacity: 0.5
 
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
-                    /*
-                    Image {
-                        anchors.fill: parent
-                        source: "components/icons/star.png"
-                        opacity: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? 1.0 : 0.0
-                    }
-
-                    Row {
-                        width: parent.width
-                        spacing: 5
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Image {
-                            width: 15
-                            height: 15
-
-                            source: "components/icons/star.png"
-                            opacity: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? 1.0 : 0.25
-                        }
-
-                        Text {
-                            text: appwin.allCardData[segmentIndicesWithCards[index]].DominantSpeakerTime().slice(0, 2)
-                            font.pixelSize: 10
-                            color: "#000"
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            font.capitalization: Font.AllUppercase
-                        }
-                    }
-                    */
                 }
             }
         }
