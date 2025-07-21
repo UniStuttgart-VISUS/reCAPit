@@ -83,7 +83,6 @@ class StackedSeries(QObject):
         signals = pd.DataFrame()
 
         signals[labels] = 0
-        print(labels)
         signals['timestamp [sec]'] = np.linspace(min_ts, max_ts, 100)
 
         signal_stacks = compute_stacks(signals)
