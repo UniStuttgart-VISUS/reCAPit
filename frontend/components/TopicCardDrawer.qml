@@ -23,7 +23,6 @@ Drawer {
         color: "#f0f0f0"
     }
 
-
     function formattedDialogue(utterance_speaker_pairs, target_tokens) {
         var dialogueStr = "";
         var speaker_count = {};
@@ -58,6 +57,7 @@ Drawer {
 
         dialogueTextSelection.setOutText(drawer.cardData.TextDialoguesOriginal());
         notesTextSelection.setOutText(drawer.cardData.TextNotes());
+        notesTextSelection.labels = drawer.cardData.Labels()
     }
 
     onClosed: {
@@ -237,7 +237,6 @@ Drawer {
 
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
-                    //textContentQuote: drawer.cardData.TextDialoguesOriginal()
                     textContent: drawer.formattedDialogue(topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex), keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
@@ -251,7 +250,6 @@ Drawer {
 
                     labels: drawer.cardData.Labels()
                     title: String.fromCodePoint(0x1F5D2) + "  Notes  " + String.fromCodePoint(0x1F5D2)
-                    //textContentQuote: drawer.cardData.TextNotes()
                     textContent: topicSegments.GetNotes(drawer.cardIndex).allHTML()
                     placeHolderText: "Insert excerpts from the above notes here"
                     pastedTextColor: "purple"
