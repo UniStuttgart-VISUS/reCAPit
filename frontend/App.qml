@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Effects
-import QtQuick.Controls.Basic 2.15
 import QtMultimedia
 import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
@@ -9,6 +8,8 @@ import QtQml
 import "components"
 import "components/utils.js" as Utils
 import "."
+
+import QtQuick.Controls.Basic
 
 ApplicationWindow {
     id: appwin
@@ -51,7 +52,6 @@ ApplicationWindow {
     function interpolateColor(value, colorscheme) {
         // Clamp value between 0 and 1
         value = Math.max(0, Math.min(1, value));
-
         var colors;
 
         if (colorscheme === "BuGn")
@@ -81,6 +81,81 @@ ApplicationWindow {
         return colors[binIndex];
     }
 
+    PreferencePane {
+        id: preferencePane
+        width: 640
+        height: 480
+    }
+
+    menuBar: MenuBar {
+        Menu {
+            title: qsTr("&File")
+            Action { text: qsTr("&Open...") }
+            Action { text: qsTr("&Save") }
+            Action { text: qsTr("Save &As...") }
+            MenuSeparator { }
+            Action { 
+                text: qsTr("Preferences") 
+                shortcut: StandardKey.Preferences
+                onTriggered: {
+                    preferencePane.show();
+                }
+            
+            }
+            MenuSeparator { }
+            Action { 
+                text: qsTr("&Quit") 
+                shortcut: StandardKey.Quit
+                onTriggered: {
+                    appwin.close();
+                }
+            }
+        }
+        Menu {
+            title: qsTr("&View")
+            Action { 
+                text: qsTr("Scale up") 
+                onTriggered: {
+                    scroll.contentWidth *= 1.5;
+                    appwin.reset();
+                }
+            }
+            Action { 
+                text: qsTr("Scale down") 
+                onTriggered: {
+                    scroll.contentWidth /= 1.5;
+                    appwin.reset();
+                }
+            }
+            Action { 
+                text: qsTr("Reset") 
+                onTriggered: {
+                    var targetIndices = [];
+                    for (var i = 0; i < appwin.allCardData.length; ++i) {
+                        targetIndices.push(appwin.allCardData[i].SegmentIndex());
+                    }
+
+                    for (var i = 0; i < cardsRoot.children.length; ++i) {
+                        const idx = cardsRoot.children[i].cardData.SegmentIndex();
+                        cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
+                        appwin.segmentIndicesScores[i] = 0.0;
+                    }
+                    targetSegmentIndices = targetIndices;
+                }
+            }
+        }
+        Menu {
+            title: qsTr("&Help")
+            Action { text: qsTr("&About") }
+        }
+
+        background: Rectangle {
+            implicitWidth: 40
+            implicitHeight: 40
+            color: "#f8f8f8"
+        }
+    }
+
 
     TopicCardDrawer {
         id: drawer
@@ -101,18 +176,16 @@ ApplicationWindow {
             const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
             var targetCard = cardsRoot.children[appwin.currentEditCardIndex];
 
-            console.log("cardIndex: %1. currentEditCardIndex: %2".arg(cardIndex).arg(currentEditCardIndex));
-
             for (var idx = 0; idx < tsRoot.children.length; ++idx) {
                 if (tsRoot.children[idx].topicIndex === cardIndex) {
                     tsRoot.children[idx].title = heading;
                 }
             }
-
             topicSegments.SetLabel(cardIndex, heading);
             topicSegments.SetQuoteNote(cardIndex, quotes_notes);
             topicSegments.SetQuoteText(cardIndex, quotes_text);
 
+            tsRoot.children[cardIndex].tickInfos = topicSegments.ThumbnailInfo(cardIndex);
             targetCard.cardData = topicSegments.GetTopicCardData(cardIndex)
             appwin.allCardData[cardIndex] = targetCard.cardData;
         }
@@ -146,7 +219,7 @@ ApplicationWindow {
         }
     }
 
-    Component.onCompleted: {
+    function init_colorscheme() {
         appwin.cmapAOI = Utils.createColorscheme(aoiModel.Labels(), aoiModel.ColormapAOI())
         appwin.cmapRole = Utils.createColorscheme(aoiModel.Roles(), aoiModel.ColormapRole());
 
@@ -156,8 +229,32 @@ ApplicationWindow {
         for (const [name, data] of Object.entries(cc)) {
             appwin.cmapCategories[name] = Utils.createColorscheme(data.labels, data.colormap);
         }
+    }
+
+    Component.onCompleted: {
+        init_colorscheme();
+
+        preferencePane.userConfig = aoiModel.UserConfig();
+        preferencePane.show();
         appwin.reset.connect(resetNow);
+
         resetNow();
+    }
+
+    onClosing: {
+        var user_config = preferencePane.currentUserConfig();
+    }
+
+    Connections {
+        target: preferencePane
+        function onSaveCurrentUserConfig(user_config) {
+            console.log("Save preferences");
+            console.log(user_config);
+            aoiModel.SetUserConfig(user_config);
+
+            init_colorscheme();
+            resetNow();
+        }
     }
 
     Connections{
@@ -324,15 +421,18 @@ ApplicationWindow {
                 if (ccComponent.status === Component.Error) {
                     console.log("Error loading component:", ccComponent.errorString());
                 }
+                const has_hard = topicSegments.HasCard(i);
+
                 var ccObject = ccComponent.createObject(tsRoot, 
                     {title: topicSegments.GetLabel(i), 
                     dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    stacksTop: topicSegments.GetTimeSeries("movement", i),
-                    stacksBottom:  topicSegments.GetTimeSeries("attention", i),
+                    stacksTop: topicSegments.GetTimeSeries("top", i),
+                    stacksBottom:  topicSegments.GetTimeSeries("bottom", i),
                     min_ts: start_ts,
                     max_ts: end_ts,
-                    color: topicSegments.HasCard(i) ? "#f8f8f8" : "#fff",
+                    tickInfos: topicSegments.ThumbnailInfo(i),
+                    color: has_hard ? "#f8f8f8" : "#fff",
                     meta: aoiModel,
                     cmapTop: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("movement")],
                     cmapBottom: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("attention")],
@@ -340,7 +440,7 @@ ApplicationWindow {
                     width: width,
                     height: appwin.timelineSegmentHeight,
                     topicIndex: i,
-                    hasCard: topicSegments.HasCard(i)
+                    hasCard: has_hard
                 });
                 ccObject.noteRequested.connect(appwin.createNote);
                 ccObject.cardVisibilityChanged.connect(appwin.changeCardVisibility);
@@ -433,7 +533,6 @@ ApplicationWindow {
                 console.log("Error creating CardConnector");
             }
         }
-
         appwin.segmentIndicesOfCards = indices;
     }
 
@@ -484,219 +583,159 @@ ApplicationWindow {
         }
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 0
-        
-        Frame {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 50
+    header: Frame {
+        height: 50
 
-            background: Rectangle {
-                color: "#f8f8f8"
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 25
-
-                TextInput {
-                    Layout.fillHeight: true
-                    Layout.alignment: Qt.AlignVCenter
-
-                    text: "Enter headline here ..."
-                    font.pixelSize: 26
-                    font.weight: Font.Bold
-                    font.capitalization: Font.AllUppercase
-                    color: "#c8c7d1"
-                    horizontalAlignment: Text.AlignLeft
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
-
-                Legend {
-                    title: "Roles"
-                    labels: aoiModel.Roles()
-                    cmap: appwin.cmapRole
-                }
-
-                Legend {
-                    id: aoiLegend
-                    title: "AOIs"
-                    labels: aoiModel.Labels()
-                    cmap: appwin.cmapAOI
-                }
-            }
+        background: Rectangle {
+            color: "#f8f8f8"
         }
 
         RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 0
+            anchors.fill: parent
+            spacing: 25
 
-            Legend2 {
-                id: legend
-
-                Layout.preferredWidth: 40
+            TextInput {
                 Layout.fillHeight: true
+                Layout.alignment: Qt.AlignVCenter
 
-                color: "#f8f8f8"
-                textColor: "#909090"
-                z: 200
-
-                identifiers: aoiModel.Identifiers()
-
-                h1: 175
-                h2: 30
-                h3: 60 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
-                h4: 500
+                text: "Enter headline here ..."
+                font.pixelSize: 26
+                font.weight: Font.Bold
+                font.capitalization: Font.AllUppercase
+                color: "#c8c7d1"
+                horizontalAlignment: Text.AlignLeft
             }
 
-            Flickable {
-                id: scroll
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-
-                contentWidth: 14000
-                contentHeight: 1000
-
-                flickableDirection: Flickable.HorizontalFlick
-                boundsBehavior: Flickable.StopAtBounds
-
-                clip: true
-
-                ScrollBar.horizontal: ScrollBar {
-                    policy: ScrollBar.AlwaysOn 
-                }
-
-                Shortcut {
-                    sequence: "Ctrl++"
-                    onActivated: {
-                        scroll.contentWidth *= 1.5;
-                        appwin.reset();
-                    }
-                }
-
-                Shortcut {
-                    sequence: "Ctrl+-"
-                    onActivated: {
-                        scroll.contentWidth /= 1.5;
-                        appwin.reset();
-                    }
-                }
-                Shortcut {
-                    sequence: StandardKey.Cancel
-                    onActivated: {
-                        var targetIndices = [];
-                        for (var i = 0; i < appwin.allCardData.length; ++i) {
-                            targetIndices.push(appwin.allCardData[i].SegmentIndex());
-                        }
-
-                        for (var i = 0; i < cardsRoot.children.length; ++i) {
-                            const idx = cardsRoot.children[i].cardData.SegmentIndex();
-                            cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
-                            appwin.segmentIndicesScores[i] = 0.0;
-                        }
-                        targetSegmentIndices = targetIndices;
-                    }
-                }
-
-                ColumnLayout {
-                    spacing: 0
-
-                    Item {
-                        id: tsRoot
-                        z: 5
-                        width: scroll.contentWidth
-                        height: appwin.timelineSegmentHeight
-                    }
-
-                    Item {
-                        z: 1
-                        id: cardsConnectorRoot
-                        width: scroll.contentWidth
-                        height: 50
-                    }
-
-                    Item {
-                        id: cardsRoot
-                        width: scroll.contentWidth
-                        height: 400
-                    }
-
-                    Item { Layout.fillHeight: true }    // <-- filler here
-                }
             }
 
-            ListView {
-                id: repB
+            Legend {
+                title: "Roles"
+                labels: aoiModel.Roles()
+                cmap: appwin.cmapRole
+            }
 
-                Layout.preferredWidth: boxW
-                Layout.fillHeight: true
+            Legend {
+                id: aoiLegend
+                title: "AOIs"
+                labels: aoiModel.Labels()
+                cmap: appwin.cmapAOI
+            }
+        }
+    }
 
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Legend2 {
+            id: legend
+
+            Layout.preferredWidth: 40
+            Layout.fillHeight: true
+
+            color: "#f8f8f8"
+            textColor: "#909090"
+            z: 200
+
+            identifiers: aoiModel.Identifiers()
+
+            h1: 175
+            h2: 30
+            h3: 60 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+            h4: 500
+        }
+
+        Flickable {
+            id: scroll
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            contentWidth: 14000
+            contentHeight: 1000
+
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+
+            clip: true
+
+            ScrollBar.horizontal: ScrollBar {
+                policy: ScrollBar.AlwaysOn 
+            }
+
+            ColumnLayout {
                 spacing: 0
-                //model: segmentIndicesWithCards
-                model: appwin.segmentIndicesMarkers
 
-                property real boxW: 20 
-                property real boxH: 20 
-
-                clip: true
-                
-                function interpolateColor(value) {
-                    // Clamp value between 0 and 1
-                    value = Math.max(0, Math.min(1, value));
-
-                    // Define the colors as RGB components
-                    const startColor = { r: 248, g: 248, b: 248 }; // #f8f8f8
-                    const endColor = { r: 255, g: 0, b: 0 };    // #ff9933
-
-                    // Interpolate each color component
-                    const r = Math.round(startColor.r + value * (endColor.r - startColor.r));
-                    const g = Math.round(startColor.g + value * (endColor.g - startColor.g));
-                    const b = Math.round(startColor.b + value * (endColor.b - startColor.b));
-
-                    // Return the interpolated color as a hex string
-                    const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-                    return color;
+                Item {
+                    id: tsRoot
+                    z: 5
+                    width: scroll.contentWidth
+                    height: appwin.timelineSegmentHeight
                 }
 
-                delegate: Rectangle {
-                    required property int index
-                    required property string modelData
+                Item {
+                    z: 1
+                    id: cardsConnectorRoot
+                    width: scroll.contentWidth
+                    height: 50
+                }
 
-                    width: repB.boxW
-                    height: repB.boxH
-                    color: appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn")
-                    border.color: '#d9d9d9'
+                Item {
+                    id: cardsRoot
+                    width: scroll.contentWidth
+                    height: 400
+                }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
-                            for (var i = 0; i < tsRoot.children.length; ++i) {
-                                if (tsRoot.children[i].topicIndex === segmentIndicesWithCards[index]) {
-                                    scroll.ScrollBar.horizontal.position = tsRoot.children[i].x / tsRoot.width;
-                                }
+                Item { Layout.fillHeight: true }    // <-- filler here
+            }
+        }
+
+        ListView {
+            id: repB
+
+            Layout.preferredWidth: boxW
+            Layout.fillHeight: true
+
+            spacing: 0
+            model: appwin.segmentIndicesMarkers
+
+            property real boxW: 20 
+            property real boxH: 20 
+
+            clip: true
+            
+            delegate: Rectangle {
+                required property int index
+                required property string modelData
+
+                width: repB.boxW
+                height: repB.boxH
+                color: (index < appwin.segmentIndicesScores.length) ? appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
+                border.color: '#d9d9d9'
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
+                        for (var i = 0; i < tsRoot.children.length; ++i) {
+                            if (tsRoot.children[i].topicIndex === segmentIndicesWithCards[index]) {
+                                scroll.ScrollBar.horizontal.position = tsRoot.children[i].x / tsRoot.width;
                             }
                         }
                     }
+                }
 
-                    Label {
-                        anchors.fill: parent
-                        font.pixelSize: 16
+                Label {
+                    anchors.fill: parent
+                    font.pixelSize: 16
 
-                        //text: "⭐"
-                        //text: "💡"
-                        text: modelData
-                        opacity: 0.5
+                    text: modelData
+                    opacity: 0.5
 
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }
