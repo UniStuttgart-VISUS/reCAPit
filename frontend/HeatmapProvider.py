@@ -45,7 +45,6 @@ def create_heatmap_img(heatmap, colormap=None):
 
     heatmap = np.clip(heatmap, 0, 1)
     heatmap_img = colormap(heatmap)
-    print(heatmap_img.shape)
     heatmap_img[..., 3] = heatmap
 
     heatmap_img = (255 * heatmap_img).astype(np.uint8)

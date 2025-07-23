@@ -24,6 +24,7 @@ Rectangle {
     required property bool hasCard
     required property int min_ts
     required property int max_ts
+    required property var tickInfos
 
     property int cardIndex : -1
     property bool editing: false
@@ -98,6 +99,7 @@ Rectangle {
             cmapBottom: root.cmapBottom
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
+            tickInfos: root.tickInfos
             stacksTop: root.stacksTop
             stacksBottom: root.stacksBottom
             xScale: xScaleG

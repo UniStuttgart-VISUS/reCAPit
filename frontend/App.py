@@ -1,28 +1,27 @@
-import sys
-import pandas as pd
-import json
 import argparse
-import threading
 import datetime
+import json
 import logging
-
-from StackedSeries import StackedSeries
+import sys
+import threading
 from pathlib import Path
-from NotesModel import *
-from TimelineModel import *
-from TopicCard import *
-from TopicModel import *
+
+import pandas as pd
 from AppConfig import *
 from CustomVideoOutput import CustomVideoOutput
 from HeatmapProvider import HeatmapOverlayProvider
-
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QSurfaceFormat 
+from NotesModel import *
+from PyQt6.QtGui import QSurfaceFormat
 from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterType
+from PyQt6.QtWidgets import QApplication
+from SegmentModel import *
+from StackedSeries import StackedSeries
+from TimelineModel import *
+from TopicCard import *
 
 
 class WorkerThread(threading.Thread):
-    def __init__(self, result_queue, model : TopicRootModel, daemon=False):
+    def __init__(self, result_queue, model : SegmentModel, daemon=False):
         super().__init__(daemon=daemon)
         self.result_queue = result_queue
         self.model = model
@@ -90,7 +89,7 @@ if __name__ == '__main__':
     if not topic_segments_file.is_file(): 
         logging.error(f'Path "{topic_segments_file}" does to refer to valid topic segments!')
         exit()
-            
+
     if not aoi_file.is_file():
         logging.error(f'Path "{topic_segments_file}" does to refer to valid AOIs!')
         exit()
@@ -100,33 +99,39 @@ if __name__ == '__main__':
 
     original_topics = pd.read_csv(topic_segments_file)
     topics = filter_segments(original_topics, min_dur_1=user_config['segments']['min_dur_sec'], min_dur_2=user_config['segments']['display_dur_sec'])
+    #topics = original_topics
     topics = fill_between(topics, max_ts=max_timestamp)
 
     dialogue_line, event_subtypes = SubjectMultimodalData.from_recordings(manifest, min_timestamp, max_timestamp)
     SubjectMultimodalData.fill_missing_datatype(dialogue_line)
 
     manifest_model = AppConfig(manifest, user_config, event_subtypes)
-    topic_segments = TopicRootModel(topics, dialogue_line, manifest_model, video_src=manifest['sources']['videos'])
-    
+    segment_model = SegmentModel(topics, dialogue_line, manifest_model, video_src=manifest['sources']['videos'])
+
     qf = QSurfaceFormat()
     qf.setSamples(user_config['multisampling'])
-    QSurfaceFormat.setDefaultFormat(qf);
+    QSurfaceFormat.setDefaultFormat(qf)
 
     app = QApplication(sys.argv)
     qmlRegisterType(CustomVideoOutput, 'com.kochme.media', 1, 0, 'CustomVideoOutput')
 
     engine = QQmlApplicationEngine()
-    engine.addImageProvider('thumbnails', topic_segments.thumbnail_provider)
+    engine.addImageProvider('thumbnails', segment_model.thumbnail_provider)
 
-    for mt in manifest['artifacts']['multi_time']:
-        path = Path(manifest['artifacts']['multi_time'][mt]['path'])
+    top_conf = user_config['streamgraph']['top']
+    bottom_conf = user_config['streamgraph']['bottom']
+
+    #for mt in manifest['artifacts']['multi_time']:
+    for mt, conf in user_config['streamgraph'].items():
+
+        path = Path(manifest['artifacts']['multi_time'][conf['source']]['path'])
         if not path.is_file():
             continue
 
         logging.info(f'Processing multi time signal {path} ...')
         signal = pd.read_csv(path)
         stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=manifest_model.Labels(), log_transform=user_config['streamgraph'][mt]['log_scale'])
-        topic_segments.register_multi_time(mt, stacks)
+        segment_model.register_multi_time(mt, stacks)
 
     for vo in manifest['artifacts']['video_overlay']:
         path = Path(manifest['artifacts']['video_overlay'][vo]['path'])
@@ -137,27 +142,27 @@ if __name__ == '__main__':
         heatmap_info = pd.read_csv(path)
         heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: path.parent / x)
         heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap=user_config['video_overlay'][vo]['colormap'])
-        overlay_root = topic_segments.add_video_overlay_provider(vo, heatmap_overlay_provider)
+        overlay_root = segment_model.add_video_overlay_provider(vo, heatmap_overlay_provider)
         engine.addImageProvider(overlay_root, heatmap_overlay_provider)
 
     if transcript_file.is_file():
         logging.info(f'Registering transcript {transcript_file} ...')
         transcript = pd.read_csv(transcript_file)
-        topic_segments.set_transcript(transcript)
+        segment_model.set_transcript(transcript)
 
     if 'notes_diff' in manifest['artifacts']:
         notes_diffs_file = Path(manifest['artifacts']['notes_diff']['path'])
         logging.info(f'Registering notes file {notes_diffs_file} ...')
         notes_model = NotesModel(fix_notes(pd.read_csv(notes_diffs_file)))
-        topic_segments.set_notes(notes_model)
+        segment_model.set_notes(notes_model)
 
     if args.state_id is not None:
         load_dir = root_dir / 'states' / args.state_id
-        topic_segments.import_state(in_dir=Path(load_dir))
+        segment_model.import_state(in_dir=Path(load_dir))
         logging.info(f'Successfully loaded state from: "{load_dir}"!')
 
     engine.rootContext().setContextProperty('aoiModel', manifest_model)
-    engine.rootContext().setContextProperty('topicSegments', topic_segments)
+    engine.rootContext().setContextProperty('topicSegments', segment_model)
     engine.load('App.qml')
 
     window = engine.rootObjects()[0]
@@ -171,7 +176,7 @@ if __name__ == '__main__':
         out_dir = root_dir / 'states' / curr_date / curr_time
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        if topic_segments.export_state(out_dir=out_dir):
+        if segment_model.export_state(out_dir=out_dir):
             logging.info(f'Successfully saved current state to: "{out_dir}"!')
 
     app.aboutToQuit.connect(quitApp)

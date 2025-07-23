@@ -1,7 +1,5 @@
 from PyQt6.QtCore import QObject, pyqtSlot
 import numpy as np
-from copy import deepcopy
-
 
 class TopicCardData(QObject):
     def __init__(self, parent=None):
@@ -112,5 +110,4 @@ class TopicCardData(QObject):
 
     @pyqtSlot(result='QVariantMap')
     def AoiAttentionDistribution(self):
-        print(self.aoi_attention_distr)
         return self.aoi_attention_distr

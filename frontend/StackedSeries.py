@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import decimate, resample
+from scipy.signal import resample
 from PyQt6.QtCore import QObject, pyqtSlot
 
     

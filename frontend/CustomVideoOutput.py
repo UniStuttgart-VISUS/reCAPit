@@ -1,6 +1,6 @@
-from PyQt6.QtCore import QObject, pyqtSlot, pyqtProperty, pyqtSignal, QVariant, Qt, QUrl
-from PyQt6.QtMultimedia import QVideoSink, QMediaPlayer, QVideoFrame
-from PyQt6.QtQuick import QQuickItem, QQuickPaintedItem
+from PyQt6.QtCore import pyqtProperty
+from PyQt6.QtMultimedia import QVideoSink
+from PyQt6.QtQuick import QQuickPaintedItem
 
 
 class CustomVideoOutput(QQuickPaintedItem):
