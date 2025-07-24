@@ -1,6 +1,9 @@
 preprocessing/scene_test/
 preprocessing/annotations/diffs
 preprocessing/annotations/autosaves-test
+
+ruff.toml
+
 *.docm
 *.csv
 *.docx
