@@ -39,28 +39,6 @@ class WorkerThread(threading.Thread):
             self.model.process_query_results(res)
 
 
-def filter_segments(topics, min_dur_1, min_dur_2):
-    topics['Displayed'] = True
-    topics = topics[topics['duration [sec]'] > min_dur_1]
-    topics.loc[topics['duration [sec]'] < min_dur_2, 'Displayed'] = False
-    return topics
-
-
-def fill_between(topics, max_ts):
-    last_ts = 0
-    new_rows = []
-    for _, row in topics.iterrows():
-        if row['start timestamp [sec]'] - last_ts > 0:
-            new_rows.append((last_ts, row['start timestamp [sec]'], row['start timestamp [sec]'] - last_ts, 0, 0, "", "", False))
-        last_ts = row['end timestamp [sec]']
-
-    if last_ts < max_ts:
-        new_rows.append((last_ts, max_ts, max_ts - last_ts, 0, 0, "", "", False))
-
-    new_rows = pd.DataFrame(data=new_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary', 'Displayed'])
-    return pd.concat([new_rows, topics]).sort_values(by='start timestamp [sec]')
-
-
 def fix_notes(notes):
     notes['center timestamp [sec]'] = notes['start timestamp [sec]'] + (notes['end timestamp [sec]'] - notes['start timestamp [sec]']) * 0.5
     notes['label'] = ''
@@ -78,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--multisampling', type=int, required=False, default=4)
     args = parser.parse_args()
 
-    root_dir = args.manifest.parent
+    root_dir = args.user_config.parent
     manifest = json.load(open(args.manifest, 'r'))
     user_config = json.load(open(args.user_config, 'r'))
 
@@ -97,16 +75,13 @@ if __name__ == '__main__':
     min_timestamp = 0
     max_timestamp = manifest['duration_sec']
 
-    original_topics = pd.read_csv(topic_segments_file)
-    topics = filter_segments(original_topics, min_dur_1=user_config['segments']['min_dur_sec'], min_dur_2=user_config['segments']['display_dur_sec'])
-    #topics = original_topics
-    topics = fill_between(topics, max_ts=max_timestamp)
-
+    segments = pd.read_csv(topic_segments_file)
     dialogue_line, event_subtypes = SubjectMultimodalData.from_recordings(manifest, min_timestamp, max_timestamp)
     SubjectMultimodalData.fill_missing_datatype(dialogue_line)
 
     manifest_model = AppConfig(manifest, user_config, event_subtypes)
-    segment_model = SegmentModel(topics, dialogue_line, manifest_model, video_src=manifest['sources']['videos'])
+    segment_model = SegmentModel(segments, dialogue_line, manifest_model, video_src=manifest['sources']['videos'])
+    segment_model.AdjustFilter(manifest_model.SegmentMinDurSec(), manifest_model.SegmentDisplayDurSec())
 
     qf = QSurfaceFormat()
     qf.setSamples(user_config['multisampling'])
@@ -118,12 +93,7 @@ if __name__ == '__main__':
     engine = QQmlApplicationEngine()
     engine.addImageProvider('thumbnails', segment_model.thumbnail_provider)
 
-    top_conf = user_config['streamgraph']['top']
-    bottom_conf = user_config['streamgraph']['bottom']
-
-    #for mt in manifest['artifacts']['multi_time']:
     for mt, conf in user_config['streamgraph'].items():
-
         path = Path(manifest['artifacts']['multi_time'][conf['source']]['path'])
         if not path.is_file():
             continue
@@ -157,9 +127,9 @@ if __name__ == '__main__':
         segment_model.set_notes(notes_model)
 
     if args.state_id is not None:
-        load_dir = root_dir / 'states' / args.state_id
+        load_dir = root_dir / 'saved_state' / args.state_id
         segment_model.import_state(in_dir=Path(load_dir))
-        logging.info(f'Successfully loaded state from: "{load_dir}"!')
+        logging.info(f'Successfully loaded save file: "{load_dir}"!')
 
     engine.rootContext().setContextProperty('aoiModel', manifest_model)
     engine.rootContext().setContextProperty('topicSegments', segment_model)
@@ -173,8 +143,11 @@ if __name__ == '__main__':
         curr_date = datetime.datetime.now().strftime('%Y-%m-%d')
         curr_time = datetime.datetime.now().strftime('%H-%M-%S')
 
-        out_dir = root_dir / 'states' / curr_date / curr_time
+        out_dir = root_dir / 'saved_state' / curr_date / curr_time
         out_dir.mkdir(parents=True, exist_ok=True)
+
+        if manifest_model.export_user_config(args.user_config):
+            logging.info(f'Successfully saved user config to: "{args.user_config}"!')
 
         if segment_model.export_state(out_dir=out_dir):
             logging.info(f'Successfully saved current state to: "{out_dir}"!')

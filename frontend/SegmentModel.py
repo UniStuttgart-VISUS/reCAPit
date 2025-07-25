@@ -4,11 +4,9 @@ import shapely
 import json
 import logging
 
-from PyQt6.QtCore import QObject, pyqtSlot, QSize, pyqtSignal, QVariant
-from PyQt6.QtCore import QMetaType 
+from PyQt6.QtCore import QObject, pyqtSlot, QSize, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtMultimedia import QVideoSink
-
 
 from utils import linear_layout, blend_images, longest_common_substring
 from HeatmapProvider import HeatmapOverlayProvider
@@ -37,6 +35,28 @@ def merge_transcript(df, time_delta_threshold=1.0):
     return pd.DataFrame(merged_rows)
 
 
+def filter_segments(topics, min_dur_1, min_dur_2):
+    topics['Displayed'] = True
+    topics = topics[topics['duration [sec]'] > min_dur_1]
+    topics.loc[topics['duration [sec]'] < min_dur_2, 'Displayed'] = False
+    return topics
+
+
+def fill_between(topics, max_ts):
+    last_ts = 0
+    new_rows = []
+    for _, row in topics.iterrows():
+        if row['start timestamp [sec]'] - last_ts > 0:
+            new_rows.append((last_ts, row['start timestamp [sec]'], row['start timestamp [sec]'] - last_ts, 0, 0, "", "", False))
+        last_ts = row['end timestamp [sec]']
+
+    if last_ts < max_ts:
+        new_rows.append((last_ts, max_ts, max_ts - last_ts, 0, 0, "", "", False))
+
+    new_rows = pd.DataFrame(data=new_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary', 'Displayed'])
+    return pd.concat([new_rows, topics]).sort_values(by='start timestamp [sec]')
+
+
 class SegmentModel(QObject):
     queryResultsAvailable = pyqtSignal(int, list, list)
 
@@ -47,25 +67,16 @@ class SegmentModel(QObject):
         self.meta_model = meta_model
         self.meta_model.setParent(self)
 
-        self.segments = segments
-        self.start_ts = self.segments["start timestamp [sec]"].tolist()
-        self.end_ts = self.segments["end timestamp [sec]"].tolist()
-        self.titles = self.segments["title"].tolist()
-        self.summaries = self.segments["summary"].tolist()
-        self.has_card = self.segments["Displayed"].tolist()
-        self.video_src = video_src
-        self.quotes_text = [{"original": "", "formatted": ""}] * len(self.start_ts)
-        self.quotes_note = [""] * len(self.start_ts)
-        self.thumbnail_provider = ThumbnailProvider()
-        self.thumbnail_info = [[] for _ in self.start_ts]
-        self.marked = [False] * len(self.start_ts)
-        self.labels = [[] for _ in self.start_ts]
-        self.card_sizes = [385 for _ in self.start_ts]
+        self.original_segments = segments.copy()
+        self.original_segments['Displayed'] = True
+
         self.active_labels = self.meta_model.Labels()
         self.multimodal_recordings = multimodal_recordings
         self.multi_time = {}
         self.transcript = pd.DataFrame()
+        self.thumbnail_provider = ThumbnailProvider()
 
+        self.video_src = video_src
         self.has_attention = False
         self.has_activity = False
         self.has_gaze_heatmaps = False
@@ -74,6 +85,8 @@ class SegmentModel(QObject):
 
         for multimodal_data in multimodal_recordings.values():
             multimodal_data.setParent(self)
+
+        self.init_segments(self.original_segments)
 
         self.set_notes(NotesModel.empty())
         self.set_attention(
@@ -86,6 +99,27 @@ class SegmentModel(QObject):
                 self.start_ts[0], self.end_ts[-1], self.meta_model.Labels()
             )
         )
+
+    def init_segments(self, segments):
+        self.segments = fill_between(segments, max_ts=self.MaxTimestamp())
+        num_segments = len(self.segments.index)
+
+        self.start_ts = self.segments["start timestamp [sec]"].tolist()
+        self.end_ts = self.segments["end timestamp [sec]"].tolist()
+        self.titles = self.segments["title"].tolist()
+        self.summaries = self.segments["summary"].tolist()
+        self.has_card = self.segments["Displayed"].tolist()
+
+        self.quotes_text = [{"original": "", "formatted": ""}] * num_segments
+        self.quotes_note = [""] * num_segments
+        self.thumbnail_info = [[] for _ in range(num_segments)]
+        self.marked = [False] * num_segments
+        self.labels = [[] for _ in range(num_segments)]
+        self.card_sizes = [385] * num_segments
+
+        for provider in self.heatmap_overlay_providers.values():
+            provider.segments_start = self.start_ts
+            provider.segments_end = self.end_ts
 
     def set_transcript(self, transcript: pd.DataFrame):
         self.transcript = merge_transcript(transcript)
@@ -124,6 +158,10 @@ class SegmentModel(QObject):
         self.heatmap_overlay_providers[name].segments_start = self.start_ts
         self.heatmap_overlay_providers[name].segments_end = self.end_ts
         return f"heatmaps_{name}"
+    
+    @pyqtSlot(str, str)
+    def UpdateOverlayColormap(self, name, cmap_str):
+        self.heatmap_overlay_providers[name].set_colormap(cmap_str)
 
     """
     @pyqtSlot(int, result=list)
@@ -276,6 +314,14 @@ class SegmentModel(QObject):
         }
 
         self.thumbnail_info[segmentIdx].append(info)
+
+
+    @pyqtSlot(float, float)
+    def AdjustFilter(self, min_dur_sec, display_dur_sec):
+        segments = self.original_segments.copy()
+        segments = filter_segments(segments, min_dur_sec, display_dur_sec)
+        self.init_segments(segments)
+
 
     @pyqtSlot(int, result=list)
     def ThumbnailInfo(self, segment_idx):

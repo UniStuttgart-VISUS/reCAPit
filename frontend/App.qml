@@ -6,7 +6,9 @@ import QtQuick.Shapes 1.2
 import QtQml
 
 import "components"
+import "windows"
 import "components/utils.js" as Utils
+import "components/colorschemes.js" as Colorschemes
 import "."
 
 import QtQuick.Controls.Basic
@@ -25,9 +27,7 @@ ApplicationWindow {
     readonly property var timelineTopMargin: 50
     readonly property var rootTopMargin: 25
 
-    property var cmapAOI
-    property var cmapRole
-    property var cmapCategories: {}
+    property var cmapGlobal: {}
 
     property int selectedSnippetIndex : -1
 
@@ -81,7 +81,7 @@ ApplicationWindow {
         return colors[binIndex];
     }
 
-    PreferencePane {
+    PreferenceWindow {
         id: preferencePane
         width: 640
         height: 480
@@ -151,7 +151,7 @@ ApplicationWindow {
 
         background: Rectangle {
             implicitWidth: 40
-            implicitHeight: 40
+            implicitHeight: 30
             color: "#f8f8f8"
         }
     }
@@ -170,7 +170,7 @@ ApplicationWindow {
 
         cardIndex: appwin.segmentIndicesOfCards[appwin.currentEditCardIndex]
         cardData: appwin.allCardData[cardIndex]
-        colormapAOIs: appwin.cmapAOI
+        colormap: appwin.cmapGlobal
 
         onSaveChanges: (heading, quotes_text, quotes_notes) => {
             const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
@@ -220,15 +220,16 @@ ApplicationWindow {
     }
 
     function init_colorscheme() {
-        appwin.cmapAOI = Utils.createColorscheme(aoiModel.Labels(), aoiModel.ColormapAOI())
-        appwin.cmapRole = Utils.createColorscheme(aoiModel.Roles(), aoiModel.ColormapRole());
-
         const cc = aoiModel.ColormapCategories()
-        appwin.cmapCategories = new Object()
+        var cmapGlobal = new Object()
 
-        for (const [name, data] of Object.entries(cc)) {
-            appwin.cmapCategories[name] = Utils.createColorscheme(data.labels, data.colormap);
+        for (const data of Object.values(cc)) {
+            const mappedColors = Colorschemes.createColorscheme(data.labels, data.colormap);
+            for (const [val, color] of mappedColors) {
+                cmapGlobal[val] = color;
+            }
         }
+        appwin.cmapGlobal = cmapGlobal;
     }
 
     Component.onCompleted: {
@@ -241,18 +242,18 @@ ApplicationWindow {
         resetNow();
     }
 
-    onClosing: {
-        var user_config = preferencePane.currentUserConfig();
-    }
-
     Connections {
         target: preferencePane
         function onSaveCurrentUserConfig(user_config) {
-            console.log("Save preferences");
-            console.log(user_config);
             aoiModel.SetUserConfig(user_config);
 
             init_colorscheme();
+
+            for (const name of Object.keys(user_config["video_overlay"])) {
+                topicSegments.UpdateOverlayColormap(name, user_config["video_overlay"][name]["colormap"]);
+            }
+
+            topicSegments.AdjustFilter(aoiModel.SegmentMinDurSec(), aoiModel.SegmentDisplayDurSec());
             resetNow();
         }
     }
@@ -434,8 +435,7 @@ ApplicationWindow {
                     tickInfos: topicSegments.ThumbnailInfo(i),
                     color: has_hard ? "#f8f8f8" : "#fff",
                     meta: aoiModel,
-                    cmapTop: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("movement")],
-                    cmapBottom: appwin.cmapCategories[aoiModel.CategoryOfTimeSeries("attention")],
+                    cmap: appwin.cmapGlobal,
                     x: currX,
                     width: width,
                     height: appwin.timelineSegmentHeight,
@@ -500,8 +500,7 @@ ApplicationWindow {
                                                         cardData: cardData, 
                                                         segmentIndex: indices[i],
                                                         cardIndex: i,
-                                                        cmapAOI: appwin.cmapAOI,
-                                                        cmapRole: appwin.cmapRole,
+                                                        cmap: appwin.cmapGlobal,
                                                         hasActivity: topicSegments.HasActivity(),
                                                         hasAttention: topicSegments.HasAttention(),
                                                     });
@@ -549,7 +548,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/reset.png"
+            source: "../icons/reset.png"
 
             onClicked: function() {
                 appwin.reset();
@@ -562,7 +561,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/compress.png"
+            source: "../icons/compress.png"
 
             onClicked: function() {
                 appwin.compressSegments();
@@ -575,7 +574,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/search.png"
+            source: "../icons/search.png"
 
             onClicked: function() {
                 keywordDialog.open();
@@ -611,17 +610,17 @@ ApplicationWindow {
                 Layout.fillHeight: true
             }
 
-            Legend {
+            LegendCategories {
                 title: "Roles"
                 labels: aoiModel.Roles()
-                cmap: appwin.cmapRole
+                cmap: appwin.cmapGlobal
             }
 
-            Legend {
+            LegendCategories {
                 id: aoiLegend
                 title: "AOIs"
                 labels: aoiModel.Labels()
-                cmap: appwin.cmapAOI
+                cmap: appwin.cmapGlobal
             }
         }
     }
@@ -630,7 +629,7 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
-        Legend2 {
+        LegendViews {
             id: legend
 
             Layout.preferredWidth: 40
