@@ -87,6 +87,10 @@ ApplicationWindow {
         height: 480
     }
 
+    AboutWindow {
+        id: aboutWindow
+    }
+
     menuBar: MenuBar {
         Menu {
             title: qsTr("&File")
@@ -146,7 +150,12 @@ ApplicationWindow {
         }
         Menu {
             title: qsTr("&Help")
-            Action { text: qsTr("&About") }
+            Action { 
+                text: qsTr("&About") 
+                onTriggered: {
+                    aboutWindow.show();
+                }
+            }
         }
 
         background: Rectangle {
