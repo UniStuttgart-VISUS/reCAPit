@@ -54,7 +54,7 @@ RowLayout {
                         width: parent.height
                         height: parent.height
                         radius: parent.height
-                        color: legend.cmap.get(modelData)
+                        color: legend.cmap[modelData]
                         opacity: currLabel.isActive ? 1 : 0.5
 
                         MouseArea {

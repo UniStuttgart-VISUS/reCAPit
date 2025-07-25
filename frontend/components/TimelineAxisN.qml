@@ -93,21 +93,21 @@ Item {
                 source: {
                     if (!modelData2.IsOfflineNote(index)) {
                         if (modelData2.HasInsertions(index) && modelData2.HasDeletions(index))
-                            return "icons/insert_delete.png"
+                            return "../icons/insert_delete.png"
                         if (modelData2.HasInsertions(index))
-                            return "icons/insert.png"
+                            return "../icons/insert.png"
                         if (modelData2.HasDeletions(index))
-                            return "icons/delete.png"
+                            return "../icons/delete.png"
                     }
                     else {
                         if (modelData2.Label(index) === 'none')
-                            return "icons/note.png"
+                            return "../icons/note.png"
 
                         if (modelData2.Label(index) === 'important')
-                            return "icons/star.png"
+                            return "../icons/star.png"
                     }
 
-                    return "icons/note.png"
+                    return "../icons/note.png"
                 }
                 visible: modelData2.HasInsertions(index) || modelData2.HasDeletions(index)
                 /*

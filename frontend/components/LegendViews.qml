@@ -16,9 +16,6 @@ Rectangle {
     required property int h3
     required property int h4
 
-    //opacity: 0.5
-
-
     Column {
         anchors.fill: parent
 

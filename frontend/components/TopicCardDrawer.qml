@@ -13,7 +13,7 @@ Drawer {
 
     required property int cardIndex
     required property var cardData
-    required property var colormapAOIs
+    required property var colormap
 
     property var drawerOpened: false
 
@@ -106,7 +106,7 @@ Drawer {
                     active: drawer.drawerOpened
                     topDownSource: topicSegments.VideoSourceTopDown()
                     peripheralSources: topicSegments.VideoSourcesPeripheral()
-                    colormapAOIs: drawer.colormapAOIs
+                    colormapAOIs: drawer.colormap
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
                         topicSegments.RegisterVideoCrop(frame, pos_ms, drawer.cardIndex, xpos, ypos, width, height, overlay_src); 

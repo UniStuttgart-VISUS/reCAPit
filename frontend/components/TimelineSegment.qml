@@ -17,8 +17,7 @@ Rectangle {
     required property var tan
     required property var stacksTop
     required property var stacksBottom
-    required property var cmapTop
-    required property var cmapBottom
+    required property var cmap
     required property var meta
     required property int topicIndex
     required property bool hasCard
@@ -95,8 +94,8 @@ Rectangle {
             Layout.fillWidth: true
             height: 175
 
-            cmapTop: root.cmapTop
-            cmapBottom: root.cmapBottom
+            cmapTop: root.cmap
+            cmapBottom: root.cmap
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
             tickInfos: root.tickInfos
@@ -175,7 +174,7 @@ Rectangle {
                             width: root.width
                             height: appwin.timelineHeight
 
-                            cmap: root.meta.GetColormap(currDatatype)
+                            cmap: root.cmap
                             modelData: dia[repDataTypes.recIds[index]].SubjectData(currDatatype)
                             xScale: xScaleG
                         }
@@ -247,7 +246,7 @@ Rectangle {
 
             Image {
                 id: lineCursor
-                source: "icons/add.png"
+                source: "../icons/add.png"
                 z: 1000
                 width: 35
                 height: 35

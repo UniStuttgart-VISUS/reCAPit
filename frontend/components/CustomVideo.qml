@@ -159,8 +159,8 @@ Rectangle {
                         }
 
                         ShapePath {
-                            fillColor: makeColorTransparent(videoRoot.colormapAOIs.get(modelData), videoRoot.aoiOverlayEnabled ? "88" : "00")
-                            strokeColor: makeColorTransparent(videoRoot.colormapAOIs.get(modelData), videoRoot.aoiOverlayEnabled ? "ff" : "00")
+                            fillColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "88" : "00")
+                            strokeColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "ff" : "00")
                             strokeWidth: 1
 
                             PathPolyline {
@@ -328,7 +328,7 @@ Rectangle {
 
                 Image {
                     anchors.fill: parent
-                    source: "icons/gear.png"
+                    source: "../icons/gear.png"
                     fillMode: Image.PreserveAspectFit
                 }
 
@@ -369,7 +369,7 @@ Rectangle {
                 Layout.preferredHeight: 20
                 Layout.preferredWidth: 20
 
-                source: videoRoot.selectionMode === 0 ? "icons/box_inactive.png" : "icons/box_active.png"
+                source: videoRoot.selectionMode === 0 ? "../icons/box_inactive.png" : "../icons/box_active.png"
 
                 MouseArea {
                     anchors.fill: parent
@@ -391,7 +391,7 @@ Rectangle {
                 Layout.preferredHeight: 20
                 Layout.preferredWidth: 20
 
-                source: videoRoot.aoiOverlayEnabled ? "icons/aoi_active.png" : "icons/aoi_inactive.png"
+                source: videoRoot.aoiOverlayEnabled ? "../icons/aoi_active.png" : "../icons/aoi_inactive.png"
 
                 MouseArea {
                     anchors.fill: parent
