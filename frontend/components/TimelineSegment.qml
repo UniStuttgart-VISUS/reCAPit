@@ -7,7 +7,7 @@ import QtQuick.Shapes 1.2
 import QtQml
 
 import "."
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Rectangle {
     id: root

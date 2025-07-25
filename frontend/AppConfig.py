@@ -1,7 +1,5 @@
 import numpy as np
 import json
-import logging
-import colorschemes 
 
 from PyQt6.QtCore import QObject, QPointF, pyqtSlot
 
@@ -27,17 +25,12 @@ class AppConfig(QObject):
 
         self.user_config = user_config
         self.manifest = manifest
-        self.init_colormaps(user_config)
         self.event_subtypes = event_subtypes
         self.roles = manifest['roles']
         self.ids = [r['id'] for r in manifest['recordings']]
         self.id2roles = {r['id']: r['role'] for r in manifest['recordings']}
         self.audio_src = manifest['sources']['audio']['path']
 
-        
-    def init_colormaps(self, user_config):
-        self.colormaps = {name: colorschemes.CATEGORICAL[cm] for name, cm in user_config['colormaps'].items()}
-        self.colormap_aoi = colorschemes.CATEGORICAL[user_config['colormaps']['areas_of_interests']]
         
     def export_user_config(self, path):
         try:
@@ -49,14 +42,6 @@ class AppConfig(QObject):
 
     def speaker_role(self, speaker_id):
         return self.id2roles[speaker_id]
-
-    @pyqtSlot(result='QVariant')
-    def SupportedColormapsCategorical(self):
-        return colorschemes.CATEGORICAL
-
-    @pyqtSlot(result='QVariant')
-    def SupportedColormapsContinuous(self):
-        return colorschemes.CONTINUOUS
 
     @pyqtSlot(result=float)
     def SegmentMinDurSec(self):
@@ -96,27 +81,6 @@ class AppConfig(QObject):
             return ""
         x = art[data_type]['categories']
         return x
-
-    @pyqtSlot(str, result='QVariantMap')
-    def GetColormap(self, data_type):
-        if data_type == 'transcript':
-            colors = self.ColormapRole()
-            domain = self.Roles()
-        elif data_type == 'mapped_fixations':
-            colors = self.ColormapAOI()
-            domain = self.Labels()
-        else:
-            colors = colorschemes.CATEGORICAL["CATEGORY10"]
-
-        step = len(colors) // len(domain)
-
-        if step == 0:
-            logging.warning("Not enough colors for all domains!")
-            fill_colors = ['#000'] * (len(domain) - len(colors)) 
-            colors = colors + fill_colors
-            step = 1
-
-        return {v: colors[idx*step] for idx, v in enumerate(domain)}
 
     @pyqtSlot(str, result=str)
     def CategoryOfTimeSeries(self, key):

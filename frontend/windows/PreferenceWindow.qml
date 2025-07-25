@@ -1,5 +1,5 @@
 import "../components"
-import "../components/colorschemes.js" as Colorschemes
+import "../js/colorschemes.js" as Colorschemes
 
 import QtQuick 2.15
 import QtQuick.Controls.Basic

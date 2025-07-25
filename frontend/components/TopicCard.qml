@@ -5,7 +5,7 @@ import QtQuick.Shapes 1.2
 import QtQuick.Effects
 
 import "."
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Item {
     id: topicCardRoot

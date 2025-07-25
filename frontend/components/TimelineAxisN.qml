@@ -4,7 +4,7 @@ import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
 import QtQml
 
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 import "."
 
 // Timeline axis

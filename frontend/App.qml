@@ -7,8 +7,8 @@ import QtQml
 
 import "components"
 import "windows"
-import "components/utils.js" as Utils
-import "components/colorschemes.js" as Colorschemes
+import "js/utils.js" as Utils
+import "js/colorschemes.js" as Colorschemes
 import "."
 
 import QtQuick.Controls.Basic

@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.2
 
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Item {
     id: timeline

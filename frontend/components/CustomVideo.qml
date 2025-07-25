@@ -9,7 +9,7 @@ import QtQuick.Shapes 1.2
 import com.kochme.media 1.0
 
 import "."
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Rectangle {
     id: videoRoot
