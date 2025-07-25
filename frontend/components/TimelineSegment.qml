@@ -117,7 +117,7 @@ Rectangle {
             }
         }
 
-        TimelineAxis {
+        TimelineAxisStandard {
             id: axis1
             Layout.fillWidth: true
             Layout.preferredHeight: 30
@@ -229,7 +229,7 @@ Rectangle {
             }
         }
 
-        TimelineAxisN {
+        TimelineAxisAnnotations {
             id: axis2
             z: 10
             Layout.fillWidth: true
