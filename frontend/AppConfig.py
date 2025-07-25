@@ -1,6 +1,5 @@
 import numpy as np
 import json
-
 from PyQt6.QtCore import QObject, QPointF, pyqtSlot
 
 
@@ -62,7 +61,6 @@ class AppConfig(QObject):
             print(user_config_dict)
             self.user_config = user_config_dict
             self.user_config['multisampling'] = int(self.user_config['multisampling'])
-            self.init_colormaps(user_config_dict)
         else:
             raise TypeError("QJSValue does not contain an object that can be converted to a dict.")
 

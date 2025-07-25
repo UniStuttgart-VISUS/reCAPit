@@ -23,42 +23,7 @@ Item {
                 width: w
                 height: timeline.height
                 color: cmap[modelData.Category(index)]
-                /*
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: timeline.height+5
-                    height: timeline.height+5
-                    radius: timeline.height
-                    color: cmap.get(modelData.Role())
-                    visible: modelData.IsInterrogative(index);
-                }
-                Text {
-                    anchors.centerIn: parent
-                    text: "?"                     
-                    visible: modelData.IsInterrogative(index);
-                    font.pointSize: 10
-                    font.weight: 700
-                    color: "white"
-                    y: 0
-                }
-                */
-                /*
-                Text {
-                    function get_utterance_id(src, idx) {
-                        const code_first = src.toLowerCase().charCodeAt(0);
-                        const offset1 = (code_first - 'a'.charCodeAt());
-                        return "%1%2".arg(src.toUpperCase().slice(0, 2)).arg(idx);
-                        //return String.fromCodePoint(9398 + offset1) + String.fromCodePoint(9312 + idx);
-                    }
-                    anchors.centerIn: parent
-                    text: get_utterance_id(modelData.Identifier(), index);
-                    visible: parent.width > 25
-                    font.pointSize: 9
-                    font.weight: 700
-                    color: "white"
-                    y: 0
-                }
-                */
+
                 ToolTip {
                     id: toolTip
                     text: {

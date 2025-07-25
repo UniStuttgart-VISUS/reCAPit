@@ -13,6 +13,8 @@ Window {
     readonly property var categoricalColormaps: Object.keys(Colorschemes.CATEGORICAL)
     readonly property var linearContColormaps: Colorschemes.CONTINUOUS
 
+    title: "Preferences"
+
     signal saveCurrentUserConfig(user_config: var)
 
     ColumnLayout {
@@ -268,7 +270,7 @@ Window {
                                                 width: 40
                                                 height: 20
                                                 fillMode: Image.Stretch
-                                                source: "icons/colormaps/%1.png".arg(modelData)
+                                                source: "../icons/colormaps/%1.png".arg(modelData)
                                                 anchors.verticalCenter: parent.verticalCenter
                                             }
                                             
@@ -314,7 +316,6 @@ Window {
 
                                             onActivated: (index) => {
                                                 preferencePane.userConfig["video_overlay"][modelData]["colormap"] = linearContColormaps[index];
-                                                console.log("OK");
                                             }
                                             
                                             contentItem: Row {
@@ -410,7 +411,7 @@ Window {
                                     Layout.preferredWidth: 250
                                     live: true
                                     from: 1
-                                    value: 30
+                                    value: preferencePane.userConfig["segments"]["min_dur_sec"]
                                     to: 180
                                     stepSize: 5
 
@@ -431,7 +432,7 @@ Window {
                                     Layout.preferredWidth: 250
                                     live: true
                                     from: 1
-                                    value: 45
+                                    value: preferencePane.userConfig["segments"]["display_dur_sec"]
                                     to: 180
                                     stepSize: 5
                                     onMoved: {
