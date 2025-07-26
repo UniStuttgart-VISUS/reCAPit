@@ -58,7 +58,6 @@ class AppConfig(QObject):
     def SetUserConfig(self, user_config_js):
         user_config_dict = user_config_js.toVariant()
         if isinstance(user_config_dict, dict):
-            print(user_config_dict)
             self.user_config = user_config_dict
             self.user_config['multisampling'] = int(self.user_config['multisampling'])
         else:
@@ -90,12 +89,10 @@ class AppConfig(QObject):
 
     @pyqtSlot(result='QVariantMap')
     def ColormapCategories(self):
-        x = {
+        return {
             'areas_of_interests': {'colormap': self.user_config['colormaps']['areas_of_interests'], 'labels': self.Labels()},
             'roles': {'colormap': self.user_config['colormaps']['roles'], 'labels': self.Roles()}
         }
-        print(x)
-        return x
 
     @pyqtSlot(result=str)
     def ColormapAOI(self):

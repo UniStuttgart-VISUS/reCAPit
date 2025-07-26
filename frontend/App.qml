@@ -243,11 +243,8 @@ ApplicationWindow {
 
     Component.onCompleted: {
         init_colorscheme();
-
         preferencePane.userConfig = aoiModel.UserConfig();
-        preferencePane.show();
         appwin.reset.connect(resetNow);
-
         resetNow();
     }
 
@@ -406,7 +403,7 @@ ApplicationWindow {
             findCardLayout();
         }
         else {
-            console.log("WARNING: Build story requires at least one marked topic card!")
+            console.log("WARNING: Build nothing to compress!")
         }
         targetSegmentIndices = targetIndices;
     }
