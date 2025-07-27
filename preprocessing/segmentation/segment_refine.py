@@ -137,6 +137,18 @@ if __name__ == '__main__':
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
 
+        if 'transcript' not in meta['artifacts']:
+            logging.error("Transcript is not specified in artifacts!")
+            exit(1)
+
+        if 'segments' not in meta['artifacts']:
+            logging.error("Segments are not specified in artifacts!")
+            exit(1)
+
+        if 'initial' not in meta['artifacts']['segments']:
+            logging.error("Initial segmentation is required for refinement!")
+            exit(1)
+
         transcript = pd.read_csv(meta['artifacts']['transcript'], encoding='utf-8-sig')
         transcript['text'] = transcript['text'].astype(str)
         transcript['speaker'] = transcript['speaker'].astype(str)
@@ -145,6 +157,7 @@ if __name__ == '__main__':
         model = SentenceTransformer(model_name_or_path, trust_remote_code=True)
 
         out_path = args.out_dir / 'refined.csv'
+
         initial_segments = pd.read_csv(meta['artifacts']['segments']['initial'])
         out_table = []
 
@@ -167,7 +180,7 @@ if __name__ == '__main__':
 
         out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out_table.to_csv(out_path, index=None, encoding='utf-8-sig')
-        meta['artifacts']['segments']['refined'] = str(out_path)
+        meta['artifacts']['segments']['refined'] = {'path': str(out_path)}
 
         f.seek(0)
         json.dump(meta, f, indent=4)

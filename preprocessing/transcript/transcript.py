@@ -1,6 +1,7 @@
 import argparse
 import json
 import pandas as pd
+import logging
 
 from pathlib import Path
 
@@ -12,7 +13,12 @@ if __name__ == '__main__':
 
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
-        transcript = pd.read_csv(meta['artifacts']['transcript'])
+
+        if 'transcript' not in meta['artifacts']:
+            logging.error("Transcript is not specified in artifacts!")
+            exit(1)
+
+        transcript = pd.read_csv(meta['artifacts']['transcript']['path'])
 
         for rec in meta['recordings']:
             out_dir = args.out_dir / rec['id']
@@ -26,7 +32,7 @@ if __name__ == '__main__':
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
             transcript_rec.to_csv(out_path, index=None, encoding='utf-8-sig')
 
-            rec['artifacts']['transcript'] = str(out_path)
+            rec['artifacts']['transcript'] = {'path': str(out_path)}
 
 
         f.seek(0)

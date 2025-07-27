@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import argparse
+import logging
 import cv2 as cv
 import pandas as pd
 import json
@@ -89,6 +90,18 @@ if __name__ == '__main__':
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
 
+        if 'areas_of_interests' not in meta['sources']:
+            logging.error("Areas of interests are not specified in 'sources'!")
+            exit(1)
+
+        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+            logging.error("No workspace video specified in 'sources'!")
+            exit(1)
+
+        if 'video_overlay' not in meta['artifacts']:
+            logging.info("Create video_overlay field in manifest")
+            meta['artifacts']['video_overlay'] = {}
+
         root_dir = args.out_dir
         out_dir = root_dir / 'move'
         out_dir.mkdir(exist_ok=True, parents=True)
@@ -121,6 +134,6 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        meta['artifacts']['spatial']['movement'] = str(args.out_dir / 'move.csv')
+        meta['artifacts']['video_overlay']['movement'] = {'path': str(args.out_dir / 'move.csv')}
         f.seek(0)
         json.dump(meta, f, indent=4)

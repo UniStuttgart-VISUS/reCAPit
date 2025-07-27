@@ -102,6 +102,14 @@ if __name__ == '__main__':
     root_dir = args.meta.parent
     meta = json.load(open(args.meta, 'r'))
 
+    if 'transcript' not in meta['artifacts']:
+        logging.error("Transcript is not specified in artifacts!")
+        exit(1)
+
+    if 'segments' not in meta['artifacts']:
+        logging.error("Segments are not specified in artifacts!")
+        exit(1)
+
     if args.target_segments not in meta['artifacts']['segments']:
         logging.error(f'There are no "{args.target_segments}" segments found')
         exit(1)
@@ -124,7 +132,7 @@ if __name__ == '__main__':
 
     out_table = []
 
-    segments = pd.read_csv(meta['artifacts']['segments'][args.target_segments])
+    segments = pd.read_csv(meta['artifacts']['segments'][args.target_segments]['path'])
 
     for _, row in segments.iterrows():
         start_ts = row['start timestamp [sec]']

@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import json
+import logging
 
 from bs4 import BeautifulSoup
 from pathlib import Path
@@ -38,6 +39,10 @@ if __name__ == '__main__':
 
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
+
+        if 'notes_snapshots' not in meta['sources']:
+            logging.error("Notes snapshots is not specified in sources!")
+            exit(1)
 
         doc_versions = []
         timestamps = []

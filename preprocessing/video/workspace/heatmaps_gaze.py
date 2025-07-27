@@ -4,6 +4,7 @@ import argparse
 import cv2 as cv
 import matplotlib.cm as cm
 import json
+import logging
 
 from tqdm import tqdm
 from pathlib import Path
@@ -81,6 +82,14 @@ if __name__ == '__main__':
 
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
+
+        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+            logging.error("No workspace video specified in 'sources'!")
+            exit(1)
+
+        if 'video_overlay' not in meta['artifacts']:
+            logging.info("Create video_overlay field in manifest")
+            meta['artifacts']['video_overlay'] = {}
 
         root_dir = args.out_dir
         out_dir = root_dir / 'gaze'

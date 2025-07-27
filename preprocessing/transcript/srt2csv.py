@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import re
 
+
 def timestamp_to_sec(ts):
     hour, min, sec, ms = ts
     return 3600*hour + 60*min + sec + 1e-3*ms

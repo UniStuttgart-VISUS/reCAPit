@@ -5,6 +5,7 @@ import json
 import numpy as np
 import argparse
 import hand_detection
+import logging
 
 from shapely.ops import unary_union
 from pathlib import Path
@@ -33,6 +34,7 @@ def get_masks(aois, width, height):
                 masks[label][y, x] = aois[label].contains(shapely.Point(x, y))
     return masks
 
+
 def get_merged_aois_masks(aois, width, height):
     mask = np.zeros((height, width), dtype=bool)
     merged_polygon = unary_union(list(aois.values()))
@@ -44,16 +46,6 @@ def get_merged_aois_masks(aois, width, height):
         for y in range(int(miny), int(maxy)):
             mask[y, x] = convex_hull.contains(shapely.Point(x, y))
 
-    return mask.astype(float)
-
-    """
-    for label, shape in tqdm(aois.items()):
-        minx, miny, maxx, maxy = shape.bounds
-
-        for x in range(int(minx), int(maxx)):
-            for y in range(int(miny), int(maxy)):
-                mask[y, x] = np.logical_or(mask[y, x], aois[label].contains(shapely.Point(x, y)))
-    """
     return mask.astype(float)
 
 
@@ -69,6 +61,10 @@ if __name__ == '__main__':
 
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
+
+        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+            logging.error("No workspace video specified in 'sources'!")
+            exit(1)
 
         cap = cv.VideoCapture(meta['sources']['videos']['workspace']['path'])
 
@@ -128,8 +124,6 @@ if __name__ == '__main__':
                     aoi_foreground = fg_mask_aoi.sum() / aoi_mask.sum()
                     out_row.append(aoi_foreground)
 
-                out.append(out_row)
-
                 if args.show_output and (0xff & cv.waitKey(1)) == ord('q'):
                     break
 
@@ -139,7 +133,7 @@ if __name__ == '__main__':
             df = pd.DataFrame(out, columns=columns)
             df.to_csv(out_path, index=False)
 
-            meta['artifacts']['time']['movement']= str(out_path)
+            meta['artifacts']['time']['movement'] = {'path': str(out_path)}
             
             f.seek(0)
             json.dump(meta, f, indent=4)

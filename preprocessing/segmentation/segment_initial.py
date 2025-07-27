@@ -68,6 +68,10 @@ if __name__ == '__main__':
     with open(args.meta, 'r+') as f:
         meta = json.load(f)
 
+        if 'segments' not in meta['artifacts']:
+            meta['artifacts']['segments'] = {}
+            logging.info('Created "segments" field in manifest.')
+
         if args.input_signal not in meta['artifacts']['time']:
             logging.error(f'Signal "{args.input_signal}" not found in meta file.')
             exit(1)
@@ -85,7 +89,7 @@ if __name__ == '__main__':
 
         out = pd.DataFrame.from_records(data=records, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out.to_csv(out_path, index=None, encoding='utf-8-sig')
-        meta['artifacts']['segments']['initial'] = str(out_path)
+        meta['artifacts']['segments']['initial'] = {'path': str(out_path)}
 
         f.seek(0)
         json.dump(meta, f, indent=4)

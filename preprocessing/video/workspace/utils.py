@@ -2,6 +2,7 @@ import cv2 as cv
 import numpy as np
 import matplotlib.cm as cm
 
+
 def gaussian_kernel(l):
     sig = (l - 1) / 8.
     ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
@@ -9,12 +10,14 @@ def gaussian_kernel(l):
     kernel = np.outer(gauss, gauss)
     return kernel / np.sum(kernel)
 
+
 def gaussian_kernel_1d(l):
     sig = (l - 1) / 8.
     ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
     kernel = np.exp(-0.5 * np.square(ax) / np.square(sig))
     return kernel / np.sum(kernel)
     
+
 def create_heatmap_img(heatmap, colormap=cm.get_cmap('plasma', 9)):
     heatmap = heatmap / heatmap.max()
     heatmap = np.clip(heatmap, 0, 1)

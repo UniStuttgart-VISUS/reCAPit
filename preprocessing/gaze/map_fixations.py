@@ -56,7 +56,6 @@ if __name__ == '__main__':
 
                 surface_gaze['mapped_aoi'] = labels
                 surface_gaze = surface_gaze[surface_gaze['mapped_aoi'] != '__NA__'].copy()
-
                 surface_gaze['event data'] = surface_gaze.apply(lambda row: f'{row["mapped x [px]"]};{row["mapped y [px]"]}', axis=1)
                 surface_gaze['event type'] = 'attention'
                 surface_gaze['event subtype'] = surface_gaze['mapped_aoi']
@@ -64,7 +63,7 @@ if __name__ == '__main__':
 
                 surface_gaze.to_csv(out_path, index=None)
 
-                rec['artifacts']['mapped_fixations'] = str(out_path)
+                rec['artifacts']['mapped_fixations'] = {'path': str(out_path)}
 
         f.seek(0)
         json.dump(meta, f, indent=4)
