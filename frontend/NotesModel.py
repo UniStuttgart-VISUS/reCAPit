@@ -9,6 +9,9 @@ class NotesModel(QObject):
         super().__init__(parent)
 
         self.diffs = diffs.copy(deep=True)
+        self.diffs['center timestamp [sec]'] = self.diffs['start timestamp [sec]'] + (self.diffs['end timestamp [sec]'] - self.diffs['start timestamp [sec]']) * 0.5
+        self.diffs['label'] = ''
+        self.diffs['source'] = 'online'
         self.init_notes()
 
     @classmethod

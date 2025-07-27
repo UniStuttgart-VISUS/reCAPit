@@ -39,13 +39,6 @@ class WorkerThread(threading.Thread):
             self.model.process_query_results(res)
 
 
-def fix_notes(notes):
-    notes['center timestamp [sec]'] = notes['start timestamp [sec]'] + (notes['end timestamp [sec]'] - notes['start timestamp [sec]']) * 0.5
-    notes['label'] = ''
-    notes['source'] = 'online'
-    return notes
-
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
@@ -123,7 +116,7 @@ if __name__ == '__main__':
     if 'notes_diff' in manifest['artifacts']:
         notes_diffs_file = Path(manifest['artifacts']['notes_diff']['path'])
         logging.info(f'Registering notes file {notes_diffs_file} ...')
-        notes_model = NotesModel(fix_notes(pd.read_csv(notes_diffs_file)))
+        notes_model = NotesModel(pd.read_csv(notes_diffs_file))
         segment_model.set_notes(notes_model)
 
     if args.state_id is not None:
