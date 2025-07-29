@@ -16,7 +16,7 @@ To launch a script, navigate to the respective directory and `uv run register_[N
 
 
 > [!NOTE]
-> Please note that certain scripts depend on PyTorch. For best performance, it is recommended to run them on systems with GPU and CUDA capabilities. Please make sure to install a PyTorch version that is compatible with the CUDA version available on your system.
+> Please note that certain scripts depend on PyTorch. For best performance, it is recommended to run them on systems with a GPU and CUDA capabilities. Please make sure to install a PyTorch version that is compatible with the CUDA version available on your system.
 
 # Scripts
 
@@ -38,7 +38,11 @@ Registers transcript data and processes it for individual recordings by mapping 
 * 📥 This script requires a transcript file (CSV format) and recordings defined in the manifest
 * 📤 This script will register `artifacts/transcript` globally and `artifacts/transcript` for each individual recording.
 
-**Required CSV Format:**
+Please note that the actual transcript generation must be performed with an external tool.
+There are many open-source tools that can be used for speech-to-text transformation, such as:
+
+- **noScribe - https://github.com/kaixxx/noScribe** 
+- **whisper-standalone-win - https://github.com/Purfview/whisper-standalone-win**
 
 The transcript must be provided as a CSV file with the following required columns:
 
@@ -49,16 +53,11 @@ The transcript must be provided as a CSV file with the following required column
 | `start timestamp [sec]` | float | Start time of the speech segment in seconds |
 | `end timestamp [sec]` | float | End time of the speech segment in seconds |
 
-Please note that the actual transcript generation must be performed with an external tool.
-There are many open-sources tools that can be used for speech-to-text transformation, such as:
 
-- **noScribe - https://github.com/kaixxx/noScribe** 
-- **whisper-standalone-win - https://github.com/Purfview/whisper-standalone-win**
+> [!IMPORTANT]
+> The speaker IDs must exactly match the recording IDs defined in the manifest. Many tools struggle with precise speaker identification and will most likely produce suboptimal results with more than two speakers. Hence, often manual corrections of the speaker assignments are necessary.
 
-> [!NOTE]
-> The speaker IDs must exactly match the recording IDs defined in the manifest.
-
-> [!INFO]
+> [!TIP]
 > Many tools such as the ones mentioned above output subtitle files (.srt or .vtt), which you can transform to the required CSV format using the helper scripts `transcript/srt2csv.py` and `transcript/vtt2csv.py`.
 
 
@@ -72,7 +71,7 @@ Performs initial segmentation based on a previously registered multivariate time
 * 📤 This script will register `artifacts/segments/initial`.
 
 > [!NOTE]
-> Currently `movement` and `attention` are available, which you can extract using the scripts `videos/workspace/register_movement.py` and `gaze/register_attention.py`, respectively.
+> Currently, `movement` and `attention` are available, which you can extract using the scripts `videos/workspace/register_movement.py` and `gaze/register_attention.py`, respectively.
 
 ### `register_segment_refine.py` 
 
@@ -102,20 +101,17 @@ The outputs are populated into the existing segmentation results as new data col
 Extracts movement activity from workspace video using background subtraction and hand detection. This script analyzes video frames to detect hand movements within defined areas of interest.
 
 * 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests`
-* 📤 This script will register `artifacts/multi_time/movement`.
+* 📤 This script will register a multivariate time series `artifacts/multi_time/movement`.
 
 > [!NOTE]
-> The script uses KNN background subtraction combined with MediaPipe hand detection to isolate hand movements. It supports downsampling for performance optimization and can optionally store the processed video output.
+> The output of this script `movement` can be used as an input signal for [register_segment_initial.py](#register_segment_initial.py)
 
 ### `register_heatmaps_gaze.py`
 
 Generates gaze-based heatmaps from eye tracking data by creating temporal aggregations of fixation data overlaid on the workspace video.
 
-* 📥 This script requires a registered workspace video `sources/videos/workspace` and mapped fixations from recordings with `artifacts/mapped_fixations`
+* 📥 This script requires a registered workspace video `sources/videos/workspace` and mapped fixations from recordings with `artifacts/mapped_fixations` (see [register_attention.py](#register_attention.py))
 * 📤 This script will register `artifacts/video_overlay/attention`.
-
-> [!NOTE]
-> Heatmaps are generated using Gaussian splatting with configurable kernel sizes. The script creates time-windowed heatmaps that can be used for temporal analysis of attention patterns.
 
 ### `register_heatmaps_move.py`
 
@@ -124,9 +120,6 @@ Creates movement-based heatmaps by analyzing hand activity patterns within areas
 * 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests`
 * 📤 This script will register `artifacts/video_overlay/movement`.
 
-> [!NOTE]
-> This script combines background subtraction with hand detection to create spatial heatmaps of movement activity. It uses Gaussian smoothing for temporal aggregation and supports configurable time windows.
-
 ## 👁️ Gaze
 
 ### `register_attention.py`
@@ -134,16 +127,16 @@ Creates movement-based heatmaps by analyzing hand activity patterns within areas
 Processes eye tracking data to compute attention signals by mapping surface fixations to areas of interest and generating time series data.
 
 * 📥 This script requires recordings with `sources/surface_fixations` and areas of interest `sources/areas_of_interests`
-* 📤 This script will register `artifacts/multi_time/attention` and `artifacts/mapped_fixations` for each recording.
+* 📤 This script will register a global artifact `artifacts/multi_time/attention` and recording specific artifacts `artifacts/mapped_fixations`.
 
 > [!NOTE]
-> The script maps fixation coordinates to predefined areas of interest and computes normalized attention signals with configurable temporal binning (default: 0.5 seconds). Each recording must contain surface fixation data.
+> The global artifact of this script `attention` can be used as an input signal for [register_segment_initial.py](#register_segment_initial.py)
 
 ## 🗒️ Digital Notes
 
 ### `register_notes.py`
 
-Analyzes temporal changes in digital note-taking by processing document snapshots and computing text differences between versions.
+Analyzes temporal changes in an instrumented Word document by processing document snapshots and computing text differences between versions.
 
 * 📥 This script requires notes snapshots `sources/notes_snapshots` (directory containing .docm files with timestamp-based filenames)
 * 📤 This script will register `artifacts/notes`.
