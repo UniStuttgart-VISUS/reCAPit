@@ -645,6 +645,9 @@ ApplicationWindow {
             textColor: "#909090"
             z: 200
 
+            streamTopId: aoiModel.GetTopMultiTimeLabel()
+            streamBottomId: aoiModel.GetBottomMultiTimeLabel()
+
             identifiers: aoiModel.Identifiers()
 
             h1: 175

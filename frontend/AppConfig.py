@@ -33,7 +33,7 @@ class AppConfig(QObject):
         
     def export_user_config(self, path):
         try:
-            with open(path, 'w') as f:
+            with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.user_config, f, indent=4)
                 return True
         except Exception:
@@ -41,6 +41,18 @@ class AppConfig(QObject):
 
     def speaker_role(self, speaker_id):
         return self.id2roles[speaker_id]
+
+    @pyqtSlot(result=str)
+    def GetTopMultiTimeLabel(self):
+        if 'top' in self.user_config['streamgraph']:
+            return self.user_config['streamgraph']['top']['label']
+        return ""
+
+    @pyqtSlot(result=str)
+    def GetBottomMultiTimeLabel(self):
+        if 'bottom' in self.user_config['streamgraph']:
+            return self.user_config['streamgraph']['bottom']['label']
+        return ""
 
     @pyqtSlot(result=float)
     def SegmentMinDurSec(self):
