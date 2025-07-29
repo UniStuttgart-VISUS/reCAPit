@@ -1,3 +1,0 @@
-[submodule "preprocessing/transcript/whisper-standalone-win"]
-	path = preprocessing/transcript/whisper-standalone-win
-	url = https://github.com/Purfview/whisper-standalone-win
