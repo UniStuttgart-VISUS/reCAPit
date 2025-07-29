@@ -9,6 +9,7 @@ def timestamp_to_sec(ts):
     hour, min, sec, ms = ts
     return 3600*hour + 60*min + sec + 1e-3*ms
 
+
 def timestamp_formatted(ts):
     hour, min, sec, ms = ts
     return f'{hour:02d}:{min:02d}:{sec:02d}'
@@ -36,7 +37,7 @@ if __name__ == '__main__':
         output.append((timestamp_formatted(subtitle.start), timestamp_formatted(subtitle.end) ,timestamp_to_sec(subtitle.start), timestamp_to_sec(subtitle.end), text))
 
     df = pd.DataFrame(output, columns=['start timestamp [hh:mm:ss]', 'end timestamp [hh:mm:ss]', 'start timestamp [sec]', 'end timestamp [sec]', 'text'])
-    df['Speaker'] = ''
+    df['speaker'] = ''
 
     df['start timestamp [sec]'] = df['start timestamp [sec]'] - df['start timestamp [sec]'].iloc[0]
     df['end timestamp [sec]'] = df['end timestamp [sec]'] - df['start timestamp [sec]'].iloc[0]

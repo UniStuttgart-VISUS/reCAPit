@@ -3,24 +3,26 @@ import json
 import pandas as pd
 import logging
 
+from tqdm import tqdm
 from pathlib import Path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
+    parser.add_argument('--transcript', type=Path, required=True)
     parser.add_argument('--out_dir', type=Path, required=True)
     args = parser.parse_args()
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'transcript' not in meta['artifacts']:
-            logging.error("Transcript is not specified in artifacts!")
-            exit(1)
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+        manifest['artifacts']['transcript'] = {'path': str(args.transcript)}
+        transcript = pd.read_csv(args.transcript)
 
-        transcript = pd.read_csv(meta['artifacts']['transcript']['path'])
+        logging.info('Registered "transcript" as an global artifact')
 
-        for rec in meta['recordings']:
+        for rec in tqdm(manifest['recordings'], disable=True):
             out_dir = args.out_dir / rec['id']
             out_dir.mkdir(exist_ok=True)
             out_path = out_dir / 'transcript.csv'
@@ -32,8 +34,8 @@ if __name__ == '__main__':
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
             transcript_rec.to_csv(out_path, index=None, encoding='utf-8-sig')
 
-            rec['artifacts']['transcript'] = {'path': str(out_path)}
-
+            rec['artifacts']['transcript'] = {'path': str(out_path), 'categories': 'roles'}
+            logging.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
 
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)

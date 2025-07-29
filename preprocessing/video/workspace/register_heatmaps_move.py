@@ -7,11 +7,11 @@ import pandas as pd
 import json
 import hand_detection
 
+from matplotlib import cm
 from tqdm import tqdm
 from scipy.ndimage import correlate1d
 from pathlib import Path
-from utils import *
-from movement import get_aois, get_merged_aois_masks
+from utils import gaussian_kernel_1d, get_merged_aois_masks, get_aois, create_heatmap_img
 
 
 def mean_activity(cap, hand_detector, back_sub, aoi_mask, start_msec, end_msec, downscale_factor=.5, show_output=True):
@@ -80,35 +80,37 @@ def activity_heatmap(cap, aois, start_timestamps, end_timestamps, kernel_size, d
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--delta_step_sec', type=float, required=False, default=30.)
     parser.add_argument('--kernel_size', type=int, required=False, default=211)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--show_output', action='store_true')
     args = parser.parse_args()
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'areas_of_interests' not in meta['sources']:
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+
+        if 'areas_of_interests' not in manifest['sources']:
             logging.error("Areas of interests are not specified in 'sources'!")
             exit(1)
 
-        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
             logging.error("No workspace video specified in 'sources'!")
             exit(1)
 
-        if 'video_overlay' not in meta['artifacts']:
+        if 'video_overlay' not in manifest['artifacts']:
             logging.info("Create video_overlay field in manifest")
-            meta['artifacts']['video_overlay'] = {}
+            manifest['artifacts']['video_overlay'] = {}
 
         root_dir = args.out_dir
         out_dir = root_dir / 'move'
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        aois = get_aois(meta['sources']['areas_of_interests']['path'])
+        aois = get_aois(manifest['sources']['areas_of_interests']['path'])
 
-        cap = cv.VideoCapture(meta['sources']['videos']['workspace']['path'])
+        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
         dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
 
         start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
@@ -134,6 +136,8 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        meta['artifacts']['video_overlay']['movement'] = {'path': str(args.out_dir / 'move.csv')}
+        manifest['artifacts']['video_overlay']['movement'] = {'path': str(args.out_dir / 'move.csv')}
+        logging.info('Registered "video_overlay/movement" as an global artifact')
+
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)

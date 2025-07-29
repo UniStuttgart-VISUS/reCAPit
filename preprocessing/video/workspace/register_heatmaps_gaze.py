@@ -34,7 +34,7 @@ def fix_in_range(recordings, from_time_sec, to_time_sec):
         if 'mapped_fixations' not in rec['artifacts']:
             continue
 
-        surface_fix = pd.read_csv(rec['artifacts']['mapped_fixations'])
+        surface_fix = pd.read_csv(rec['artifacts']['mapped_fixations']['path'])
         surface_fix['duration [ms]'] = 1e3 * (surface_fix['end timestamp [sec]'] - surface_fix['start timestamp [sec]'])
 
         within_range = (surface_fix['start timestamp [sec]'] >= from_time_sec) & (surface_fix['end timestamp [sec]'] <= to_time_sec) 
@@ -73,35 +73,37 @@ def gaze_heatmap(cap, recordings, start_timestamps, end_timestamps, kernel_size)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--delta_step_sec', type=float, required=False, default=30.)
     parser.add_argument('--kernel_size', type=int, required=False, default=211)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--show_output', action='store_true')
     args = parser.parse_args()
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+
+        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
             logging.error("No workspace video specified in 'sources'!")
             exit(1)
 
-        if 'video_overlay' not in meta['artifacts']:
+        if 'video_overlay' not in manifest['artifacts']:
             logging.info("Create video_overlay field in manifest")
-            meta['artifacts']['video_overlay'] = {}
+            manifest['artifacts']['video_overlay'] = {}
 
         root_dir = args.out_dir
         out_dir = root_dir / 'gaze'
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        cap = cv.VideoCapture(meta['sources']['videos']['workspace']['path'])
+        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
         dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
 
         start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
         end_timestamps = start_timestamps + args.delta_step_sec
         filenames = [f'gaze/{n:04d}.npy' for n in range(len(start_timestamps))]
-        heatmaps = gaze_heatmap(cap, meta['recordings'], start_timestamps, end_timestamps, kernel_size=args.kernel_size)
+        heatmaps = gaze_heatmap(cap, manifest['recordings'], start_timestamps, end_timestamps, kernel_size=args.kernel_size)
 
         df = pd.DataFrame(data=zip(filenames, start_timestamps, end_timestamps), columns=('filename', 'start timestamp [sec]', 'end timestamp [sec]'))
         df.to_csv(root_dir / 'gaze.csv', index=False)
@@ -119,7 +121,9 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        meta['artifacts']['video_overlay']['attention'] = str(args.out_dir / 'gaze.csv')
+        manifest['artifacts']['video_overlay']['attention'] = {'path': str(args.out_dir / 'gaze.csv')}
+        logging.info('Registered "video_overlay/attention" as an global artifact')
+
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)
 

@@ -76,7 +76,7 @@ def speech_overlap(transcript):
     return overlap_sec
 
 
-def segment_attributes(transcript_segment):
+def segment_attributes(transcript_segment, language):
     overlapping_speech_sec = speech_overlap(transcript_segment)
     num_turns = count_turns(transcript_segment)
 
@@ -85,32 +85,36 @@ def segment_attributes(transcript_segment):
     title = "Title not generated"
     summary = "Summary not generated"
 
-    title = execute_prompt(client, generate_prompt_title(joined_text, meta['language']), args.gpt_model)
-    summary = execute_prompt(client, generate_prompt_summary(joined_text, meta['language']), args.gpt_model)
+    title = execute_prompt(client, generate_prompt_title(joined_text, language), args.gpt_model)
+    summary = execute_prompt(client, generate_prompt_summary(joined_text, language), args.gpt_model)
+
+    logging.info(f'GPT response - {title}: {summary}')
 
     return {'summary': summary, 'title': title, 'overlap': overlapping_speech_sec, 'num_turns': num_turns}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--gpt_model', default='gpt-4o-mini', required=False)
     parser.add_argument('--target_segments', default='refined', choices=('initial', 'refined'), required=False)
     parser.add_argument('--openai_api_key', required=False, type=str)
     args = parser.parse_args()
 
-    root_dir = args.meta.parent
-    meta = json.load(open(args.meta, 'r'))
+    logging.getLogger().setLevel(logging.INFO)
 
-    if 'transcript' not in meta['artifacts']:
+    root_dir = args.manifest.parent
+    manifest = json.load(open(args.manifest, 'r'))
+
+    if 'transcript' not in manifest['artifacts']:
         logging.error("Transcript is not specified in artifacts!")
         exit(1)
 
-    if 'segments' not in meta['artifacts']:
+    if 'segments' not in manifest['artifacts']:
         logging.error("Segments are not specified in artifacts!")
         exit(1)
 
-    if args.target_segments not in meta['artifacts']['segments']:
+    if args.target_segments not in manifest['artifacts']['segments']:
         logging.error(f'There are no "{args.target_segments}" segments found')
         exit(1)
 
@@ -125,14 +129,12 @@ if __name__ == '__main__':
 
     client = openai.OpenAI(api_key=openai_api_key)
 
-
-    transcript = pd.read_csv(meta['artifacts']['transcript'], encoding='utf-8-sig')
+    transcript = pd.read_csv(manifest['artifacts']['transcript']['path'], encoding='utf-8-sig')
     transcript['text'] = transcript['text'].astype(str)
     transcript['speaker'] = transcript['speaker'].astype(str)
 
     out_table = []
-
-    segments = pd.read_csv(meta['artifacts']['segments'][args.target_segments]['path'])
+    segments = pd.read_csv(manifest['artifacts']['segments'][args.target_segments]['path'])
 
     for _, row in segments.iterrows():
         start_ts = row['start timestamp [sec]']
@@ -141,11 +143,12 @@ if __name__ == '__main__':
         transcript_segment = transcript[(transcript['start timestamp [sec]'] >= start_ts) & (transcript['end timestamp [sec]'] <= end_ts)]
 
         if transcript_segment.empty:
-            print("Empty segment")
+            logging.warning(f"Time span {start_ts:.2f}s - {end_ts:.2f}s has no speech")
             continue
 
-        seg_attr = segment_attributes(transcript_segment)
+        seg_attr = segment_attributes(transcript_segment, manifest['language'])
         out_table.append([start_ts, end_ts, end_ts-start_ts, seg_attr['overlap'], seg_attr['num_turns'], seg_attr['title'], seg_attr['summary']])
 
     out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary'])
-    out_table.to_csv(meta['artifacts']['segments'][args.target_segments], index=None, encoding='utf-8-sig')
+    out_table.to_csv(manifest['artifacts']['segments'][args.target_segments]['path'], index=None, encoding='utf-8-sig')
+    logging.info(f'Successfully modified "{args.target_segments}" segments')

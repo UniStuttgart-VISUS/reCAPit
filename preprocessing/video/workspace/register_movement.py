@@ -1,57 +1,19 @@
 import cv2 as cv
 import pandas as pd
-import shapely
 import json
 import numpy as np
 import argparse
 import hand_detection
 import logging
 
-from shapely.ops import unary_union
 from pathlib import Path
 from tqdm import tqdm
-
-
-def get_aois(aoi_config_path):
-    with open(aoi_config_path, 'r') as f:
-        aois = json.load(f)
-        shapes_geom = {}
-        for shape in aois['shapes']:
-            shapes_geom[shape['label']] = shapely.Polygon(shape['points'])
-
-        return shapes_geom
-
-
-# TODO This is rather slow since we iterate over all pixels in polygons bounding box
-def get_masks(aois, width, height):
-    masks = {}
-    for label, shape in tqdm(aois.items()):
-        minx, miny, maxx, maxy = shape.bounds
-        masks[label] = np.zeros((height, width), dtype=float)
-
-        for x in range(int(minx), int(maxx)):
-            for y in range(int(miny), int(maxy)):
-                masks[label][y, x] = aois[label].contains(shapely.Point(x, y))
-    return masks
-
-
-def get_merged_aois_masks(aois, width, height):
-    mask = np.zeros((height, width), dtype=bool)
-    merged_polygon = unary_union(list(aois.values()))
-    convex_hull = merged_polygon.convex_hull
-
-    minx, miny, maxx, maxy = convex_hull.bounds
-
-    for x in range(int(minx), int(maxx)):
-        for y in range(int(miny), int(maxy)):
-            mask[y, x] = convex_hull.contains(shapely.Point(x, y))
-
-    return mask.astype(float)
+from utils import get_aois, get_masks
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--detect_shadows', action='store_true')
     parser.add_argument('--show_output', action='store_true')
@@ -59,14 +21,20 @@ if __name__ == '__main__':
     parser.add_argument('--downsampling_factor', type=float, default=1)
     args = parser.parse_args()
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'videos' not in meta['sources'] and 'workspace' not in meta['sources']['videos']:
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+
+        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
             logging.error("No workspace video specified in 'sources'!")
             exit(1)
 
-        cap = cv.VideoCapture(meta['sources']['videos']['workspace']['path'])
+        if 'multi_time' not in manifest['artifacts']:
+            logging.info("Create multi_time field in manifest")
+            manifest['artifacts']['multi_time'] = {}
+
+        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
 
         fps = cap.get(cv.CAP_PROP_FPS)
         frame_count = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
@@ -80,7 +48,7 @@ if __name__ == '__main__':
             fourcc = cv.VideoWriter_fourcc(*'avc1')
             writer = cv.VideoWriter(str(args.out_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
-        aois = get_aois(meta['sources']['areas_of_interests']['path'])
+        aois = get_aois(manifest['sources']['areas_of_interests']['path'])
         masks = get_masks(aois, frame_width, frame_height)
         masks = {label: cv.resize(mask, fx=args.downsampling_factor, fy=args.downsampling_factor, dsize=None) for label, mask in masks.items()}
 
@@ -124,6 +92,8 @@ if __name__ == '__main__':
                     aoi_foreground = fg_mask_aoi.sum() / aoi_mask.sum()
                     out_row.append(aoi_foreground)
 
+                out.append(out_row)
+
                 if args.show_output and (0xff & cv.waitKey(1)) == ord('q'):
                     break
 
@@ -133,10 +103,11 @@ if __name__ == '__main__':
             df = pd.DataFrame(out, columns=columns)
             df.to_csv(out_path, index=False)
 
-            meta['artifacts']['time']['movement'] = {'path': str(out_path)}
+            manifest['artifacts']['multi_time']['movement'] = {'path': str(out_path), 'categories': 'areas_of_interests'}
+            logging.info('Registered "multi_time/movement" as an global artifact')
             
             f.seek(0)
-            json.dump(meta, f, indent=4)
+            json.dump(manifest, f, indent=4)
         
             cap.release()
             if args.store_video:

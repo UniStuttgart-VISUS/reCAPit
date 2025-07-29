@@ -126,30 +126,32 @@ def transcript_segmentation_multi(transcript, model, gap_threshold=0.75, similar
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--similarity_threshold', default=.5, required=False, type=float)
     parser.add_argument('--gap_threshold', default=1, required=False, type=float)
     parser.add_argument('--min_dur_sec', default=15, required=False, type=float)
     args = parser.parse_args()
 
-    root_dir = args.meta.parent
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'transcript' not in meta['artifacts']:
+    root_dir = args.manifest.parent
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+
+        if 'transcript' not in manifest['artifacts']:
             logging.error("Transcript is not specified in artifacts!")
             exit(1)
 
-        if 'segments' not in meta['artifacts']:
+        if 'segments' not in manifest['artifacts']:
             logging.error("Segments are not specified in artifacts!")
             exit(1)
 
-        if 'initial' not in meta['artifacts']['segments']:
+        if 'initial' not in manifest['artifacts']['segments']:
             logging.error("Initial segmentation is required for refinement!")
             exit(1)
 
-        transcript = pd.read_csv(meta['artifacts']['transcript'], encoding='utf-8-sig')
+        transcript = pd.read_csv(manifest['artifacts']['transcript']['path'], encoding='utf-8-sig')
         transcript['text'] = transcript['text'].astype(str)
         transcript['speaker'] = transcript['speaker'].astype(str)
 
@@ -158,7 +160,7 @@ if __name__ == '__main__':
 
         out_path = args.out_dir / 'refined.csv'
 
-        initial_segments = pd.read_csv(meta['artifacts']['segments']['initial'])
+        initial_segments = pd.read_csv(manifest['artifacts']['segments']['initial']['path'])
         out_table = []
 
         for _, row in initial_segments.iterrows():
@@ -180,7 +182,9 @@ if __name__ == '__main__':
 
         out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out_table.to_csv(out_path, index=None, encoding='utf-8-sig')
-        meta['artifacts']['segments']['refined'] = {'path': str(out_path)}
+
+        manifest['artifacts']['segments']['refined'] = {'path': str(out_path)}
+        logging.info('Registered "segments/refined" as an global artifact')
 
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)

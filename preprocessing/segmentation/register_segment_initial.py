@@ -14,8 +14,8 @@ from pathlib import Path
 def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True):
 
     if 'timestamp [sec]' not in mvt.columns:
-        logging.warn("Missing timestamp column. Adding timestamp column")
-        mvt['timestamp [sec]'] = np.linspace(0, meta['duration_sec'], mvt.shape[0])
+        logging.warning("Missing timestamp column. Adding timestamp column")
+        mvt['timestamp [sec]'] = np.linspace(0, manifest['duration_sec'], mvt.shape[0])
     
     preprocessed = pd.DataFrame.copy(mvt)
 
@@ -35,8 +35,8 @@ def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True)
 
     print(f'Original signal shape: {mvt.shape}, downsampled signal shape: {preprocessed.shape}')
 
-    #min_size = (meta['duration_s'] / mtv.shape[0]) * min_dur_sec / downsampling_factor
-    min_size = int(preprocessed.shape[0] * min_dur_sec / meta['duration_sec'])
+    #min_size = (manifest['duration_s'] / mtv.shape[0]) * min_dur_sec / downsampling_factor
+    min_size = int(preprocessed.shape[0] * min_dur_sec / manifest['duration_sec'])
 
     print(f"Minimum segment size: {min_size}")
 
@@ -55,28 +55,34 @@ def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--input_signal', default='attention', required=False)
     parser.add_argument('--downsampling_factor', default=5, required=False, type=int)
     parser.add_argument('--min_dur_sec', default=15, required=False, type=float)
     args = parser.parse_args()
 
-    root_dir = args.meta.parent
+    logging.getLogger().setLevel(logging.INFO)
+
+    root_dir = args.manifest.parent
     out_path = args.out_dir / 'initial.csv'
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
 
-        if 'segments' not in meta['artifacts']:
-            meta['artifacts']['segments'] = {}
+        if 'segments' not in manifest['artifacts']:
+            manifest['artifacts']['segments'] = {}
             logging.info('Created "segments" field in manifest.')
 
-        if args.input_signal not in meta['artifacts']['time']:
-            logging.error(f'Signal "{args.input_signal}" not found in meta file.')
+        if args.input_signal not in manifest['artifacts']['multi_time']:
+            logging.error(f'"{args.input_signal}" is not a registered "multi_time" signal in the manifest.')
+            print('The following "multi_time" signals are currently registered in the manifest:')
+
+            for mt in manifest['artifacts']['multi_time']:
+                print(f'{mt}')
             exit(1)
 
-        mtv = pd.read_csv(meta['artifacts']['time'][args.input_signal], encoding='utf-8-sig')
+        mtv = pd.read_csv(manifest['artifacts']['multi_time'][args.input_signal]['path'], encoding='utf-8-sig')
         result = mvt_segmentation(mtv, downsampling_factor=args.downsampling_factor, min_dur_sec=2*args.min_dur_sec, show_plot=True)
         records = []
 
@@ -89,7 +95,8 @@ if __name__ == '__main__':
 
         out = pd.DataFrame.from_records(data=records, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out.to_csv(out_path, index=None, encoding='utf-8-sig')
-        meta['artifacts']['segments']['initial'] = {'path': str(out_path)}
+        manifest['artifacts']['segments']['initial'] = {'path': str(out_path)}
+        logging.info('Registered "segments/initial" as an global artifact')
 
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)

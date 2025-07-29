@@ -28,19 +28,20 @@ def sample_docs(timestamps, sample_dur_sec):
     return sample_indices
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--meta', type=Path, required=True)
+    parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--out_dir', type=Path, required=True)
     parser.add_argument('--sample_dur_sec', type=float, default=150)
     args = parser.parse_args()
-    root_dir = args.meta.parent
+    root_dir = args.manifest.parent
 
-    with open(args.meta, 'r+') as f:
-        meta = json.load(f)
+    logging.getLogger().setLevel(logging.INFO)
 
-        if 'notes_snapshots' not in meta['sources']:
+    with open(args.manifest, 'r+') as f:
+        manifest = json.load(f)
+
+        if 'notes_snapshots' not in manifest['sources']:
             logging.error("Notes snapshots is not specified in sources!")
             exit(1)
 
@@ -49,13 +50,13 @@ if __name__ == '__main__':
         out = []
 
         args.out_dir.mkdir(exist_ok=True)
-        out_path = args.out_dir / 'notes_diff.csv'
+        out_path = args.out_dir / 'notes.csv'
 
         differ = diff_match_patch()
         differ.Diff_Timeout = 0
         differ.Match_Threshold = .5
 
-        snapshots_dir = Path(meta['sources']['notes_snapshots']['path'])
+        snapshots_dir = Path(manifest['sources']['notes_snapshots']['path'])
         docs = list(snapshots_dir.glob('*.docm'))
 
         for doc_file in tqdm(docs, desc='docx2python', unit='document'):
@@ -92,11 +93,12 @@ if __name__ == '__main__':
         df = pd.DataFrame(data=out, columns=['start timestamp [sec]', 'end timestamp [sec]', 'insertions', 'deletions', 'html'])
         offset_sec = df['start timestamp [sec]'].iloc[0]
 
-        df['start timestamp [sec]'] = meta['sources']['notes_snapshots']['offset_sec'] + df['start timestamp [sec]'] - offset_sec
-        df['end timestamp [sec]'] = meta['sources']['notes_snapshots']['offset_sec'] + df['end timestamp [sec]'] - offset_sec
+        df['start timestamp [sec]'] = manifest['sources']['notes_snapshots']['offset_sec'] + df['start timestamp [sec]'] - offset_sec
+        df['end timestamp [sec]'] = manifest['sources']['notes_snapshots']['offset_sec'] + df['end timestamp [sec]'] - offset_sec
 
         df.to_csv(out_path, index=False, encoding="utf-8-sig")
-        meta['artifacts']['notes_diff'] = {'path': str(out_path)}
+        manifest['artifacts']['notes'] = {'path': str(out_path)}
+        logging.info('Registered "notes" as an global artifact')
 
         f.seek(0)
-        json.dump(meta, f, indent=4)
+        json.dump(manifest, f, indent=4)
