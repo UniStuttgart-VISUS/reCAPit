@@ -9,6 +9,8 @@ Rectangle {
     id: rootLegend
 
     required property string textColor
+    required property string streamTopId
+    required property string streamBottomId
     required property var identifiers
 
     required property int h1
@@ -53,7 +55,7 @@ Rectangle {
                         Text {
                             anchors.centerIn: parent
                             id: text11
-                            text: String.fromCodePoint(0x1F440) + " Gaze"
+                            text: rootLegend.streamTopId
                             color: rootLegend.textColor
                             font.bold: false
                             font.capitalization: Font.AllUppercase
@@ -67,7 +69,7 @@ Rectangle {
                         Text {
                             anchors.centerIn: parent
                             id: text12
-                            text: String.fromCodePoint(0x1F44B) + " Move"
+                            text: rootLegend.streamBottomId
                             color: rootLegend.textColor
                             font.bold: false
                             font.capitalization: Font.AllUppercase
