@@ -4,9 +4,9 @@ import json
 import logging
 import sys
 import threading
-from pathlib import Path
-
 import pandas as pd
+
+from pathlib import Path
 from AppConfig import *
 from CustomVideoOutput import CustomVideoOutput
 from HeatmapProvider import HeatmapOverlayProvider
@@ -40,8 +40,6 @@ class WorkerThread(threading.Thread):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--user_config', type=Path, required=True)
@@ -49,20 +47,33 @@ if __name__ == '__main__':
     parser.add_argument('--multisampling', type=int, required=False, default=4)
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.DEBUG)
+
     root_dir = args.user_config.parent
-    manifest = json.load(open(args.manifest, 'r'))
-    user_config = json.load(open(args.user_config, 'r'))
+    manifest = json.load(open(args.manifest, 'r', encoding='utf-8'))
+    user_config = json.load(open(args.user_config, 'r', encoding='utf-8'))
+
+    if 'refined' in manifest['artifacts']['segments']:
+        topic_segments_file = Path(manifest['artifacts']['segments']['refined']['path'])
+    elif 'initial' in manifest['artifacts']['segments']:
+        topic_segments_file = Path(manifest['artifacts']['segments']['initial']['path'])
+    else:
+        logging.error('No registered segments in manifest!')
+        exit()
+        
+    if 'areas_of_interests' not in manifest['sources']:
+        logging.error('No registered areas_of_interests in manifest!')
+        exit()
 
     transcript_file = Path(manifest['artifacts']['transcript']['path'])
     aoi_file = Path(manifest['sources']['areas_of_interests']['path'])
-    topic_segments_file = Path(manifest['artifacts']['segments']['refined']['path'])
+    
+    if not aoi_file.is_file():
+        logging.error(f'Path "{topic_segments_file}" does to refer to valid AOIs!')
+        exit()
 
     if not topic_segments_file.is_file(): 
         logging.error(f'Path "{topic_segments_file}" does to refer to valid topic segments!')
-        exit()
-
-    if not aoi_file.is_file():
-        logging.error(f'Path "{topic_segments_file}" does to refer to valid AOIs!')
         exit()
 
     min_timestamp = 0
@@ -96,25 +107,26 @@ if __name__ == '__main__':
         stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=manifest_model.Labels(), log_transform=user_config['streamgraph'][mt]['log_scale'])
         segment_model.register_multi_time(mt, stacks)
 
-    for vo in manifest['artifacts']['video_overlay']:
-        path = Path(manifest['artifacts']['video_overlay'][vo]['path'])
-        if not path.is_file():
-            continue
+    if 'video_overlay' in manifest['artifacts']:
+        for vo in manifest['artifacts']['video_overlay']:
+            path = Path(manifest['artifacts']['video_overlay'][vo]['path'])
+            if not path.is_file():
+                continue
 
-        logging.info(f'Processing video overlay {path} ...')
-        heatmap_info = pd.read_csv(path)
-        heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: path.parent / x)
-        heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap=user_config['video_overlay'][vo]['colormap'])
-        overlay_root = segment_model.add_video_overlay_provider(vo, heatmap_overlay_provider)
-        engine.addImageProvider(overlay_root, heatmap_overlay_provider)
+            logging.info(f'Processing video overlay {path} ...')
+            heatmap_info = pd.read_csv(path)
+            heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: path.parent / x)
+            heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap=user_config['video_overlay'][vo]['colormap'])
+            overlay_root = segment_model.add_video_overlay_provider(vo, heatmap_overlay_provider)
+            engine.addImageProvider(overlay_root, heatmap_overlay_provider)
 
     if transcript_file.is_file():
         logging.info(f'Registering transcript {transcript_file} ...')
         transcript = pd.read_csv(transcript_file)
         segment_model.set_transcript(transcript)
 
-    if 'notes_diff' in manifest['artifacts']:
-        notes_diffs_file = Path(manifest['artifacts']['notes_diff']['path'])
+    if 'notes' in manifest['artifacts']:
+        notes_diffs_file = Path(manifest['artifacts']['notes']['path'])
         logging.info(f'Registering notes file {notes_diffs_file} ...')
         notes_model = NotesModel(pd.read_csv(notes_diffs_file))
         segment_model.set_notes(notes_model)
