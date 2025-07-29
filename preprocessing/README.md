@@ -6,19 +6,17 @@ reCAPit enables the analysis of various derived features (**artifacts**) extract
 All **sources** and **artifacts** are managed using a JSON file called `manifest.json`, which contains both manually defined entries and automatically generated entries.
 The provided scripts automatically add `artifact` entries (**registering**) to the `manifest.json` file based on the **sources** you manually specified.
 
-## Requirements
+### Sources
 
-Scripts are organized in directories according to the sources they extract features from (transcript/video/gaze).
-Please make sure [astral-sh/uv](https://github.com/astral-sh/uv) is installed on your system.
-UV is a Python package and project manager that eases the deployment of applications written in Python.
+A source can be specfieid in the `manifest.json` either as global or specific to individual recordings.
+The following sources are currently supported:
 
-To launch a script, navigate to the respective directory and `uv run register_[NAME].py` inside your terminal, and replace `NAME` with the respective script name.
+* `video/workspace` - A video recording of the shared workspace area, ideally from a top-down perspective.
+* `areas_of_interests` - A JSON file generated using LabelMe that partiions the working area into semantically meaningful areas with assigned labels.
 
+### Artifacts
 
-> [!NOTE]
-> Please note that certain scripts depend on PyTorch. For best performance, it is recommended to run them on systems with a GPU and CUDA capabilities. Please make sure to install a PyTorch version that is compatible with the CUDA version available on your system.
-
-# Scripts
+# Registering Artifacts
 
 The scripts provided in this folder can be used to extract a variety of **artifacts** based on the specified sources.
 Each script that can register artifacts follows this naming convention: `register_*.py`.
@@ -28,6 +26,17 @@ Each script that can register artifacts follows this naming convention: `registe
 * Only registered artifacts in the manifest can be used by reCAPit.
 * If the script terminates without errors, it adds the respective artifact to the manifest file.
 * Each script requires the manifest file as input, plus additional parameters pertaining to the specific feature extraction.
+
+## Requirements
+
+Scripts are organized in directories according to the sources they extract features from (transcript/video/gaze).
+Please make sure [astral-sh/uv](https://github.com/astral-sh/uv) is installed on your system.
+UV is a Python package and project manager that eases the deployment of applications written in Python.
+
+To launch a script, navigate to the respective directory and `uv run register_[NAME].py` inside your terminal, and replace `NAME` with the respective script name.
+
+> [!NOTE]
+> Please note that certain scripts depend on PyTorch. For best performance, it is recommended to run them on systems with a GPU and CUDA capabilities. Please make sure to install a PyTorch version that is compatible with the CUDA version available on your system.
 
 ## 📄 Transcript
 
@@ -117,7 +126,7 @@ Generates gaze-based heatmaps from eye tracking data by creating temporal aggreg
 
 Creates movement-based heatmaps by analyzing hand activity patterns within areas of interest over time windows.
 
-* 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests`
+* 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests` as a source.
 * 📤 This script will register `artifacts/video_overlay/movement`.
 
 ## 👁️ Gaze
