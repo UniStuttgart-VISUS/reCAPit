@@ -281,21 +281,25 @@ class SegmentModel(QObject):
             aoi_scores[label] = shapely.area(inter_shape) / shapely.area(aoi_shape)
 
         crop = img.copy(x, y, width, height)
-        target_provider = self.heatmap_overlay_providers[overlay_src]
 
-        overlay = target_provider.compute_overlay(
-            self.start_ts[segmentIdx], self.end_ts[segmentIdx]
-        )
-        overlay_img, _ = target_provider.requestImage(
-            target_provider.img_id(segmentIdx), QSize()
-        )
-        crop_overlay_gaze_img = overlay_img.copy(x, y, width, height)
+        if overlay_src in self.heatmap_overlay_providers:
+            target_provider = self.heatmap_overlay_providers[overlay_src]
+            overlay = target_provider.compute_overlay(
+                self.start_ts[segmentIdx], self.end_ts[segmentIdx]
+            )
+            overlay_img, _ = target_provider.requestImage(
+                target_provider.img_id(segmentIdx), QSize()
+            )
+            crop_overlay_gaze_img = overlay_img.copy(x, y, width, height)
 
-        score = overlay[y : y + height, x : x + width].sum() / overlay.sum()
-        crop = blend_images(crop, crop_overlay_gaze_img)
+            score = overlay[y : y + height, x : x + width].sum() / overlay.sum()
+            crop = blend_images(crop, crop_overlay_gaze_img)
 
-        total_score = sum(aoi_scores.values())
-        aoi_scores = {label: score / total_score for label, score in aoi_scores.items()}
+            total_score = sum(aoi_scores.values())
+            aoi_scores = {label: score / total_score for label, score in aoi_scores.items()}
+        else:
+            score = 0.0
+
         img_id, label = self.thumbnail_provider.add_to_collection(
             segmentIdx, crop, overlay_src
         )
@@ -325,7 +329,8 @@ class SegmentModel(QObject):
 
     @pyqtSlot(int, result=list)
     def ThumbnailInfo(self, segment_idx):
-        return self.thumbnail_info[segment_idx]
+        return []
+        #return self.thumbnail_info[segment_idx]
 
     @pyqtSlot(int, result=list)
     def ThumbnailIndicatorPositions(self, segment_idx):
