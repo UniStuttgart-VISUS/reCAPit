@@ -4,7 +4,6 @@ preprocessing/annotations/autosaves-test
 
 ruff.toml
 
-*.docm
 *.csv
 *.docx
 *.pdf
