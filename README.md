@@ -42,21 +42,16 @@ We recommend the following setup:
 ## 🔄 Data Preparation
 
 As described above, reCAPit supports data from multiple sensors. These data streams must be preprocessed before they can be used in the interface.
-Please refer to the `processing` documentation for detailed instructions on data preprocessing.
+Please refer to the `preprocessing/README` for detailed instructions on data preprocessing.
 
 ## 📂 Input Requirements
 
-The reCAPit frontend application (`frontend/App.py`) requires specific command-line arguments to run properly:
+The reCAPit frontend (`frontend/App.py`) requires specific command-line arguments:
 
 ### Required Arguments
 
-- `--manifest`: Path to the manifest JSON file that contains metadata about your processed data sources, including:
-  - Paths to video files, transcript data, and other artifacts
-  - Duration of the recording session
-  - Configuration for areas of interest and segments
-  - References to preprocessed multimodal data
-
-- `--user_config`: Path to the user configuration JSON file that defines visualization settings and interface behavior (see [Configuration](#configuration) section for details)
+- `--manifest`: Path to the manifest JSON file that contains metadata about your processed data sources, including. You can find more information on the manifest file in `preprocessing/README`.
+- `--user_config`: Path to the user configuration JSON file that defines visualization settings and interface behavior (see [Configuration](#-configuration) section for details)
 
 ### Optional Arguments
 
@@ -70,16 +65,10 @@ UV is a Python package and project manager that eases the deployment of applicat
 To launch the app, navigate to the `frontend` directory and run the following command in your terminal:
 
 ```bash
-uv run App.py --meta [PATH_TO_META.json]
-```
-
-The `meta.json` file should contain paths to the processed data sources and additional configuration information. You can use `meta_example.json` as a reference.
-
-### Example Usage
-
-```bash
 uv run App.py --manifest path/to/manifest.json --user_config path/to/user_config.json
 ```
+
+or if you want to load a previous state:
 
 ```bash
 uv run App.py --manifest path/to/manifest.json --user_config path/to/user_config.json --savefile_id "2024-01-15/14-30-45"
@@ -94,29 +83,29 @@ uv run App.py --manifest path/to/manifest.json --user_config path/to/user_config
 The application can be customized using the `user_config.json` file, which contains various configuration options for visualization and interface behavior:
 
 ### Colormaps
-- `areas_of_interests`: Colormap used for areas of interest visualization (default: "Tableau10")
-- `roles`: Colormap used for role-based visualizations (default: "Greens")
+- `areas_of_interests`: Colormap used for areas of interest visualization
+- `roles`: Colormap used for role-based visualizations
 
 ### Display Settings
-- `multisampling`: Anti-aliasing level for improved visual quality (default: 4)
+- `multisampling`: Anti-aliasing level for improved visual quality
 
 ### Segments
-- `display_dur_sec`: Duration in seconds for segment display (default: 45.0)
-- `min_dur_sec`: Minimum duration in seconds for segments (default: 31.0)
+- `display_dur_sec`: Duration in seconds for topic cards to be unfolded
+- `min_dur_sec`: Minimum duration in seconds for segments
 
 ### Streamgraph Configuration
-- `bottom.source`: Data source for bottom streamgraph layer (default: "movement")
-- `bottom.log_scale`: Enable logarithmic scaling for bottom layer (default: true)
-- `top.source`: Data source for top streamgraph layer (default: "attention")
-- `top.log_scale`: Enable logarithmic scaling for top layer (default: true)
+- `bottom.source`: Data source for bottom streamgraph layer
+- `bottom.log_scale`: Enable logarithmic scaling for the bottom layer
+- `top.source`: Data source for top streamgraph layer
+- `top.log_scale`: Enable logarithmic scaling for the top layer
 
 ### Timeline Settings
-- `mapped_fixations.merge_threshold_sec`: Threshold for merging fixation data (default: 0.5)
-- `transcript.merge_threshold_sec`: Threshold for merging transcript segments (default: 1.0)
+- `mapped_fixations.merge_threshold_sec`: Threshold for merging fixation data
+- `transcript.merge_threshold_sec`: Threshold for merging transcript utterances
 
 ### Video Overlay
-- `attention.colormap`: Colormap for attention visualization overlay (default: "CET_L8")
-- `movement.colormap`: Colormap for movement visualization overlay (default: "CET_L20")
+- `attention.colormap`: Colormap for attention video overlay
+- `movement.colormap`: Colormap for movement video overlay
 
 You can modify these settings in `user_config.json` to customize the application's appearance and behavior according to your specific requirements.
 
