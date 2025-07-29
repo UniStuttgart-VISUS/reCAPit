@@ -43,8 +43,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--user_config', type=Path, required=True)
-    parser.add_argument('--state_id', type=str, required=False)
-    parser.add_argument('--multisampling', type=int, required=False, default=4)
+    parser.add_argument('--savefile_id', type=str, required=False)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
@@ -131,8 +130,8 @@ if __name__ == '__main__':
         notes_model = NotesModel(pd.read_csv(notes_diffs_file))
         segment_model.set_notes(notes_model)
 
-    if args.state_id is not None:
-        load_dir = root_dir / 'saved_state' / args.state_id
+    if args.savefile_id is not None:
+        load_dir = root_dir / 'saved_state' / args.savefile_id
         segment_model.import_state(in_dir=Path(load_dir))
         logging.info(f'Successfully loaded save file: "{load_dir}"!')
 

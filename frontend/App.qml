@@ -438,7 +438,7 @@ ApplicationWindow {
                     stacksBottom:  topicSegments.GetTimeSeries("bottom", i),
                     min_ts: start_ts,
                     max_ts: end_ts,
-                    tickInfos: [], //topicSegments.ThumbnailInfo(i),
+                    tickInfos: topicSegments.ThumbnailInfo(i),
                     color: has_hard ? "#f8f8f8" : "#fff",
                     meta: aoiModel,
                     cmap: appwin.cmapGlobal,
