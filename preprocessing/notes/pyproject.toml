@@ -1,0 +1,12 @@
+[project]
+name = "notes"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.13.4",
+    "docx2python>=3.5.0",
+    "pandas>=2.3.1",
+    "tqdm>=4.67.1",
+]

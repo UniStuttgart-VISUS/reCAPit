@@ -23,12 +23,12 @@ Item {
 
             source: {
                 if (modelData.HasInsertions(index) && modelData.HasDeletions(index))
-                    return "icons/insert_delete.png"
+                    return "../icons/insert_delete.png"
                 if (modelData.HasInsertions(index))
-                    return "icons/insert.png"
+                    return "../icons/insert.png"
                 if (modelData.HasDeletions(index))
-                    return "icons/delete.png"
-                return "icons/note.png"
+                    return "../icons/delete.png"
+                return "../icons/note.png"
             }
             visible: modelData.HasInsertions(index) || modelData.HasDeletions(index)
             /*

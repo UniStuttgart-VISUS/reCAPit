@@ -1,0 +1,58 @@
+{
+    "language": "english",
+    "duration_sec": 4915.0,
+    "roles": [
+        "moderator",
+        "vis",
+        "domain"
+    ],
+    "recordings": [
+        {
+            "id": "Carl",
+            "role": "domain",
+            "sources": {
+                "surface_fixations": {
+                    "path": "Carl/surface_fixations.csv",
+                    "offset_sec": 367.0
+                }
+            },
+            "artifacts": {}
+        },
+        {
+            "id": "Randy",
+            "role": "vis",
+            "sources": {
+                "surface_fixations": {
+                    "path": "Randy/surface_fixations.csv",
+                    "offset_sec": 160.09
+                }
+            },
+            "artifacts": {}
+        }
+    ],
+    "sources": {
+        "notes_snapshots": {
+            "path": "notes_snapshots",
+            "offset_sec": 95.66
+        },
+        "areas_of_interests": {
+            "path": "aois_labelme.json",
+            "offset_sec": 0.0
+        },
+        "audio": {
+            "path": "audio.wav",
+            "offset_sec": 312.27
+        },
+        "videos": {
+            "workspace": {
+                "path": "workspace.mp4",
+                "offset_sec": 312.27
+            },
+            "room": {
+                "path": "room.mp4",
+                "offset_sec": 312.27
+            }
+        }
+    },
+    "artifacts": {}
+}

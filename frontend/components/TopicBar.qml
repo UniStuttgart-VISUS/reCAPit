@@ -2,9 +2,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.2
-
-import "utils.js" as Utils
-
+import "../js/utils.js" as Utils
 
 Rectangle {
     required property var title
@@ -30,29 +28,11 @@ Rectangle {
         id: brect
         width: parent.width
         height: parent.height
-        //color: segments.checked ? "#373735" : "#676764"
         color: {
             if (segments.editing)
                 return "#8a8576"
             return segments.checked ? "#373735" : "#676764"
         }
-
-        /*
-        Image {
-            id: cardIndicator
-
-            anchors.right: parent.right
-            anchors.rightMargin: 5
-            anchors.leftMargin: 5
-            anchors.verticalCenter: parent.verticalCenter
-
-            source: "icons/card.png"
-            width: segments.height * 0.3
-            height: segments.height * 0.3
-            opacity: segments.checked ? 1.0 : 0.5
-
-        }
-        */
     }
     Rectangle {
         id: brect2

@@ -5,7 +5,7 @@ import QtQuick.Shapes 1.2
 import QtQml
 import QtCharts 2.6
 
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Item {
     id: shapeContainer
@@ -20,7 +20,7 @@ Item {
         for (var idx = 0; idx < mtsModel.StackCount(); idx++) {
             var component = Qt.createComponent("AreaPath.qml");
             if (component.status == Component.Ready) {
-                component.createObject(shapeContainer, {pathStr: mtsModel.StackAsSvgPath(idx, shapeContainer.width, shapeContainer.height), areaColor: cmap.get(mtsModel.Label(idx))});
+                component.createObject(shapeContainer, {pathStr: mtsModel.StackAsSvgPath(idx, shapeContainer.width, shapeContainer.height), areaColor: cmap[mtsModel.Label(idx)]});
             }
         }
     }

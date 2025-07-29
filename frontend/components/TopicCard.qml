@@ -5,15 +5,14 @@ import QtQuick.Shapes 1.2
 import QtQuick.Effects
 
 import "."
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Item {
     id: topicCardRoot
     required property var cardData
     required property int segmentIndex
     required property int cardIndex
-    required property var cmapAOI
-    required property var cmapRole
+    required property var cmap
 
     required property bool hasAttention
     required property bool hasActivity
@@ -80,7 +79,7 @@ Item {
                     var total = 0;
 
                     for (const [key, value] of Object.entries(labelDistr)) {
-                        pieData.push({name: key, value: value, color: cmap.get(key)})
+                        pieData.push({name: key, value: value, color: cmap[key]})
                         total += value;
                     }
                     if (total < 1) {
@@ -91,22 +90,22 @@ Item {
 
                 PieChart {
                     id: pieSpeakerTime
-                    sourcePic: "icons/speech.png"
-                    data: topicCard.getPieData(cardData.SpeakerTimeDistribution(), topicCardRoot.cmapRole)
+                    sourcePic: "../icons/speech.png"
+                    data: topicCard.getPieData(cardData.SpeakerTimeDistribution(), topicCardRoot.cmap)
                     width: 50; height: 50; x: topicCardRoot.width - 25; y: 50; z: 5
                 }
                 PieChart {
                     id: pieAoiActivity
-                    sourcePic: "icons/move.png"
-                    data: topicCard.getPieData(cardData.AoiActivityDistribution(), topicCardRoot.cmapAOI)
+                    sourcePic: "../icons/move.png"
+                    data: topicCard.getPieData(cardData.AoiActivityDistribution(), topicCardRoot.cmap)
                     width: 50; height: 50; x: topicCardRoot.width - 25; y: 120; z: 5
                     visible: topicCardRoot.hasActivity
                 }
 
                 PieChart {
                     id: pieAoiAttention
-                    sourcePic: "icons/eye.png"
-                    data: topicCard.getPieData(cardData.AoiAttentionDistribution(), topicCardRoot.cmapAOI)
+                    sourcePic: "../icons/eye.png"
+                    data: topicCard.getPieData(cardData.AoiAttentionDistribution(), topicCardRoot.cmap)
                     width: 50; height: 50; x: topicCardRoot.width - 25; y: 190; z: 5
                     visible: topicCardRoot.hasAttention
                 }
@@ -137,7 +136,7 @@ Item {
                             width: 30
                             height: 30
 
-                            source: "icons/star.png"
+                            source: "../icons/star.png"
                             opacity: topicCardRoot.marked ? 1 : 0.25
 
                             MouseArea{

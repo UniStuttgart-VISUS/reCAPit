@@ -45,7 +45,6 @@ def create_heatmap_img(heatmap, colormap=None):
 
     heatmap = np.clip(heatmap, 0, 1)
     heatmap_img = colormap(heatmap)
-    print(heatmap_img.shape)
     heatmap_img[..., 3] = heatmap
 
     heatmap_img = (255 * heatmap_img).astype(np.uint8)
@@ -58,10 +57,13 @@ class HeatmapOverlayProvider(QQuickImageProvider):
         self.files = files
         self.segments_start = []
         self.segments_end = []
-        self.colormap = get_colormap(cmap, 9)
+        self.set_colormap(cmap)
 
     def img_id(self, segment_idx):
         return f'{segment_idx:05d}' 
+
+    def set_colormap(self, cmap_str):
+        self.colormap = get_colormap(cmap_str, 9)
         
     def compute_overlay(self, start, end):
         mask = (self.files['start timestamp [sec]'] >= start) & (self.files['end timestamp [sec]'] <= end)

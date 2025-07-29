@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import decimate
+from scipy.signal import resample
 from PyQt6.QtCore import QObject, pyqtSlot
 
     
@@ -40,16 +39,6 @@ class StackedSeries(QObject):
         self.labels = labels
         self.labels_active = labels.copy()
 
-    @classmethod
-    def empty(cls, labels, min_ts, max_ts):
-        signals = pd.DataFrame()
-        signals['timestamp [sec]'] = np.linspace(min_ts, max_ts, 100)
-        for l in labels:
-            signals[l] = np.zeros_like(signals['timestamp [sec]'])
-
-        #stacks = {l: np.ones_like(signals['timestamp [sec]']) for l in labels}
-        return cls(signals, signals, labels)
-
     def recompute(self, active_labels):
         preprocessed = []
         for label in self.labels:
@@ -66,7 +55,7 @@ class StackedSeries(QObject):
             self.stacks[label] = stack
 
     @classmethod
-    def from_signals(cls, signals, min_ts, max_ts, labels, downsampling_factor, log_transform=False, log_factor=1e9):
+    def from_signals(cls, signals, min_ts, max_ts, labels, log_transform=False, log_factor=1e9):
         out = pd.DataFrame()
         signals['timestamp [sec]'] = np.linspace(min_ts, max_ts, len(signals.index))
 
@@ -74,9 +63,8 @@ class StackedSeries(QObject):
 
         if log_transform:
             downsampled = [np.log(1 + log_factor*s) for s in downsampled] 
-            #downsampled = [gaussian_filter1d(s, 20) for s in downsampled] 
 
-        downsampled = [decimate(s, downsampling_factor) for s in downsampled] 
+        downsampled = [resample(s, num=1000) for s in downsampled] 
         preprocessed = preprocess_signals(downsampled)
         signal_stacks = compute_stacks(preprocessed)
 
@@ -88,6 +76,23 @@ class StackedSeries(QObject):
 
         return cls(stacks=out, signals=signals, labels=labels)
 
+    @classmethod
+    def empty(cls, min_ts, max_ts, labels):
+        out = pd.DataFrame()
+        signals = pd.DataFrame()
+
+        signals[labels] = 0
+        signals['timestamp [sec]'] = np.linspace(min_ts, max_ts, 100)
+
+        signal_stacks = compute_stacks(signals)
+
+        for label, stack, pre in zip(labels, signal_stacks, signals):
+            out[label] = stack
+            out[label + '_pre'] = pre
+
+        out['timestamp [sec]'] = np.linspace(min_ts, max_ts, len(out.index))
+
+        return cls(stacks=out, signals=signals, labels=labels)
         
     @pyqtSlot(result='QVariantMap')
     def LabelDistribution(self):

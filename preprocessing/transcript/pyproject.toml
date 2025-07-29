@@ -1,0 +1,11 @@
+[project]
+name = "transcript"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.3.1",
+    "subtitle-parser>=2.0.1",
+    "tqdm>=4.67.1",
+]

@@ -1,7 +1,5 @@
 from PyQt6.QtCore import QObject, pyqtSlot
 import numpy as np
-from copy import deepcopy
-
 
 class TopicCardData(QObject):
     def __init__(self, parent=None):
@@ -14,7 +12,6 @@ class TopicCardData(QObject):
         self.text_notes = ""
         self.thumbnail_crops = []
         self.speaker_role_time_distr = {}
-        self.speaker_time_distr = {}
         self.aoi_activity_distr = {}
         self.aoi_attention_distr = {}
         self.marked = False
@@ -102,15 +99,6 @@ class TopicCardData(QObject):
         keys = list(self.speaker_role_time_distr.keys())
         prob = list(self.speaker_role_time_distr.values())
 
-        if len(prob) > 0:
-            idx = np.argmax(prob)
-            return keys[idx]
-        return ""
-
-    @pyqtSlot(result=str)
-    def DominantSpeakerTime(self):
-        keys = list(self.speaker_time_distr.keys())
-        prob = list(self.speaker_time_distr.values())
         if len(prob) > 0:
             idx = np.argmax(prob)
             return keys[idx]

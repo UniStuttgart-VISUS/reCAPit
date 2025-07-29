@@ -1,14 +1,17 @@
 import QtQuick 2.15
 import QtQuick.Effects
-import QtQuick.Controls.Basic 2.15
 import QtMultimedia
 import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
 import QtQml
 
 import "components"
-import "components/utils.js" as Utils
+import "windows"
+import "js/utils.js" as Utils
+import "js/colorschemes.js" as Colorschemes
 import "."
+
+import QtQuick.Controls.Basic
 
 ApplicationWindow {
     id: appwin
@@ -24,9 +27,7 @@ ApplicationWindow {
     readonly property var timelineTopMargin: 50
     readonly property var rootTopMargin: 25
 
-    property var cmapAOI
-    property var cmapRole
-    property var timeDistr
+    property var cmapGlobal: {}
 
     property int selectedSnippetIndex : -1
 
@@ -51,7 +52,6 @@ ApplicationWindow {
     function interpolateColor(value, colorscheme) {
         // Clamp value between 0 and 1
         value = Math.max(0, Math.min(1, value));
-
         var colors;
 
         if (colorscheme === "BuGn")
@@ -81,6 +81,90 @@ ApplicationWindow {
         return colors[binIndex];
     }
 
+    PreferenceWindow {
+        id: preferencePane
+        width: 640
+        height: 480
+    }
+
+    AboutWindow {
+        id: aboutWindow
+    }
+
+    menuBar: MenuBar {
+        Menu {
+            title: qsTr("&File")
+            Action { text: qsTr("&Open...") }
+            Action { text: qsTr("&Save") }
+            Action { text: qsTr("Save &As...") }
+            MenuSeparator { }
+            Action { 
+                text: qsTr("Preferences") 
+                shortcut: StandardKey.Preferences
+                onTriggered: {
+                    preferencePane.show();
+                }
+            
+            }
+            MenuSeparator { }
+            Action { 
+                text: qsTr("&Quit") 
+                shortcut: StandardKey.Quit
+                onTriggered: {
+                    appwin.close();
+                }
+            }
+        }
+        Menu {
+            title: qsTr("&View")
+            Action { 
+                text: qsTr("Scale up") 
+                onTriggered: {
+                    scroll.contentWidth *= 1.5;
+                    appwin.reset();
+                }
+            }
+            Action { 
+                text: qsTr("Scale down") 
+                onTriggered: {
+                    scroll.contentWidth /= 1.5;
+                    appwin.reset();
+                }
+            }
+            Action { 
+                text: qsTr("Reset") 
+                onTriggered: {
+                    var targetIndices = [];
+                    for (var i = 0; i < appwin.allCardData.length; ++i) {
+                        targetIndices.push(appwin.allCardData[i].SegmentIndex());
+                    }
+
+                    for (var i = 0; i < cardsRoot.children.length; ++i) {
+                        const idx = cardsRoot.children[i].cardData.SegmentIndex();
+                        cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
+                        appwin.segmentIndicesScores[i] = 0.0;
+                    }
+                    targetSegmentIndices = targetIndices;
+                }
+            }
+        }
+        Menu {
+            title: qsTr("&Help")
+            Action { 
+                text: qsTr("&About") 
+                onTriggered: {
+                    aboutWindow.show();
+                }
+            }
+        }
+
+        background: Rectangle {
+            implicitWidth: 40
+            implicitHeight: 30
+            color: "#f8f8f8"
+        }
+    }
+
 
     TopicCardDrawer {
         id: drawer
@@ -95,7 +179,7 @@ ApplicationWindow {
 
         cardIndex: appwin.segmentIndicesOfCards[appwin.currentEditCardIndex]
         cardData: appwin.allCardData[cardIndex]
-        colormapAOIs: appwin.cmapAOI
+        colormap: appwin.cmapGlobal
 
         onSaveChanges: (heading, quotes_text, quotes_notes) => {
             const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
@@ -106,11 +190,11 @@ ApplicationWindow {
                     tsRoot.children[idx].title = heading;
                 }
             }
-
             topicSegments.SetLabel(cardIndex, heading);
             topicSegments.SetQuoteNote(cardIndex, quotes_notes);
             topicSegments.SetQuoteText(cardIndex, quotes_text);
 
+            tsRoot.children[cardIndex].tickInfos = topicSegments.ThumbnailInfo(cardIndex);
             targetCard.cardData = topicSegments.GetTopicCardData(cardIndex)
             appwin.allCardData[cardIndex] = targetCard.cardData;
         }
@@ -124,7 +208,7 @@ ApplicationWindow {
         height: 300
 
         onKeywordSearch: (keywords) => {
-            appwin.keywordMatchedIndices = topicSegments.KeywordMatchesAtTitles(keywords);
+            appwin.keywordMatchedIndices = topicSegments.KeywordMatches(keywords);
             var targetIndices = [];
 
             for (var i = 0; i < appwin.allCardData.length; ++i) {
@@ -144,13 +228,40 @@ ApplicationWindow {
         }
     }
 
-    Component.onCompleted: {
-        appwin.cmapAOI = Utils.createColorscheme(aoiModel.Labels(), aoiModel.ColormapAOI())
-        appwin.cmapRole = Utils.createColorscheme(aoiModel.Roles(), aoiModel.ColormapRole());
-        appwin.timeDistr = topicSegments.SpeakerTimeDistribution([]);
+    function init_colorscheme() {
+        const cc = aoiModel.ColormapCategories()
+        var cmapGlobal = new Object()
 
+        for (const data of Object.values(cc)) {
+            const mappedColors = Colorschemes.createColorscheme(data.labels, data.colormap);
+            for (const [val, color] of mappedColors) {
+                cmapGlobal[val] = color;
+            }
+        }
+        appwin.cmapGlobal = cmapGlobal;
+    }
+
+    Component.onCompleted: {
+        init_colorscheme();
+        preferencePane.userConfig = aoiModel.UserConfig();
         appwin.reset.connect(resetNow);
         resetNow();
+    }
+
+    Connections {
+        target: preferencePane
+        function onSaveCurrentUserConfig(user_config) {
+            aoiModel.SetUserConfig(user_config);
+
+            init_colorscheme();
+
+            for (const name of Object.keys(user_config["video_overlay"])) {
+                topicSegments.UpdateOverlayColormap(name, user_config["video_overlay"][name]["colormap"]);
+            }
+
+            topicSegments.AdjustFilter(aoiModel.SegmentMinDurSec(), aoiModel.SegmentDisplayDurSec());
+            resetNow();
+        }
     }
 
     Connections{
@@ -196,7 +307,6 @@ ApplicationWindow {
                     //appwin.segmentIndicesMarkers[output_indices[i]] = "💡";
                 }
             }
-
             highlightHistoryEntries.setSuggestedTopicIndices(snippet_index, output_indices);
         }
     }
@@ -269,8 +379,6 @@ ApplicationWindow {
             appwin.segmentIndicesScores.push(0);
         }
 
-        //segmentIndicesMarkers = Array(topicSegments.rowCount()).fill("");
-
         segmentIndicesWithCards = indicesWithCards;
         targetSegmentIndices = [...indicesWithCards];
     }
@@ -291,12 +399,11 @@ ApplicationWindow {
             deleteAllSegments();
             deleteAllCards();
 
-            appwin.timeDistr = topicSegments.SpeakerTimeDistribution(targetIndices);
             createSegments(targetIndices);
             findCardLayout();
         }
         else {
-            console.log("WARNING: Build story requires at least one marked topic card!")
+            console.log("WARNING: Build nothing to compress!")
         }
         targetSegmentIndices = targetIndices;
     }
@@ -321,20 +428,25 @@ ApplicationWindow {
                 if (ccComponent.status === Component.Error) {
                     console.log("Error loading component:", ccComponent.errorString());
                 }
+                const has_hard = topicSegments.HasCard(i);
+
                 var ccObject = ccComponent.createObject(tsRoot, 
                     {title: topicSegments.GetLabel(i), 
-                    dia: topicSegments.GetDialogueLine(i), 
+                    dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    sac: topicSegments.GetAoiActivity(i),
-                    sat: topicSegments.HasAttention() ? topicSegments.GetAoiAttention(i) : topicSegments.GetAoiActivity(i),
-                    color: topicSegments.HasCard(i) ? "#f8f8f8" : "#fff",
-                    cmapAOI: appwin.cmapAOI,
-                    cmapRole: appwin.cmapRole,
+                    stacksTop: topicSegments.GetTimeSeries("top", i),
+                    stacksBottom:  topicSegments.GetTimeSeries("bottom", i),
+                    min_ts: start_ts,
+                    max_ts: end_ts,
+                    tickInfos: topicSegments.ThumbnailInfo(i),
+                    color: has_hard ? "#f8f8f8" : "#fff",
+                    meta: aoiModel,
+                    cmap: appwin.cmapGlobal,
                     x: currX,
                     width: width,
                     height: appwin.timelineSegmentHeight,
                     topicIndex: i,
-                    hasCard: topicSegments.HasCard(i)
+                    hasCard: has_hard
                 });
                 ccObject.noteRequested.connect(appwin.createNote);
                 ccObject.cardVisibilityChanged.connect(appwin.changeCardVisibility);
@@ -394,8 +506,7 @@ ApplicationWindow {
                                                         cardData: cardData, 
                                                         segmentIndex: indices[i],
                                                         cardIndex: i,
-                                                        cmapAOI: appwin.cmapAOI,
-                                                        cmapRole: appwin.cmapRole,
+                                                        cmap: appwin.cmapGlobal,
                                                         hasActivity: topicSegments.HasActivity(),
                                                         hasAttention: topicSegments.HasAttention(),
                                                     });
@@ -413,11 +524,9 @@ ApplicationWindow {
                 const mark = topicSegments.ToggleMark(index);
 
                 if (mark) {
-                    //highlightHistoryEntries.addSelectedTopic(appwin.selectedSnippetIndex, index);
                     appwin.segmentIndicesMarkers[index] = "⭐";
                 }
                 else {
-                    //highlightHistoryEntries.removeSelectedTopic(appwin.selectedSnippetIndex, index);
                     appwin.segmentIndicesMarkers[index] = "";
                 }
             });
@@ -429,7 +538,6 @@ ApplicationWindow {
                 console.log("Error creating CardConnector");
             }
         }
-
         appwin.segmentIndicesOfCards = indices;
     }
 
@@ -446,7 +554,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/reset.png"
+            source: "../icons/reset.png"
 
             onClicked: function() {
                 appwin.reset();
@@ -459,7 +567,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/compress.png"
+            source: "../icons/compress.png"
 
             onClicked: function() {
                 appwin.compressSegments();
@@ -472,7 +580,7 @@ ApplicationWindow {
             color: "#005fee"
             width: 75
             height: 75
-            source: "icons/search.png"
+            source: "../icons/search.png"
 
             onClicked: function() {
                 keywordDialog.open();
@@ -480,325 +588,162 @@ ApplicationWindow {
         }
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 0
-        
-        Frame {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 50
+    header: Frame {
+        height: 50
 
-            background: Rectangle {
-                color: "#f8f8f8"
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 25
-
-                TextInput {
-                    Layout.fillHeight: true
-                    Layout.alignment: Qt.AlignVCenter
-
-                    text: "Enter headline here ..."
-                    font.pixelSize: 26
-                    font.weight: Font.Bold
-                    font.capitalization: Font.AllUppercase
-                    color: "#c8c7d1"
-                    horizontalAlignment: Text.AlignLeft
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
-
-                Legend {
-                    title: "Roles"
-                    labels: aoiModel.Roles()
-                    cmap: appwin.cmapRole
-                }
-
-                Legend {
-                    id: aoiLegend
-                    title: "AOIs"
-                    labels: aoiModel.Labels()
-                    cmap: appwin.cmapAOI
-                }
-            }
+        background: Rectangle {
+            color: "#f8f8f8"
         }
-
-        /*
-        Frame {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 50
-
-            background: Rectangle {
-                color: "#f8f8f8"
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 25
-
-                Repeater {
-                    //model: aoiModel.Identifiers()
-                    model: Object.keys(appwin.timeDistr)
-                    delegate: Text {
-                        required property string modelData
-                        text: "%1: %2 %".arg(modelData).arg((100*appwin.timeDistr[modelData]).toFixed())
-                    }
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-            }
-        }
-        */
-
-        /*
-        Connections {
-            target: textEditor
-            function onCodeSnippetSelected(index) { 
-                topicSegments.FindSimilarSegments(highlightHistoryEntries.get(index).text, index);
-                appwin.selectedSnippetIndex = index;
-            }
-        }
-        */
 
         RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 0
+            anchors.fill: parent
+            spacing: 25
 
-            Legend2 {
-                id: legend
-
-                Layout.preferredWidth: 40
+            TextInput {
                 Layout.fillHeight: true
+                Layout.alignment: Qt.AlignVCenter
 
-                color: "#f8f8f8"
-                textColor: "#909090"
-                z: 200
-
-                identifiers: aoiModel.Identifiers()
-
-                h1: 175
-                h2: 30
-                h3: 60 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
-                h4: 500
+                text: "Enter headline here ..."
+                font.pixelSize: 26
+                font.weight: Font.Bold
+                font.capitalization: Font.AllUppercase
+                color: "#c8c7d1"
+                horizontalAlignment: Text.AlignLeft
             }
 
-            Flickable {
-                id: scroll
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-
-                contentWidth: 14000
-                contentHeight: 1000
-
-                flickableDirection: Flickable.HorizontalFlick
-                boundsBehavior: Flickable.StopAtBounds
-
-                clip: true
-
-                ScrollBar.horizontal: ScrollBar {
-                    policy: ScrollBar.AlwaysOn 
-                }
-
-                Shortcut {
-                    sequence: "Ctrl++"
-                    onActivated: {
-                        scroll.contentWidth *= 1.5;
-                        appwin.reset();
-                    }
-                }
-
-                Shortcut {
-                    sequence: "Ctrl+-"
-                    onActivated: {
-                        scroll.contentWidth /= 1.5;
-                        appwin.reset();
-                    }
-                }
-                Shortcut {
-                    sequence: StandardKey.Cancel
-                    onActivated: {
-                        var targetIndices = [];
-                        for (var i = 0; i < appwin.allCardData.length; ++i) {
-                            targetIndices.push(appwin.allCardData[i].SegmentIndex());
-                        }
-
-                        for (var i = 0; i < cardsRoot.children.length; ++i) {
-                            const idx = cardsRoot.children[i].cardData.SegmentIndex();
-                            cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
-                            appwin.segmentIndicesScores[i] = 0.0;
-                        }
-                        targetSegmentIndices = targetIndices;
-                    }
-                }
-
-                ColumnLayout {
-                    spacing: 0
-
-                    Item {
-                        id: tsRoot
-                        z: 5
-                        width: scroll.contentWidth
-                        height: appwin.timelineSegmentHeight
-                    }
-
-                    Item {
-                        z: 1
-                        id: cardsConnectorRoot
-                        width: scroll.contentWidth
-                        height: 50
-                    }
-
-                    Item {
-                        id: cardsRoot
-                        width: scroll.contentWidth
-                        height: 400
-                    }
-
-                    Item { Layout.fillHeight: true }    // <-- filler here
-                }
             }
 
-            ListView {
-                id: repB
+            LegendCategories {
+                title: "Roles"
+                labels: aoiModel.Roles()
+                cmap: appwin.cmapGlobal
+            }
 
-                Layout.preferredWidth: boxW
-                Layout.fillHeight: true
+            LegendCategories {
+                id: aoiLegend
+                title: "AOIs"
+                labels: aoiModel.Labels()
+                cmap: appwin.cmapGlobal
+            }
+        }
+    }
 
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        LegendViews {
+            id: legend
+
+            Layout.preferredWidth: 40
+            Layout.fillHeight: true
+
+            color: "#f8f8f8"
+            textColor: "#909090"
+            z: 200
+
+            streamTopId: aoiModel.GetTopMultiTimeLabel()
+            streamBottomId: aoiModel.GetBottomMultiTimeLabel()
+
+            identifiers: aoiModel.Identifiers()
+
+            h1: 175
+            h2: 30
+            h3: 60 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+            h4: 500
+        }
+
+        Flickable {
+            id: scroll
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            contentWidth: 14000
+            contentHeight: 1000
+
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+
+            clip: true
+
+            ScrollBar.horizontal: ScrollBar {
+                policy: ScrollBar.AlwaysOn 
+            }
+
+            ColumnLayout {
                 spacing: 0
-                //model: segmentIndicesWithCards
-                model: appwin.segmentIndicesMarkers
 
-                property real boxW: 20 
-                property real boxH: 20 
-
-                clip: true
-                
-                function interpolateColor(value) {
-                    // Clamp value between 0 and 1
-                    value = Math.max(0, Math.min(1, value));
-
-                    // Define the colors as RGB components
-                    const startColor = { r: 248, g: 248, b: 248 }; // #f8f8f8
-                    const endColor = { r: 255, g: 0, b: 0 };    // #ff9933
-
-                    // Interpolate each color component
-                    const r = Math.round(startColor.r + value * (endColor.r - startColor.r));
-                    const g = Math.round(startColor.g + value * (endColor.g - startColor.g));
-                    const b = Math.round(startColor.b + value * (endColor.b - startColor.b));
-
-                    // Return the interpolated color as a hex string
-                    const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-                    return color;
+                Item {
+                    id: tsRoot
+                    z: 5
+                    width: scroll.contentWidth
+                    height: appwin.timelineSegmentHeight
                 }
 
-                /*
-                function interpolateColor(value, bins) {
-                    // Ensure bins is at least 1
-                    bins = Math.max(1, bins);
-
-                    // Clamp value between 0 and 1
-                    value = Math.max(0, Math.min(1, value));
-
-                    // Calculate the size of each bin
-                    const binSize = 1 / bins;
-
-                    // Snap value to the nearest bin
-                    const snappedValue = Math.floor(value / binSize) * binSize;
-
-                    // Define the colors as RGB components
-                    const startColor = { r: 248, g: 248, b: 248 }; // #f8f8f8
-                    const endColor = { r: 49, g: 130, b: 189 };    // #ff9933
-
-                    // Interpolate each color component using the snapped value
-                    const r = Math.round(startColor.r + snappedValue * (endColor.r - startColor.r));
-                    const g = Math.round(startColor.g + snappedValue * (endColor.g - startColor.g));
-                    const b = Math.round(startColor.b + snappedValue * (endColor.b - startColor.b));
-
-                    // Return the interpolated color as a hex string
-                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                Item {
+                    z: 1
+                    id: cardsConnectorRoot
+                    width: scroll.contentWidth
+                    height: 50
                 }
-                */
 
-                delegate: Rectangle {
-                    required property int index
-                    required property string modelData
+                Item {
+                    id: cardsRoot
+                    width: scroll.contentWidth
+                    height: 400
+                }
 
-                    width: repB.boxW
-                    height: repB.boxH
+                Item { Layout.fillHeight: true }    // <-- filler here
+            }
+        }
 
-                    //radius: 5
-                    //color: appwin.cmapRole.get(appwin.allCardData[segmentIndicesWithCards[index]].DominantSpeakerRoleTime())
-                    //color: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? "#dadada" : "#f8f8f8"
-                    //opacity: targetSegmentIndices.includes(segmentIndicesWithCards[index]) ? 1.0 : 0.25
+        ListView {
+            id: repB
 
-                    //color: "#f8f8f8"
-                    color: appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn")
+            Layout.preferredWidth: boxW
+            Layout.fillHeight: true
 
-                    border.color: '#d9d9d9'
+            spacing: 0
+            model: appwin.segmentIndicesMarkers
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
-                            for (var i = 0; i < tsRoot.children.length; ++i) {
-                                if (tsRoot.children[i].topicIndex === segmentIndicesWithCards[index]) {
-                                    scroll.ScrollBar.horizontal.position = tsRoot.children[i].x / tsRoot.width;
-                                }
+            property real boxW: 20 
+            property real boxH: 20 
+
+            clip: true
+            
+            delegate: Rectangle {
+                required property int index
+                required property string modelData
+
+                width: repB.boxW
+                height: repB.boxH
+                color: (index < appwin.segmentIndicesScores.length) ? appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
+                border.color: '#d9d9d9'
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
+                        for (var i = 0; i < tsRoot.children.length; ++i) {
+                            if (tsRoot.children[i].topicIndex === segmentIndicesWithCards[index]) {
+                                scroll.ScrollBar.horizontal.position = tsRoot.children[i].x / tsRoot.width;
                             }
                         }
                     }
+                }
 
-                    Label {
-                        anchors.fill: parent
-                        font.pixelSize: 16
+                Label {
+                    anchors.fill: parent
+                    font.pixelSize: 16
 
-                        //text: "⭐"
-                        //text: "💡"
-                        text: modelData
-                        //color: "#ccc"
-                        opacity: 0.5
+                    text: modelData
+                    opacity: 0.5
 
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    /*
-                    Image {
-                        anchors.fill: parent
-                        source: "components/icons/star.png"
-                        opacity: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? 1.0 : 0.0
-                    }
-
-                    Row {
-                        width: parent.width
-                        spacing: 5
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Image {
-                            width: 15
-                            height: 15
-
-                            source: "components/icons/star.png"
-                            opacity: appwin.allCardData[segmentIndicesWithCards[index]].IsMarked() ? 1.0 : 0.25
-                        }
-
-                        Text {
-                            text: appwin.allCardData[segmentIndicesWithCards[index]].DominantSpeakerTime().slice(0, 2)
-                            font.pixelSize: 10
-                            color: "#000"
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            font.capitalization: Font.AllUppercase
-                        }
-                    }
-                    */
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }

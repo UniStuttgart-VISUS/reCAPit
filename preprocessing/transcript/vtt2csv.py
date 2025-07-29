@@ -1,9 +1,10 @@
 import subtitle_parser
-import webvtt
 import argparse
-from pathlib import Path
 import pandas as pd
 import re
+
+from pathlib import Path
+
 
 def timestamp_to_sec(ts):
     hour, min, sec, ms = ts

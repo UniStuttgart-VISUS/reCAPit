@@ -9,7 +9,7 @@ import QtQuick.Shapes 1.2
 import com.kochme.media 1.0
 
 import "."
-import "utils.js" as Utils
+import "../js/utils.js" as Utils
 
 Rectangle {
     id: videoRoot
@@ -25,15 +25,7 @@ Rectangle {
     property var active: false
     property int selectionMode: 0
     property var videoSink
-
-    property var heatmapGazeSource
-    property var heatmapMoveSource
-
-    property bool hasGazeHeatmap
-    property bool hasMoveHeatmap
-    
-    property var gazeOverlayData: {}
-    property var gazeOverlayIds: []
+    property var videoOverlaySources
 
     property bool aoiOverlayEnabled: false
 
@@ -41,6 +33,8 @@ Rectangle {
     property alias selectionPosY: selectionRect.y
     property alias selectionWidth: selectionRect.width
     property alias selectionHeight: selectionRect.height
+
+    property bool hasVideoOverlays: Object.keys(videoOverlaySources).length > 0
 
     signal selectionChanged(var frame, real pos, real xpos, real ypos, real width, real height, string overlay_src)
 
@@ -77,26 +71,6 @@ Rectangle {
             }
             control.value = 100 * (pos - startPosition) / (endPosition - startPosition);
             const gaze_idx = Math.floor(0.001 * position * 4);
-
-            for (var i = 0; i < gazeOverlayIds.length; i++) {
-                const rec_id = gazeOverlayIds[i];
-                if (gaze_idx < gazeOverlayData[rec_id].length) {
-                    const entry = gazeOverlayData[rec_id][gaze_idx];
-                    if (entry.valid) {
-                        const pos_x = entry.x_norm * videoOutput.contentRect.width;
-                        const pos_y = entry.y_norm * videoOutput.contentRect.height;
-
-                        gazeOverlay.children[i].visible = true;
-                        gazeOverlay.children[i].x = Math.floor(pos_x);
-                        gazeOverlay.children[i].y = Math.floor(pos_y);
-                        //console.log("%1, %2".arg(pos_x).arg(pos_y));
-                    }
-
-                    else {
-                        gazeOverlay.children[i].visible = false;
-                    }
-                }
-            }
         }
 
         onMediaStatusChanged: (status) => {
@@ -185,8 +159,8 @@ Rectangle {
                         }
 
                         ShapePath {
-                            fillColor: makeColorTransparent(videoRoot.colormapAOIs.get(modelData), videoRoot.aoiOverlayEnabled ? "88" : "00")
-                            strokeColor: makeColorTransparent(videoRoot.colormapAOIs.get(modelData), videoRoot.aoiOverlayEnabled ? "ff" : "00")
+                            fillColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "88" : "00")
+                            strokeColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "ff" : "00")
                             strokeWidth: 1
 
                             PathPolyline {
@@ -202,10 +176,9 @@ Rectangle {
                 height: videoOutput.contentRect.height
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-
-                source: childGroup.checkedButton.text === "Gaze" ? heatmapGazeSource : heatmapMoveSource
-                // Only show heatmap on top-down video
-                visible: (childGroup.checkedButton.text !== "None" && bar.currentIndex === 0)
+                source: (hasVideoOverlays && childGroup.checkedButton && childGroup.checkedButton.text in videoOverlaySources) ? videoOverlaySources[childGroup.checkedButton.text] : ""
+                // Only show overlays on top-down video
+                visible:  hasVideoOverlays && childGroup.checkedButton.text !== "None" && bar.currentIndex === 0
             }
 
             Item {
@@ -219,36 +192,6 @@ Rectangle {
 
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-
-                Repeater {
-                    model: gazeOverlayIds
-
-                    delegate: 
-                    Column {
-                        Shape {
-                            width: 8
-                            height: 8
-
-                            ShapePath {
-                                fillColor: "transparent"
-                                strokeColor: "black"
-                                strokeWidth: 3
-
-                                PathAngleArc {
-                                    radiusX: 8; radiusY: 8
-                                    startAngle: -180
-                                    sweepAngle: 360
-                                }
-                            }
-                        }
-                        Text {
-                            text: modelData
-                            color: "black"
-                            font.bold: true
-                            font.pointSize: 10
-                        }
-                    }
-                }
             }
 
             Rectangle {
@@ -373,7 +316,8 @@ Rectangle {
                 Layout.preferredWidth: 20
                 id: control2
 
-                property list<string> model: ["None", "Gaze", "Activity"]
+                property list<string> model: Object.keys(videoOverlaySources).concat(["None"])
+                visible: hasVideoOverlays
 
                 MouseArea {
                     anchors.fill: parent
@@ -384,7 +328,7 @@ Rectangle {
 
                 Image {
                     anchors.fill: parent
-                    source: "icons/gear.png"
+                    source: "../icons/gear.png"
                     fillMode: Image.PreserveAspectFit
                 }
 
@@ -425,7 +369,7 @@ Rectangle {
                 Layout.preferredHeight: 20
                 Layout.preferredWidth: 20
 
-                source: videoRoot.selectionMode === 0 ? "icons/box_inactive.png" : "icons/box_active.png"
+                source: videoRoot.selectionMode === 0 ? "../icons/box_inactive.png" : "../icons/box_active.png"
 
                 MouseArea {
                     anchors.fill: parent
@@ -447,7 +391,7 @@ Rectangle {
                 Layout.preferredHeight: 20
                 Layout.preferredWidth: 20
 
-                source: videoRoot.aoiOverlayEnabled ? "icons/aoi_active.png" : "icons/aoi_inactive.png"
+                source: videoRoot.aoiOverlayEnabled ? "../icons/aoi_active.png" : "../icons/aoi_inactive.png"
 
                 MouseArea {
                     anchors.fill: parent
