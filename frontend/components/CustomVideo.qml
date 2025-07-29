@@ -176,7 +176,7 @@ Rectangle {
                 height: videoOutput.contentRect.height
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-                source: hasVideoOverlays ? videoOverlaySources[childGroup.checkedButton.text] : ""
+                source: (hasVideoOverlays && childGroup.checkedButton && childGroup.checkedButton.text in videoOverlaySources) ? videoOverlaySources[childGroup.checkedButton.text] : ""
                 // Only show overlays on top-down video
                 visible:  hasVideoOverlays && childGroup.checkedButton.text !== "None" && bar.currentIndex === 0
             }
@@ -316,7 +316,7 @@ Rectangle {
                 Layout.preferredWidth: 20
                 id: control2
 
-                property list<string> model: Object.keys(videoOverlaySources)
+                property list<string> model: Object.keys(videoOverlaySources).concat(["None"])
                 visible: hasVideoOverlays
 
                 MouseArea {
