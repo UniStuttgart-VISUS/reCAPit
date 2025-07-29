@@ -1,32 +1,155 @@
 # Multimodal Feature Extraction
 
-## Installation
+## The Manifest File
 
-Ensure you have Python (version ≥ 3.10) installed. You can find all required packages in `requirements.txt`. Please note that may not need all packages listed in `requirements.txt` if you only want to run a subset of all provided scripts. In the future, we plan to streamline this process. It's recommended to install the packages into new virtual environment.
+reCAPit enables the analysis of various derived features (**artifacts**) extracted from multiple data sources, including video, speech, and eye tracking (**sources**).
+All **sources** and **artifacts** are managed using a JSON file called `manifest.json`, which contains both manually defined entries and automatically generated entries.
+The provided scripts automatically add `artifact` entries (**registering**) to the `manifest.json` file based on the **sources** you manually specified.
 
-`python -m pip install -r requirements.txt`
+## Requirements
 
-Please note that certain scripts depend on PyTorch. For best performance it's recommended to run them on systems with GPU and CUDA capabilities. Please make sure to install PyTorch version that is compatible with CUDA version available on your system.
+Scripts are organized in directories according to the sources they extract features from (transcript/video/gaze).
+Please make sure [astral-sh/uv](https://github.com/astral-sh/uv) is installed on your system.
+UV is a Python package and project manager that eases the deployment of applications written in Python.
 
-## Usage
+To launch a script, navigate to the respective directory and `uv run register_[NAME].py` inside your terminal, and replace `NAME` with the respective script name.
 
-In the following, we describe how to extract a multitude of features using the provided scripts.
 
-### Audio
+> [!NOTE]
+> Please note that certain scripts depend on PyTorch. For best performance, it is recommended to run them on systems with GPU and CUDA capabilities. Please make sure to install a PyTorch version that is compatible with the CUDA version available on your system.
 
-*Content will follow soon*
+# Scripts
 
-### Video
+The scripts provided in this folder can be used to extract a variety of **artifacts** based on the specified sources.
+Each script that can register artifacts follows this naming convention: `register_*.py`.
 
-*Content will follow soon*
+* Most importantly, **sources** need to be specified by the user.
+* Some scripts may also depend on artifacts produced by other scripts.
+* Only registered artifacts in the manifest can be used by reCAPit.
+* If the script terminates without errors, it adds the respective artifact to the manifest file.
+* Each script requires the manifest file as input, plus additional parameters pertaining to the specific feature extraction.
 
-### Gaze
+## 📄 Transcript
 
-*Content will follow soon*
+### `register_transcript.py`
 
-### Digital Notes
+Registers transcript data and processes it for individual recordings by mapping speaker information to recording IDs and roles.
 
-*Content will follow soon*
+* 📥 This script requires a transcript file (CSV format) and recordings defined in the manifest
+* 📤 This script will register `artifacts/transcript` globally and `artifacts/transcript` for each individual recording.
+
+**Required CSV Format:**
+
+The transcript must be provided as a CSV file with the following required columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `speaker` | string | Speaker identifier that matches recording IDs in the manifest |
+| `text` | string | Transcribed speech content |
+| `start timestamp [sec]` | float | Start time of the speech segment in seconds |
+| `end timestamp [sec]` | float | End time of the speech segment in seconds |
+
+Please note that the actual transcript generation must be performed with an external tool.
+There are many open-sources tools that can be used for speech-to-text transformation, such as:
+
+- **noScribe - https://github.com/kaixxx/noScribe** 
+- **whisper-standalone-win - https://github.com/Purfview/whisper-standalone-win**
+
+> [!NOTE]
+> The speaker IDs must exactly match the recording IDs defined in the manifest.
+
+> [!INFO]
+> Many tools such as the ones mentioned above output subtitle files (.srt or .vtt), which you can transform to the required CSV format using the helper scripts `transcript/srt2csv.py` and `transcript/vtt2csv.py`.
+
+
+## 🧩 Segmentation
+
+### `register_segment_initial.py` 
+
+Performs initial segmentation based on a previously registered multivariate time series, specified by `input_signal`.
+
+* 📥 The `input_signal` must be a registered multivariate time series `artifacts/multi_time`
+* 📤 This script will register `artifacts/segments/initial`.
+
+> [!NOTE]
+> Currently `movement` and `attention` are available, which you can extract using the scripts `videos/workspace/register_movement.py` and `gaze/register_attention.py`, respectively.
+
+### `register_segment_refine.py` 
+
+Refines an initial segmentation using lexical features extracted from the transcript. This refinement effectively splits the initial segments by detecting transitions between subsequent discussions.
+
+* 📥 This script requires a previously registered initial segmentation `artifacts/segments/initial` (see [register_segment_initial.py](#register_segment_initial.py)) and a registered transcript `artifacts/transcript`
+* 📤 This script will register `artifacts/segments/refined`.
+
+> [!NOTE]
+> Refinement is not a necessary step, and it is legitimate to perform only the initial segmentation. However, if you notice particularly long segments after initial segmentation, you may be advised to perform refinement.
+
+### `segment_attributes.py` 
+
+Uses ChatGPT to automatically generate text summaries and titles for each segment of an existing segmentation result.
+The outputs are populated into the existing segmentation results as new data columns.
+
+* 📥 This script requires a previously registered segmentation, either `artifacts/segments/initial` or `artifacts/segments/refined`
+* 📤 This script will not register anything
+
+> [!NOTE]
+> This is a special script that does not register any new artifact, but instead adds new data to an existing segmentation result.
+
+## 🎥 Video
+
+### `register_movement.py`
+
+Extracts movement activity from workspace video using background subtraction and hand detection. This script analyzes video frames to detect hand movements within defined areas of interest.
+
+* 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests`
+* 📤 This script will register `artifacts/multi_time/movement`.
+
+> [!NOTE]
+> The script uses KNN background subtraction combined with MediaPipe hand detection to isolate hand movements. It supports downsampling for performance optimization and can optionally store the processed video output.
+
+### `register_heatmaps_gaze.py`
+
+Generates gaze-based heatmaps from eye tracking data by creating temporal aggregations of fixation data overlaid on the workspace video.
+
+* 📥 This script requires a registered workspace video `sources/videos/workspace` and mapped fixations from recordings with `artifacts/mapped_fixations`
+* 📤 This script will register `artifacts/video_overlay/attention`.
+
+> [!NOTE]
+> Heatmaps are generated using Gaussian splatting with configurable kernel sizes. The script creates time-windowed heatmaps that can be used for temporal analysis of attention patterns.
+
+### `register_heatmaps_move.py`
+
+Creates movement-based heatmaps by analyzing hand activity patterns within areas of interest over time windows.
+
+* 📥 This script requires a registered workspace video `sources/videos/workspace` and areas of interest `sources/areas_of_interests`
+* 📤 This script will register `artifacts/video_overlay/movement`.
+
+> [!NOTE]
+> This script combines background subtraction with hand detection to create spatial heatmaps of movement activity. It uses Gaussian smoothing for temporal aggregation and supports configurable time windows.
+
+## 👁️ Gaze
+
+### `register_attention.py`
+
+Processes eye tracking data to compute attention signals by mapping surface fixations to areas of interest and generating time series data.
+
+* 📥 This script requires recordings with `sources/surface_fixations` and areas of interest `sources/areas_of_interests`
+* 📤 This script will register `artifacts/multi_time/attention` and `artifacts/mapped_fixations` for each recording.
+
+> [!NOTE]
+> The script maps fixation coordinates to predefined areas of interest and computes normalized attention signals with configurable temporal binning (default: 0.5 seconds). Each recording must contain surface fixation data.
+
+## 🗒️ Digital Notes
+
+### `register_notes.py`
+
+Analyzes temporal changes in digital note-taking by processing document snapshots and computing text differences between versions.
+
+* 📥 This script requires notes snapshots `sources/notes_snapshots` (directory containing .docm files with timestamp-based filenames)
+* 📤 This script will register `artifacts/notes`.
+
+> [!NOTE]
+> The script uses diff-match-patch algorithms to identify insertions and deletions between document versions. It samples documents at configurable intervals (default: 150 seconds) and generates HTML visualizations of changes. Document filenames should be timestamps for proper temporal ordering.
 
 ## License and Third-Party Notices
 
@@ -59,4 +182,3 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
