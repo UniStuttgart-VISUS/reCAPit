@@ -19,7 +19,7 @@ reCAPit is an application designed for analyzing, exploring, and documenting out
 
 ## ✨ System Overview
 
-<img src="system.png" height="500" title="Screenshot of reCAPit"/>
+<img src="system.PNG" height="500" title="Screenshot of reCAPit"/>
 
 ## ⚙️ Setup Recommendations
 
