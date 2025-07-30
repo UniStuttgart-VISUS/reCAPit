@@ -92,7 +92,7 @@ The following snippet shows how to specify `areas_of_interests` and `videos` in 
 
 The scripts provided in this folder can be used to **register** a variety of **artifacts** based on the specified sources.
 It should be noted that only artifacts registered in the `manifest.json` can be used by the reCAPit frontend.
-Artifacts are be either recording specific, i.e. are linked to one participant, or global, meaning they describe aggregated data covering more than one participant. 
+Artifacts are either recording specific, i.e., are linked to one participant, or global, meaning they describe aggregated data covering more than one participant. 
 
 ### Global Artifacts
 
