@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - [📖 About](#-about)
-- [✨ System Overview](#-system-overview)
+- [🧩 System Overview](#-system-overview)
 - [⚙️ Setup Recommendations](#️-setup-recommendations)
 - [🔄 Data Preparation](#-data-preparation)
 - [📂 Input Requirements](#-input-requirements)
