@@ -17,7 +17,7 @@
 
 reCAPit is an application designed for analyzing, exploring, and documenting outcomes of collaborative design processes using speech, video, gaze, and other data modalities. Its integrated visualizations provide an overview of recorded data and enable users to author visual summaries of their analysis results. Our application includes a preprocessing pipeline capable of extracting a wide range of features from the rich, multimodal data collected
 
-## ✨ System Overview
+## 🧩 System Overview
 
 <img src="system.PNG" height="500" title="Screenshot of reCAPit"/>
 
