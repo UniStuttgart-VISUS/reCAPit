@@ -42,11 +42,11 @@ We recommend the following setup:
 ## 🔄 Data Preparation
 
 As described above, reCAPit supports data from multiple sensors. These data streams must be preprocessed before they can be used in the interface.
-Please refer to the `preprocessing/README` for detailed instructions on data preprocessing.
+Please refer to the [ `preprocessing/README` ](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/README.md) for detailed instructions on data preprocessing.
 
 ## 📂 Input Requirements
 
-The reCAPit frontend (`frontend/App.py`) requires specific command-line arguments:
+The reCAPit frontend [ `frontend/App.py` ](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/frontend/App.py)  requires specific command-line arguments:
 
 ### Required Arguments
 
@@ -62,7 +62,7 @@ The reCAPit frontend (`frontend/App.py`) requires specific command-line argument
 Please make sure [astral-sh/uv](https://github.com/astral-sh/uv) is installed on your system.
 UV is a Python package and project manager that eases the deployment of applications written in Python.
 
-To launch the app, navigate to the `frontend` directory and run the following command in your terminal:
+To launch the app, navigate to the [ `frontend/` ](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/frontend/)  directory and run the following command in your terminal:
 
 ```bash
 uv run App.py --manifest path/to/manifest.json --user_config path/to/user_config.json
