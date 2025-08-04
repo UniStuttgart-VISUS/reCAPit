@@ -1,7 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import argparse
 import pandas as pd
 import numpy as np
-import json
 import logging
 
 from bs4 import BeautifulSoup
@@ -9,6 +12,7 @@ from pathlib import Path
 from docx2python import docx2python
 from diff_match_patch import diff_match_patch
 from tqdm import tqdm
+from manifest_manager import ManifestManager
 
 
 def strip_chars(x: str):
@@ -38,13 +42,7 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'notes_snapshots' not in manifest['sources']:
-            logging.error("Notes snapshots is not specified in sources!")
-            exit(1)
-
+    with ManifestManager(args.manifest) as man:
         doc_versions = []
         timestamps = []
         out = []
@@ -56,7 +54,7 @@ if __name__ == '__main__':
         differ.Diff_Timeout = 0
         differ.Match_Threshold = .5
 
-        snapshots_dir = Path(manifest['sources']['notes_snapshots']['path'])
+        snapshots_dir = Path(man.get_source('notes_snapshots')['path'])
         docs = list(snapshots_dir.glob('*.docm'))
 
         for doc_file in tqdm(docs, desc='docx2python', unit='document'):
@@ -93,12 +91,11 @@ if __name__ == '__main__':
         df = pd.DataFrame(data=out, columns=['start timestamp [sec]', 'end timestamp [sec]', 'insertions', 'deletions', 'html'])
         offset_sec = df['start timestamp [sec]'].iloc[0]
 
-        df['start timestamp [sec]'] = manifest['sources']['notes_snapshots']['offset_sec'] + df['start timestamp [sec]'] - offset_sec
-        df['end timestamp [sec]'] = manifest['sources']['notes_snapshots']['offset_sec'] + df['end timestamp [sec]'] - offset_sec
+        notes_snapshots_info = man.get_source('notes_snapshots')
+        df['start timestamp [sec]'] = notes_snapshots_info['offset_sec'] + df['start timestamp [sec]'] - offset_sec
+        df['end timestamp [sec]'] = notes_snapshots_info['offset_sec'] + df['end timestamp [sec]'] - offset_sec
 
         df.to_csv(out_path, index=False, encoding="utf-8-sig")
-        manifest['artifacts']['notes'] = {'path': str(out_path)}
-        logging.info('Registered "notes" as an global artifact')
 
-        f.seek(0)
-        json.dump(manifest, f, indent=4)
+        man.register_artifact('notes', {'path': str(out_path)})
+        logging.info('Registered "notes" as an global artifact')

@@ -1,6 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import cv2 as cv
 import pandas as pd
-import json
 import numpy as np
 import argparse
 import hand_detection
@@ -9,6 +12,7 @@ import logging
 from pathlib import Path
 from tqdm import tqdm
 from utils import get_aois, get_masks
+from manifest_manager import ManifestManager
 
 
 if __name__ == '__main__':
@@ -23,18 +27,8 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
-            logging.error("No workspace video specified in 'sources'!")
-            exit(1)
-
-        if 'multi_time' not in manifest['artifacts']:
-            logging.info("Create multi_time field in manifest")
-            manifest['artifacts']['multi_time'] = {}
-
-        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
+    with ManifestManager(args.manifest) as man:
+        cap = cv.VideoCapture(man.get_video('workspace')['path'])
 
         fps = cap.get(cv.CAP_PROP_FPS)
         frame_count = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
@@ -48,7 +42,7 @@ if __name__ == '__main__':
             fourcc = cv.VideoWriter_fourcc(*'avc1')
             writer = cv.VideoWriter(str(args.out_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
-        aois = get_aois(manifest['sources']['areas_of_interests']['path'])
+        aois = get_aois(man.get_areas_of_interests()['path'])
         masks = get_masks(aois, frame_width, frame_height)
         masks = {label: cv.resize(mask, fx=args.downsampling_factor, fy=args.downsampling_factor, dsize=None) for label, mask in masks.items()}
 
@@ -103,12 +97,9 @@ if __name__ == '__main__':
             df = pd.DataFrame(out, columns=columns)
             df.to_csv(out_path, index=False)
 
-            manifest['artifacts']['multi_time']['movement'] = {'path': str(out_path), 'categories': 'areas_of_interests'}
+            man.register_multi_time('movement', {'path': str(out_path), 'categories': 'areas_of_interests'})
             logging.info('Registered "multi_time/movement" as an global artifact')
             
-            f.seek(0)
-            json.dump(manifest, f, indent=4)
-        
             cap.release()
             if args.store_video:
                 writer.release()

@@ -1,13 +1,16 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pandas as pd
 import numpy as np
 import argparse
-import json
 import logging
 
 from tqdm import tqdm
 from pathlib import Path
 from map_fixations import fix2AOI
-
+from manifest_manager import ManifestManager
 
 
 def compute_attention_signals(dfs, min_timestamp, max_timestamp, bin_width_sec=1):
@@ -67,24 +70,12 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'areas_of_interests' not in manifest['sources']:
-            logging.error("Areas of interests are not specified in 'sources'!")
-            exit(1)
-
-        mapped_fix = process_recordings(manifest['recordings'], manifest['sources']['areas_of_interests']['path'], args.out_dir)
-
-        if 'multi_time' not in manifest['artifacts']:
-            logging.info("Create multi_time field in manifest")
-            manifest['artifacts']['multi_time'] = {}
+    with ManifestManager(args.manifest) as man:
+        mapped_fix = process_recordings(man.get_recordings(), man.get_areas_of_interests()['path'], args.out_dir)
 
         out_path = args.out_dir / 'attention.csv'
-        attention_signals = compute_attention_signals(mapped_fix, min_timestamp=0, max_timestamp=manifest['duration_sec'], bin_width_sec=0.5)
+        attention_signals = compute_attention_signals(mapped_fix, min_timestamp=0, max_timestamp=man.get_duration_sec(), bin_width_sec=0.5)
         attention_signals.to_csv(out_path, index=None)
-        manifest['artifacts']['multi_time']['attention'] = {'path': str(out_path), 'categories': 'areas_of_interests'}
-        logging.info('Registered "multi_time/attention" as an global artifact')
 
-        f.seek(0)
-        json.dump(manifest, f, indent=4)
+        man.register_multi_time('attention', {'path': str(out_path), 'categories': 'areas_of_interests'})
+        logging.info('Registered "multi_time/attention" as an global artifact')

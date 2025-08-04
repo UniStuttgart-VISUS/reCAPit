@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import pandas as pd
 import numpy as np
 import argparse
@@ -9,6 +13,7 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 from utils import *
+from manifest_manager import ManifestManager
 
 
 def create_heatmap_splatting(pos_x, pos_y, weights, size, kernel_size=151):
@@ -82,28 +87,18 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
-            logging.error("No workspace video specified in 'sources'!")
-            exit(1)
-
-        if 'video_overlay' not in manifest['artifacts']:
-            logging.info("Create video_overlay field in manifest")
-            manifest['artifacts']['video_overlay'] = {}
-
+    with ManifestManager(args.manifest) as man:
         root_dir = args.out_dir
         out_dir = root_dir / 'gaze'
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
+        cap = cv.VideoCapture(man.get_video('workspace')['path'])
         dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
 
         start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
         end_timestamps = start_timestamps + args.delta_step_sec
         filenames = [f'gaze/{n:04d}.npy' for n in range(len(start_timestamps))]
-        heatmaps = gaze_heatmap(cap, manifest['recordings'], start_timestamps, end_timestamps, kernel_size=args.kernel_size)
+        heatmaps = gaze_heatmap(cap, man.get_recordings(), start_timestamps, end_timestamps, kernel_size=args.kernel_size)
 
         df = pd.DataFrame(data=zip(filenames, start_timestamps, end_timestamps), columns=('filename', 'start timestamp [sec]', 'end timestamp [sec]'))
         df.to_csv(root_dir / 'gaze.csv', index=False)
@@ -121,9 +116,5 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        manifest['artifacts']['video_overlay']['attention'] = {'path': str(args.out_dir / 'gaze.csv')}
+        man.register_video_overlay('attention', {'path': str(args.out_dir / 'gaze.csv')})
         logging.info('Registered "video_overlay/attention" as an global artifact')
-
-        f.seek(0)
-        json.dump(manifest, f, indent=4)
-

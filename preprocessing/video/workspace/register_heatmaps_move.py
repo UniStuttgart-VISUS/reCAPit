@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 import pandas as pd
 import numpy as np
 import argparse
@@ -12,6 +16,7 @@ from tqdm import tqdm
 from scipy.ndimage import correlate1d
 from pathlib import Path
 from utils import gaussian_kernel_1d, get_merged_aois_masks, get_aois, create_heatmap_img
+from manifest_manager import ManifestManager
 
 
 def mean_activity(cap, hand_detector, back_sub, aoi_mask, start_msec, end_msec, downscale_factor=.5, show_output=True):
@@ -89,28 +94,14 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'areas_of_interests' not in manifest['sources']:
-            logging.error("Areas of interests are not specified in 'sources'!")
-            exit(1)
-
-        if 'videos' not in manifest['sources'] and 'workspace' not in manifest['sources']['videos']:
-            logging.error("No workspace video specified in 'sources'!")
-            exit(1)
-
-        if 'video_overlay' not in manifest['artifacts']:
-            logging.info("Create video_overlay field in manifest")
-            manifest['artifacts']['video_overlay'] = {}
-
+    with ManifestManager(args.manifest) as man:
         root_dir = args.out_dir
         out_dir = root_dir / 'move'
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        aois = get_aois(manifest['sources']['areas_of_interests']['path'])
+        aois = get_aois(man.get_areas_of_interests()['path'])
 
-        cap = cv.VideoCapture(manifest['sources']['videos']['workspace']['path'])
+        cap = cv.VideoCapture(man.get_video('workspace')['path'])
         dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 
 
         start_timestamps = np.arange(0, dur_sec, args.delta_step_sec)
@@ -120,7 +111,7 @@ if __name__ == '__main__':
         heatmaps = activity_heatmap(cap, aois, start_timestamps, end_timestamps, kernel_size=args.kernel_size, downscale_factor=.5, show_output=args.show_output)
 
         df = pd.DataFrame(data=zip(filenames, start_timestamps, end_timestamps), columns=('filename', 'start timestamp [sec]', 'end timestamp [sec]'))
-        df.to_csv(root_dir / 'move.csv', index=False)
+        #df.to_csv(root_dir / 'move.csv', index=False)
 
         with tqdm(total=len(start_timestamps), desc='compute heatmaps', unit='heatmap') as t:
             for heatmap, filename in zip(heatmaps, filenames):
@@ -136,8 +127,5 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        manifest['artifacts']['video_overlay']['movement'] = {'path': str(args.out_dir / 'move.csv')}
+        man.register_video_overlay('movement', {'path': str(args.out_dir / 'move.csv')})
         logging.info('Registered "video_overlay/movement" as an global artifact')
-
-        f.seek(0)
-        json.dump(manifest, f, indent=4)

@@ -1,7 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import argparse
 import pandas as pd
-import json
 import matplotlib.pyplot as plt
 import ruptures as rpt
 import scipy
@@ -9,13 +11,14 @@ import numpy as np
 import scipy.signal
 import logging
 from pathlib import Path
+from manifest_manager import ManifestManager
 
 
-def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True):
+def mvt_segmentation(mvt, duration_sec, downsampling_factor=5, min_dur_sec=30, show_plot=True):
 
     if 'timestamp [sec]' not in mvt.columns:
         logging.warning("Missing timestamp column. Adding timestamp column")
-        mvt['timestamp [sec]'] = np.linspace(0, manifest['duration_sec'], mvt.shape[0])
+        mvt['timestamp [sec]'] = np.linspace(0, duration_sec, mvt.shape[0])
     
     preprocessed = pd.DataFrame.copy(mvt)
 
@@ -36,7 +39,7 @@ def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True)
     print(f'Original signal shape: {mvt.shape}, downsampled signal shape: {preprocessed.shape}')
 
     #min_size = (manifest['duration_s'] / mtv.shape[0]) * min_dur_sec / downsampling_factor
-    min_size = int(preprocessed.shape[0] * min_dur_sec / manifest['duration_sec'])
+    min_size = int(preprocessed.shape[0] * min_dur_sec / duration_sec)
 
     print(f"Minimum segment size: {min_size}")
 
@@ -51,7 +54,6 @@ def mvt_segmentation(mvt, downsampling_factor=5, min_dur_sec=30, show_plot=True)
 
     return result
 
-    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -67,23 +69,9 @@ if __name__ == '__main__':
     root_dir = args.manifest.parent
     out_path = args.out_dir / 'initial.csv'
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-
-        if 'segments' not in manifest['artifacts']:
-            manifest['artifacts']['segments'] = {}
-            logging.info('Created "segments" field in manifest.')
-
-        if args.input_signal not in manifest['artifacts']['multi_time']:
-            logging.error(f'"{args.input_signal}" is not a registered "multi_time" signal in the manifest.')
-            print('The following "multi_time" signals are currently registered in the manifest:')
-
-            for mt in manifest['artifacts']['multi_time']:
-                print(f'{mt}')
-            exit(1)
-
-        mtv = pd.read_csv(manifest['artifacts']['multi_time'][args.input_signal]['path'], encoding='utf-8-sig')
-        result = mvt_segmentation(mtv, downsampling_factor=args.downsampling_factor, min_dur_sec=2*args.min_dur_sec, show_plot=True)
+    with ManifestManager(args.manifest) as man:
+        mtv = pd.read_csv(man.get_multi_time(args.input_signal)['path'], encoding='utf-8-sig')
+        result = mvt_segmentation(mtv, man.get_duration_sec(), downsampling_factor=args.downsampling_factor, min_dur_sec=2*args.min_dur_sec, show_plot=True)
         records = []
 
         for segment_start, segment_end in zip(result[:-1], result[1:]):
@@ -95,8 +83,5 @@ if __name__ == '__main__':
 
         out = pd.DataFrame.from_records(data=records, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out.to_csv(out_path, index=None, encoding='utf-8-sig')
-        manifest['artifacts']['segments']['initial'] = {'path': str(out_path)}
+        man.register_segments('initial', {'path': str(out_path)})
         logging.info('Registered "segments/initial" as an global artifact')
-
-        f.seek(0)
-        json.dump(manifest, f, indent=4)

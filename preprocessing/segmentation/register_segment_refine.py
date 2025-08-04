@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import argparse
 import pandas as pd
-import json
 import numpy as np
 import logging
 
+from manifest_manager import ManifestManager
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
@@ -134,24 +138,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
-
     root_dir = args.manifest.parent
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
 
-        if 'transcript' not in manifest['artifacts']:
-            logging.error("Transcript is not specified in artifacts!")
-            exit(1)
-
-        if 'segments' not in manifest['artifacts']:
-            logging.error("Segments are not specified in artifacts!")
-            exit(1)
-
-        if 'initial' not in manifest['artifacts']['segments']:
-            logging.error("Initial segmentation is required for refinement!")
-            exit(1)
-
-        transcript = pd.read_csv(manifest['artifacts']['transcript']['path'], encoding='utf-8-sig')
+    with ManifestManager(args.manifest) as man:
+        transcript = pd.read_csv(man.get_transcript()['path'], encoding='utf-8-sig')
         transcript['text'] = transcript['text'].astype(str)
         transcript['speaker'] = transcript['speaker'].astype(str)
 
@@ -160,7 +150,7 @@ if __name__ == '__main__':
 
         out_path = args.out_dir / 'refined.csv'
 
-        initial_segments = pd.read_csv(manifest['artifacts']['segments']['initial']['path'])
+        initial_segments = pd.read_csv(man.get_segments('initial')['path'])
         out_table = []
 
         for _, row in initial_segments.iterrows():
@@ -183,8 +173,5 @@ if __name__ == '__main__':
         out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out_table.to_csv(out_path, index=None, encoding='utf-8-sig')
 
-        manifest['artifacts']['segments']['refined'] = {'path': str(out_path)}
+        man.register_segments('refined', {'path': str(out_path)})
         logging.info('Registered "segments/refined" as an global artifact')
-
-        f.seek(0)
-        json.dump(manifest, f, indent=4)

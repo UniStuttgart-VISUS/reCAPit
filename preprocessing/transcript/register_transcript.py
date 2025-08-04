@@ -1,10 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import argparse
-import json
 import pandas as pd
 import logging
 
 from tqdm import tqdm
 from pathlib import Path
+from manifest_manager import ManifestManager
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -15,14 +19,13 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with open(args.manifest, 'r+') as f:
-        manifest = json.load(f)
-        manifest['artifacts']['transcript'] = {'path': str(args.transcript)}
+    with ManifestManager(args.manifest) as man:
+        man.register_artifact('transcript', {'path': str(args.transcript)})
         transcript = pd.read_csv(args.transcript)
 
         logging.info('Registered "transcript" as an global artifact')
 
-        for rec in tqdm(manifest['recordings'], disable=True):
+        for rec in tqdm(man.get_recordings(), disable=True):
             out_dir = args.out_dir / rec['id']
             out_dir.mkdir(exist_ok=True)
             out_path = out_dir / 'transcript.csv'
@@ -36,6 +39,3 @@ if __name__ == '__main__':
 
             rec['artifacts']['transcript'] = {'path': str(out_path), 'categories': 'roles'}
             logging.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
-
-        f.seek(0)
-        json.dump(manifest, f, indent=4)

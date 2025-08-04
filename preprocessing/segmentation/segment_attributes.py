@@ -1,11 +1,15 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import argparse
 import pandas as pd
-import json
 import openai
 import os
 import logging
 
 from pathlib import Path
+from manifest_manager import ManifestManager
 
 def generate_prompt_summary(text, language):
     return [
@@ -89,7 +93,6 @@ def segment_attributes(transcript_segment, language):
     summary = execute_prompt(client, generate_prompt_summary(joined_text, language), args.gpt_model)
 
     logging.info(f'GPT response - {title}: {summary}')
-
     return {'summary': summary, 'title': title, 'overlap': overlapping_speech_sec, 'num_turns': num_turns}
 
 
@@ -102,53 +105,40 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
-
     root_dir = args.manifest.parent
-    manifest = json.load(open(args.manifest, 'r'))
 
-    if 'transcript' not in manifest['artifacts']:
-        logging.error("Transcript is not specified in artifacts!")
-        exit(1)
+    with ManifestManager(args.manifest) as man:
+        if args.openai_api_key is None:
+            openai_api_key = args.openai_api_key
 
-    if 'segments' not in manifest['artifacts']:
-        logging.error("Segments are not specified in artifacts!")
-        exit(1)
+        if openai_api_key is None:
+            openai_api_key = os.environ.get('OPENAI_API_KEY')
+            if not openai_api_key:
+                logging.error('Either pass your OpenAI API key as an argument or store it in the environment variable "OPENAI_API_KEY".')
+                exit(1)
 
-    if args.target_segments not in manifest['artifacts']['segments']:
-        logging.error(f'There are no "{args.target_segments}" segments found')
-        exit(1)
+        client = openai.OpenAI(api_key=openai_api_key)
 
-    if args.openai_api_key is None:
-        openai_api_key = args.openai_api_key
+        transcript = pd.read_csv(man.get_transcript()['path'], encoding='utf-8-sig')
+        transcript['text'] = transcript['text'].astype(str)
+        transcript['speaker'] = transcript['speaker'].astype(str)
 
-    if openai_api_key is None:
-        openai_api_key = os.environ.get('OPENAI_API_KEY')
-        if not openai_api_key:
-            logging.error('Either pass your OpenAI API key as an argument or store it in the environment variable "OPENAI_API_KEY".')
-            exit(1)
+        out_table = []
+        segments = pd.read_csv(man.get_segments(args.target_segments)['path'])
 
-    client = openai.OpenAI(api_key=openai_api_key)
+        for _, row in segments.iterrows():
+            start_ts = row['start timestamp [sec]']
+            end_ts = row['end timestamp [sec]']
 
-    transcript = pd.read_csv(manifest['artifacts']['transcript']['path'], encoding='utf-8-sig')
-    transcript['text'] = transcript['text'].astype(str)
-    transcript['speaker'] = transcript['speaker'].astype(str)
+            transcript_segment = transcript[(transcript['start timestamp [sec]'] >= start_ts) & (transcript['end timestamp [sec]'] <= end_ts)]
 
-    out_table = []
-    segments = pd.read_csv(manifest['artifacts']['segments'][args.target_segments]['path'])
+            if transcript_segment.empty:
+                logging.warning(f"Time span {start_ts:.2f}s - {end_ts:.2f}s has no speech")
+                continue
 
-    for _, row in segments.iterrows():
-        start_ts = row['start timestamp [sec]']
-        end_ts = row['end timestamp [sec]']
+            seg_attr = segment_attributes(transcript_segment, man.get_language())
+            out_table.append([start_ts, end_ts, end_ts-start_ts, seg_attr['overlap'], seg_attr['num_turns'], seg_attr['title'], seg_attr['summary']])
 
-        transcript_segment = transcript[(transcript['start timestamp [sec]'] >= start_ts) & (transcript['end timestamp [sec]'] <= end_ts)]
-
-        if transcript_segment.empty:
-            logging.warning(f"Time span {start_ts:.2f}s - {end_ts:.2f}s has no speech")
-            continue
-
-        seg_attr = segment_attributes(transcript_segment, manifest['language'])
-        out_table.append([start_ts, end_ts, end_ts-start_ts, seg_attr['overlap'], seg_attr['num_turns'], seg_attr['title'], seg_attr['summary']])
-
-    out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary'])
-    out_table.to_csv(manifest['artifacts']['segments'][args.target_segments]['path'], index=None, encoding='utf-8-sig')
-    logging.info(f'Successfully modified "{args.target_segments}" segments')
+        out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary'])
+        out_table.to_csv(man.get_segments(args.target_segments)['path'], index=None, encoding='utf-8-sig')
+        logging.info(f'Successfully modified "{args.target_segments}" segments')
