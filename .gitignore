@@ -4,6 +4,8 @@ preprocessing/annotations/autosaves-test
 
 ruff.toml
 
+.VSCodeCounter
+
 *.csv
 *.docx
 *.pdf
