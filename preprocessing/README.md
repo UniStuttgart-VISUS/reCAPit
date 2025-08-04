@@ -130,7 +130,7 @@ To launch a script, navigate to the respective directory and run `uv run registe
 
 ## 📄 Transcript
 
-### `register_transcript.py`
+### [`register_transcript.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/transcript/register_transcript.py)
 
 Registers transcript data and processes it for individual recordings by mapping speaker information to recording IDs and roles.
 
@@ -162,7 +162,7 @@ The transcript must be provided as a CSV file with the following required column
 
 ## 🧩 Segmentation
 
-### `register_segment_initial.py` 
+### [ `register_segment_initial.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/segmentation/register_segment_initial.py) 
 
 Performs initial segmentation based on a previously registered multivariate time series, specified by `input_signal`.
 
@@ -172,7 +172,7 @@ Performs initial segmentation based on a previously registered multivariate time
 > [!NOTE]
 > Currently, `movement` and `attention` are available, which you can extract using the scripts `videos/workspace/register_movement.py` and `gaze/register_attention.py`, respectively.
 
-### `register_segment_refine.py` 
+### [`register_segment_refine.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/segmentation/register_segment_refine.py)  
 
 Refines an initial segmentation using lexical features extracted from the transcript. This refinement effectively splits the initial segments by detecting transitions between subsequent discussions.
 
@@ -182,7 +182,7 @@ Refines an initial segmentation using lexical features extracted from the transc
 > [!NOTE]
 > Refinement is not a necessary step, and it is legitimate to perform only the initial segmentation. However, if you notice particularly long segments after initial segmentation, you may be advised to perform refinement.
 
-### `segment_attributes.py` 
+### [`segment_attributes.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/segmentation/segment_attributes.py)  
 
 Uses ChatGPT to automatically generate text summaries and titles for each segment of an existing segmentation result.
 The outputs are populated into the existing segmentation results as new data columns.
@@ -195,7 +195,7 @@ The outputs are populated into the existing segmentation results as new data col
 
 ## 🎥 Video
 
-### `register_movement.py`
+### [`register_movement.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/video/workspace/register_movement.py)  
 
 Extracts movement activity from workspace video using background subtraction and hand detection. This script analyzes video frames to detect hand movements within defined areas of interest.
 
@@ -205,14 +205,14 @@ Extracts movement activity from workspace video using background subtraction and
 > [!NOTE]
 > The output of this script `movement` can be used as an input signal for [register_segment_initial.py](#register_segment_initialpy)
 
-### `register_heatmaps_gaze.py`
+### [`register_heatmaps_gaze.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/video/workspace/register_heatmaps_gaze.py)  
 
 Generates gaze-based heatmaps from eye tracking data by creating temporal aggregations of fixation data overlaid on the workspace video.
 
 * 📥 This script requires a registered workspace video `sources/videos/workspace` and mapped fixations from recordings with `artifacts/mapped_fixations` (see [register_attention.py](#register_attentionpy))
 * 📤 This script will register `artifacts/video_overlay/attention`.
 
-### `register_heatmaps_move.py`
+### [`register_heatmaps_move.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/video/workspace/register_heatmaps_move.py)  
 
 Creates movement-based heatmaps by analyzing hand activity patterns within areas of interest over time windows.
 
@@ -221,7 +221,7 @@ Creates movement-based heatmaps by analyzing hand activity patterns within areas
 
 ## 👁️ Gaze
 
-### `register_attention.py`
+### [`register_attention.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/gaze/register_attention.py)  
 
 Processes eye tracking data to compute attention signals by mapping surface fixations to areas of interest and generating time series data.
 
@@ -243,7 +243,7 @@ The surface fixations must be provided as a CSV file with the following required
 
 ## 🗒️ Digital Notes
 
-### `register_notes.py`
+### [`register_notes.py`](https://github.com/UniStuttgart-VISUS/reCAPit/blob/master/preprocessing/notes/register_notes.py)
 
 Analyzes temporal changes in an instrumented Word document by processing document snapshots and computing text differences between versions. The instrumented Word document `notes/notes_template.docm` can be used to record notes *during* the recording. It contains macros that periodically write snapshots of the current document state to a directory. You can use this document like any normal Word document, but you must enable macro execution when prompted by Word.
 
