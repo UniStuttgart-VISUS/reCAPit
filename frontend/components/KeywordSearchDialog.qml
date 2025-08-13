@@ -13,38 +13,30 @@ Dialog {
 
     signal keywordSearch(list<string> keywords)
 
+    /*
     background: Rectangle {
         color: "#f0f0f0"
     }
+    */
 
     ColumnLayout {
         anchors.fill: parent
 
-        TextField {
-            id: keywordInput
-
-            Layout.preferredHeight: 50
+        Label {
+            text: "Keyword Terms:"
+            font.pixelSize: 20
             Layout.fillWidth: true
+            Layout.preferredHeight: 50
+        }
 
-            placeholderText: "Enter keyword term here ..."
-
-            background: Rectangle {
-                radius: 20
-                border.color: "#C9C9C9"
-                border.width: 1
-            }
-
-            verticalAlignment: TextField.AlignVCenter
-
-            font.pixelSize: 16
-            font.weight: Font.Normal
-            font.family: "Arial"
-            leftPadding: 10
-
-            onAccepted: {
-                keywordDialog.userKeywords = [...keywordDialog.userKeywords, keywordInput.text.toLowerCase()];
-                keywordInput.text = "";
-            }
+        Label {
+            font.pixelSize: 18
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            text: "No keyword terms defined"
+            color: "#aaa"
+            horizontalAlignment: Text.AlignHCenter
+            visible: keywordDialog.userKeywords.length === 0
         }
 
         Flow {
@@ -66,31 +58,77 @@ Dialog {
                 Rectangle {
                     required property string modelData
 
-                    width: Math.min(150, modelData.length * 10)
-                    height: 20
-                    radius: 10
-                    color: "#005fee"
+                    width: tagText.implicitWidth + 15
+                    height: 25
+                    radius: 5
+                    color: "#eee"
+                    border.color: "#aaa"
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            keywordsContainer.removeKeyword(modelData);
-                        }
-                    }
+                    Row {
+                        id: tagText
+                        spacing: 5
 
-                    Text {
                         anchors.centerIn: parent
                         anchors.leftMargin: 5
                         anchors.rightMargin: 5
 
-                        text: modelData
-                        elide: Text.ElideMiddle
-                        color: "white"
-                        font.pixelSize: 10
+                        Text {
+                            text: modelData
+                            elide: Text.ElideMiddle
+                            color: "#555"
+                            font.pixelSize: 12
+                        }
+                        Label {
+                            text: "✕"
+                            color: "#555"
+                            font.pixelSize: 14
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    keywordsContainer.removeKeyword(modelData);
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+
+        TextField {
+            id: keywordInput
+
+            Layout.preferredHeight: 50
+            Layout.fillWidth: true
+
+            placeholderText: "Enter keyword term here ..."
+
+            background: Rectangle {
+                radius: 5
+                border.color: keywordInput.activeFocus ? "#e80" : "#C9C9C9"
+                border.width: 2
+            }
+            Label {
+                id: image
+                text: "🔎"
+                font.pixelSize: 18
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 5
+            }
+
+            leftPadding: image.implicitWidth + 15
+            verticalAlignment: TextField.AlignVCenter
+
+            font.pixelSize: 16
+            font.weight: Font.Normal
+            font.family: "Arial"
+
+            onAccepted: {
+                keywordDialog.userKeywords = [...keywordDialog.userKeywords, keywordInput.text.toLowerCase()];
+                keywordInput.text = "";
+            }
+        }
+
     }
 
     onOpened: {
@@ -103,6 +141,5 @@ Dialog {
         keywordSearch(keywordDialog.userKeywords);
     }
 
-    onRejected: console.log("Note adding was canceled by user")
     modal: true
 }
