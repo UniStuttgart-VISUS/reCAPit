@@ -73,11 +73,11 @@ class NotesModel(QObject):
 
     @pyqtSlot(result=str)
     def FullInsertions(self):
-        return ';'.join([x for x in self.insertions if type(x) == str])
+        return ';'.join([x for x in self.insertions if isinstance(x, str)])
 
     @pyqtSlot(result=str)
     def FullDeletions(self):
-        return ';'.join([x for x in self.deletions if type(x) == str])
+        return ';'.join([x for x in self.deletions if isinstance(x, str)])
 
     @pyqtSlot(float)
     def AddNote(self, ts, text, label):

@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import cvxpy as cp
+import pandas as pd
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPainter
@@ -100,4 +101,44 @@ def blend_images(image1, image2, opacity=0.5):
 
     return result
 
+
+def merge_transcript(df, time_delta_threshold=1.0):
+    merged_rows = []
+    for _, row in df.iterrows():
+        if len(merged_rows) > 1:
+            time_delta = (
+                row["start timestamp [sec]"] - merged_rows[-1]["end timestamp [sec]"]
+            )
+            speaker_match = row["speaker"] == merged_rows[-1]["speaker"]
+
+            if time_delta < time_delta_threshold and speaker_match:
+                merged_rows[-1]["end timestamp [sec]"] = row["end timestamp [sec]"]
+                merged_rows[-1]["text"] = merged_rows[-1]["text"] + " " + row["text"]
+            else:
+                merged_rows.append(row)
+        else:
+            merged_rows.append(row)
+    return pd.DataFrame(merged_rows)
+
+
+def filter_segments(topics, min_dur_1, min_dur_2):
+    topics['Displayed'] = True
+    topics = topics[topics['duration [sec]'] > min_dur_1]
+    topics.loc[topics['duration [sec]'] < min_dur_2, 'Displayed'] = False
+    return topics
+
+
+def fill_between(topics, max_ts):
+    last_ts = 0
+    new_rows = []
+    for _, row in topics.iterrows():
+        if row['start timestamp [sec]'] - last_ts > 0:
+            new_rows.append((last_ts, row['start timestamp [sec]'], row['start timestamp [sec]'] - last_ts, 0, 0, "", "", False))
+        last_ts = row['end timestamp [sec]']
+
+    if last_ts < max_ts:
+        new_rows.append((last_ts, max_ts, max_ts - last_ts, 0, 0, "", "", False))
+
+    new_rows = pd.DataFrame(data=new_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary', 'Displayed'])
+    return pd.concat([new_rows, topics]).sort_values(by='start timestamp [sec]')
 

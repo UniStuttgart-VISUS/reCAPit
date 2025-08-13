@@ -8,53 +8,12 @@ from PyQt6.QtCore import QObject, pyqtSlot, QSize, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtMultimedia import QVideoSink
 
-from utils import linear_layout, blend_images, longest_common_substring
+from utils import linear_layout, blend_images, longest_common_substring, fill_between, filter_segments, merge_transcript
 from HeatmapProvider import HeatmapOverlayProvider
 from ThumbnailProvider import ThumbnailProvider
 from NotesModel import NotesModel
 from StackedSeries import StackedSeries
 from TopicCard import TopicCardData
-
-
-def merge_transcript(df, time_delta_threshold=1.0):
-    merged_rows = []
-    for _, row in df.iterrows():
-        if len(merged_rows) > 1:
-            time_delta = (
-                row["start timestamp [sec]"] - merged_rows[-1]["end timestamp [sec]"]
-            )
-            speaker_match = row["speaker"] == merged_rows[-1]["speaker"]
-
-            if time_delta < time_delta_threshold and speaker_match:
-                merged_rows[-1]["end timestamp [sec]"] = row["end timestamp [sec]"]
-                merged_rows[-1]["text"] = merged_rows[-1]["text"] + " " + row["text"]
-            else:
-                merged_rows.append(row)
-        else:
-            merged_rows.append(row)
-    return pd.DataFrame(merged_rows)
-
-
-def filter_segments(topics, min_dur_1, min_dur_2):
-    topics['Displayed'] = True
-    topics = topics[topics['duration [sec]'] > min_dur_1]
-    topics.loc[topics['duration [sec]'] < min_dur_2, 'Displayed'] = False
-    return topics
-
-
-def fill_between(topics, max_ts):
-    last_ts = 0
-    new_rows = []
-    for _, row in topics.iterrows():
-        if row['start timestamp [sec]'] - last_ts > 0:
-            new_rows.append((last_ts, row['start timestamp [sec]'], row['start timestamp [sec]'] - last_ts, 0, 0, "", "", False))
-        last_ts = row['end timestamp [sec]']
-
-    if last_ts < max_ts:
-        new_rows.append((last_ts, max_ts, max_ts - last_ts, 0, 0, "", "", False))
-
-    new_rows = pd.DataFrame(data=new_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary', 'Displayed'])
-    return pd.concat([new_rows, topics]).sort_values(by='start timestamp [sec]')
 
 
 class SegmentModel(QObject):
@@ -229,6 +188,7 @@ class SegmentModel(QObject):
                         if not success:
                             raise ValueError(f"Failed to save {info['img_id']}")
             except Exception as e:
+                logging.error(e)
                 return False
         return True
 
@@ -464,6 +424,62 @@ class SegmentModel(QObject):
         role_durations = part.groupby("role")["duration [sec]"].sum()
         return {role: float(role_durations.get(role, 0)) / total_dur for role in roles}
 
+    @pyqtSlot(int, result=str)
+    def Title(self, index):
+        return self.titles[index]
+
+    @pyqtSlot(int, result=list)
+    def Labels(self, index):
+        return self.labels[index]
+
+    @pyqtSlot(int, result=str)
+    def Summary(self, index):
+        return self.summaries[index]
+
+    @pyqtSlot(int, result=str)
+    def TextDialoguesOriginal(self, index):
+        return self.quotes_text[index]['original']
+
+    @pyqtSlot(int, result=str)
+    def TextDialoguesFormatted(self, index):
+        return self.quotes_text[index]['formatted']
+
+    @pyqtSlot(int, result=str)
+    def TextNotes(self, index):
+        return self.quotes_note[index]
+
+    @pyqtSlot(int, result=list)
+    def ThumbnailCrops(self, index):
+        return self.thumbnail_info[index]
+
+    @pyqtSlot(int, result=float)
+    def PosEndSec(self, index):
+        return self.start_ts[index]
+
+    @pyqtSlot(int, result=float)
+    def PosStartSec(self, index):
+        return self.end_ts[index]
+
+    @pyqtSlot(int, result=bool)
+    def IsMarked(self, index):
+        return self.marked[index]
+
+    @pyqtSlot(result=list)
+    def MarkedIndices(self):
+        return [idx for idx in range(len(self.marked)) if self.marked[idx]]
+
+    @pyqtSlot(result=list)
+    def AllIndices(self):
+        return range(len(self.marked))
+
+    @pyqtSlot(result=list)
+    def IndicesOfCards(self):
+        return [idx for idx in range(len(self.has_card)) if self.has_card[idx]]
+
+    @pyqtSlot(result=list)
+    def Indices(self):
+        return range(len(self.marked))
+
     @pyqtSlot(int, result=TopicCardData)
     def GetTopicCardData(self, index):
         start_ts = self.start_ts
@@ -476,9 +492,6 @@ class SegmentModel(QObject):
         tcd.marked = self.marked[index]
         tcd.summary = self.summaries[index]
         tcd.speaker_role_time_distr = self.speaker_time_by_role(index)
-
-        # tcd.aoi_activity_distr = self.multi_time[0].slice(start_ts[index], end_ts[index]).LabelDistribution()
-        # tcd.aoi_attention_distr = self.multi_time[1].slice(start_ts[index], end_ts[index]).LabelDistribution()
 
         tcd.aoi_activity_distr = self.GetTimeSeries(
             "bottom", index

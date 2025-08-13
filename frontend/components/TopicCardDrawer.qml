@@ -12,7 +12,6 @@ Drawer {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     required property int cardIndex
-    required property var cardData
     required property var colormap
 
     property var drawerOpened: false
@@ -55,9 +54,9 @@ Drawer {
         video.selectionHeight = 0;
         drawer.drawerOpened = true;
 
-        dialogueTextSelection.setOutText(drawer.cardData.TextDialoguesOriginal());
-        notesTextSelection.setOutText(drawer.cardData.TextNotes());
-        notesTextSelection.labels = drawer.cardData.Labels()
+        dialogueTextSelection.setOutText(topicSegments.TextDialoguesOriginal(drawer.cardIndex));
+        notesTextSelection.setOutText(topicSegments.TextNotes(drawer.cardIndex));
+        notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex)
     }
 
     onClosed: {
@@ -73,7 +72,7 @@ Drawer {
             Layout.preferredHeight: 50
 
             id: heading
-            text: drawer.cardData.Title()
+            text: topicSegments.Title(drawer.cardIndex)
             wrapMode: Text.WordWrap
 
             font.pixelSize: 20
@@ -101,8 +100,8 @@ Drawer {
                     Layout.preferredHeight: 550
 
                     videoOverlaySources: topicSegments.VideoOverlaySources(drawer.cardIndex)
-                    startPosition: drawer.cardData.PosStartSec() * 1000
-                    endPosition: drawer.cardData.PosEndSec() * 1000
+                    startPosition: topicSegments.PosStartSec(drawer.cardIndex) * 1000
+                    endPosition: topicSegments.PosEndSec(drawer.cardIndex) * 1000
                     active: drawer.drawerOpened
                     topDownSource: topicSegments.VideoSourceTopDown()
                     peripheralSources: topicSegments.VideoSourcesPeripheral()
@@ -110,8 +109,8 @@ Drawer {
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
                         topicSegments.RegisterVideoCrop(frame, pos_ms, drawer.cardIndex, xpos, ypos, width, height, overlay_src); 
-                        thumbnailPreview.model = topicSegments.GetTopicCardData(drawer.cardIndex).ThumbnailCrops();
-                        thumbnailPreview.model = Qt.binding(function() { return drawer.cardData.ThumbnailCrops()} )
+                        thumbnailPreview.model = topicSegments.ThumbnailCrops(drawer.cardIndex);
+                        thumbnailPreview.model = Qt.binding(function() { return topicSegments.ThumbnailCrops(drawer.cardIndex)} )
                     }
                 }
 
@@ -150,7 +149,7 @@ Drawer {
                             anchors.fill: parent
                             clip: true
 
-                            model: drawer.cardData.ThumbnailCrops()
+                            model: topicSegments.ThumbnailCrops(drawer.cardIndex)
                             delegate: 
                             Item {
                                 id: outer
@@ -248,7 +247,7 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
-                    labels: drawer.cardData.Labels()
+                    labels: topicSegments.Labels(drawer.cardIndex)
                     title: String.fromCodePoint(0x1F5D2) + "  Notes  " + String.fromCodePoint(0x1F5D2)
                     textContent: topicSegments.GetNotes(drawer.cardIndex).allHTML()
                     placeHolderText: "Insert excerpts from the above notes here"
@@ -268,7 +267,7 @@ Drawer {
                 text: "Save Changes"
                 onClicked: {
                     saveChanges(heading.text, dialogueTextSelection.getOutText(), notesTextSelection.getOutText());
-                    notesTextSelection.labels = drawer.cardData.Labels();
+                    notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex);
                 }
             }
 
