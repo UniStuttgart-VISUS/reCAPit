@@ -454,11 +454,11 @@ class SegmentModel(QObject):
 
     @pyqtSlot(int, result=float)
     def PosEndSec(self, index):
-        return self.start_ts[index]
+        return self.end_ts[index]
 
     @pyqtSlot(int, result=float)
     def PosStartSec(self, index):
-        return self.end_ts[index]
+        return self.start_ts[index]
 
     @pyqtSlot(int, result=bool)
     def IsMarked(self, index):

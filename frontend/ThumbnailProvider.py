@@ -23,7 +23,7 @@ class ThumbnailProvider(QQuickImageProvider):
         #label = f'{symbol} {cnt_type:02d}'
 
         cnt_type = len([t for t in self.thumbnails.values() if t['type'] == type and t['segment_idx'] == cidx])
-        label = f'{symbol} {cnt_type:02d}'
+        label = f'{symbol}{cnt_type:02d}'
         return img_id, label
 
     def requestImage(self, img_id_comp, requested_size):
