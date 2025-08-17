@@ -16,7 +16,7 @@ import QtQuick.Controls.Basic
 ApplicationWindow {
     id: appwin
     visible: true
-    width: 2000
+    width: 1920
     height: 1080
     color: "white"
     title: ""
@@ -162,8 +162,8 @@ ApplicationWindow {
         id: keywordDialog
         anchors.centerIn: parent
 
-        width: 400
-        height: 300
+        width: 500
+        height: 350
 
         onKeywordSearch: (keywords) => {
             var targetIndices = topicSegments.KeywordMatches(keywords);
