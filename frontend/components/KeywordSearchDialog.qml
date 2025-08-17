@@ -76,12 +76,12 @@ Dialog {
                             text: modelData
                             elide: Text.ElideMiddle
                             color: "#555"
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                         }
                         Label {
                             text: "✕"
                             color: "#555"
-                            font.pixelSize: 14
+                            font.pixelSize: 13
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
@@ -124,8 +124,10 @@ Dialog {
             font.family: "Arial"
 
             onAccepted: {
-                keywordDialog.userKeywords = [...keywordDialog.userKeywords, keywordInput.text.toLowerCase()];
-                keywordInput.text = "";
+                if (keywordInput.text !== "") {
+                    keywordDialog.userKeywords = [...keywordDialog.userKeywords, keywordInput.text.toLowerCase()];
+                    keywordInput.text = "";
+                }
             }
         }
 
