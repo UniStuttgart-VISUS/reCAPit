@@ -128,8 +128,8 @@ Rectangle {
             Layout.fillHeight: true
 
             color: "black"
-            border.color: "red"
-            border.width: videoRoot.selectionMode > 0 ? 3 : 0
+            //border.color: "red"
+            //border.width: videoRoot.selectionMode > 0 ? 3 : 0
 
             VideoOutput {
                 id: videoOutput
@@ -204,9 +204,14 @@ Rectangle {
             }
 
             MouseArea {
+                id: mouseArea
+
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                property int anchorX;
+                property int anchorY;
 
                 onClicked: (mouse) => {
                     if (videoRoot.selectionMode === 0) {
@@ -217,6 +222,8 @@ Rectangle {
                         selectionRect.y = mouse.y;
                         selectionRect.width = 0;
                         selectionRect.height = 0;
+                        mouseArea.anchorX = mouse.x;
+                        mouseArea.anchorY = mouse.y;
                         videoRoot.selectionMode = 2;
                     }
                     else {
@@ -243,8 +250,21 @@ Rectangle {
 
                 onPositionChanged: (mouse) => {
                     if (videoRoot.selectionMode == 2) {
-                        selectionRect.width = mouse.x - selectionRect.x
-                        selectionRect.height = mouse.y - selectionRect.y
+                        selectionRect.width = Math.abs(mouse.x - mouseArea.anchorX);
+                        selectionRect.height = Math.abs(mouse.y - mouseArea.anchorY)
+
+                        if (mouse.x < mouseArea.anchorX) {
+                            selectionRect.x = mouse.x;
+                        }
+                        else {
+                            selectionRect.x = mouseArea.anchorX;
+                        }
+                        if (mouse.y < mouseArea.anchorY) {
+                            selectionRect.y = mouse.y;
+                        }
+                        else {
+                            selectionRect.y = mouseArea.anchorY;
+                        }
                     }
                 }
             }
