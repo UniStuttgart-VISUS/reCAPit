@@ -1,19 +1,29 @@
-import pandas as pd
-import numpy as np
-import shapely
+from __future__ import annotations
+
 import json
 import logging
+from pathlib import Path
+from json.decoder import JSONDecodeError
 
-from PyQt6.QtCore import QObject, pyqtSlot, QSize, pyqtSignal
+import numpy as np
+import pandas as pd
+import shapely
+from HeatmapProvider import HeatmapOverlayProvider
+from NotesModel import NotesModel
+from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage
 from PyQt6.QtMultimedia import QVideoSink
-
-from utils import linear_layout, blend_images, longest_common_substring, fill_between, filter_segments, merge_transcript
-from HeatmapProvider import HeatmapOverlayProvider
-from ThumbnailProvider import ThumbnailProvider
-from NotesModel import NotesModel
 from StackedSeries import StackedSeries
+from ThumbnailProvider import ThumbnailProvider
 from TopicCard import TopicCardData
+from utils import (
+    blend_images,
+    fill_between,
+    filter_segments,
+    linear_layout,
+    longest_common_substring,
+    merge_transcript,
+)
 
 
 class SegmentModel(QObject):
@@ -50,13 +60,13 @@ class SegmentModel(QObject):
         self.set_notes(NotesModel.empty())
         self.set_attention(
             StackedSeries.empty(
-                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels()
-            )
+                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels(),
+            ),
         )
         self.set_activity(
             StackedSeries.empty(
-                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels()
-            )
+                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels(),
+            ),
         )
 
     def init_segments(self, segments):
@@ -116,8 +126,8 @@ class SegmentModel(QObject):
         self.heatmap_overlay_providers[name] = heatmap_provider
         self.heatmap_overlay_providers[name].segments_start = self.start_ts
         self.heatmap_overlay_providers[name].segments_end = self.end_ts
-        return f"heatmaps_{name}"
-    
+        return f'heatmaps_{name}'
+
     @pyqtSlot(str, str)
     def UpdateOverlayColormap(self, name, cmap_str):
         self.heatmap_overlay_providers[name].set_colormap(cmap_str)
@@ -129,38 +139,57 @@ class SegmentModel(QObject):
         return list()
     """
 
-    def import_state(self, in_dir):
-        for card_dir in in_dir.iterdir():
+    @pyqtSlot(str, result=bool)
+    def import_state(self, in_dir: str | Path) -> None:
+        if isinstance(in_dir, str):
+            in_dir = Path(in_dir)
+
+        sub_dirs = list(in_dir.iterdir())
+
+        if len(sub_dirs) == 0:
+            return False
+
+        for card_dir in sub_dirs:
             if not card_dir.is_dir():
                 continue
 
             idx = int(card_dir.name)
-            with open(card_dir / "card_data.json", "r", encoding="utf-8") as f:
+            with open(card_dir / 'card_data.json', encoding='utf-8') as f:
                 data = json.load(f)
-                self.marked[idx] = data["marked"]
-                self.titles[idx] = data["title"]
-                self.quotes_note[idx] = data["text_notes"]
-                self.quotes_text[idx] = data["text_dialogues"]
-                self.thumbnail_info[idx] = data["thumbnail_info"]
+                try:
+                    self.marked[idx] = data['marked']
+                    self.titles[idx] = data['title']
+                    self.quotes_note[idx] = data['text_notes']
+                    self.quotes_text[idx] = data['text_dialogues']
+                    self.thumbnail_info[idx] = data['thumbnail_info']
+                    self.labels[idx].extend([ti['label'] for ti in data['thumbnail_info']])
 
-                for img_path in (card_dir / "thumbnails").iterdir():
-                    img = QImage(str(img_path))
-                    self.thumbnail_provider.thumbnails[img_path.stem] = {
-                        "image": img,
-                        "segment_idx": idx,
-                        "type": "unknown",
-                    }
+                    for img_path in (card_dir / 'thumbnails').iterdir():
+                        img = QImage(str(img_path))
+                        self.thumbnail_provider.thumbnails[img_path.stem] = {
+                            'image': img,
+                            'segment_idx': idx,
+                            'type': 'unknown',
+                        }
+                except JSONDecodeError as e:
+                    logging.error(e)
+                    return False
+        return True
 
-    def export_state(self, out_dir):
+    @pyqtSlot(str, result=bool)
+    def export_state(self, out_dir : str | Path) -> bool:
+        if isinstance(out_dir, str):
+            out_dir = Path(out_dir)
+
         for idx in range(len(self.start_ts)):
             if not self.has_card[idx]:
                 continue
 
-            sub_dir = out_dir / f"{idx:05d}"
+            sub_dir = out_dir / f'{idx:05d}'
             sub_dir.mkdir(parents=True, exist_ok=True)
 
             try:
-                with open(sub_dir / "card_data.json", "w", encoding="utf-8") as f:
+                with open(sub_dir / 'card_data.json', 'w', encoding='utf-8') as f:
                     marked = self.marked[idx]
                     title = self.titles[idx]
                     text_notes = self.quotes_note[idx]
@@ -168,20 +197,20 @@ class SegmentModel(QObject):
                     thumbnail_info = self.thumbnail_info[idx]
 
                     out_json = {
-                        "marked": marked,
-                        "title": title,
-                        "text_notes": text_notes,
-                        "text_dialogues": text_dialogues,
-                        "thumbnail_info": thumbnail_info,
+                        'marked': marked,
+                        'title': title,
+                        'text_notes': text_notes,
+                        'text_dialogues': text_dialogues,
+                        'thumbnail_info': thumbnail_info,
                     }
                     json.dump(out_json, f, ensure_ascii=False, indent=4)
 
-                    thumbnail_dir = sub_dir / "thumbnails"
+                    thumbnail_dir = sub_dir / 'thumbnails'
                     thumbnail_dir.mkdir(parents=True, exist_ok=True)
 
                     for info in thumbnail_info:
                         img, _ = self.thumbnail_provider.requestImage(
-                            info["img_id"] + "#0", QSize()
+                            info['img_id'] + '#0', QSize(),
                         )
                         success = img.save(str(thumbnail_dir / f"{info['img_id']}.png"))
 
@@ -209,7 +238,14 @@ class SegmentModel(QObject):
     @pyqtSlot(str, int, result=list)
     def FindSimilarSegments(self, text, snippet_idx):
         self.service.exec_query(text, top_k=30, meta={"snippet_index": snippet_idx})
-        return list()
+        return []
+
+
+    @pyqtSlot(int, int)
+    def deregister_video_crop(self, segment_idx: int, crop_idx: int) -> None:
+        del self.labels[segment_idx][crop_idx]
+        del self.thumbnail_info[segment_idx][crop_idx]
+
 
     @pyqtSlot(QVideoSink, float, int, float, float, float, float, str)
     def RegisterVideoCrop(
@@ -236,7 +272,7 @@ class SegmentModel(QObject):
         aoi_scores = {}
 
         for label, aoi_data in self.meta_model.shapes.items():
-            aoi_shape = shapely.Polygon(aoi_data["points"])
+            aoi_shape = shapely.Polygon(aoi_data['points'])
             inter_shape = shapely.intersection(aoi_shape, selection_shape)
             aoi_scores[label] = shapely.area(inter_shape) / shapely.area(aoi_shape)
 
@@ -261,20 +297,20 @@ class SegmentModel(QObject):
             score = 0.0
 
         img_id, label = self.thumbnail_provider.add_to_collection(
-            segmentIdx, crop, overlay_src
+            segmentIdx, crop, overlay_src,
         )
 
         self.labels[segmentIdx].append(label)
 
         info = {
-            "img_id": img_id,
-            "path": "image://thumbnails/" + img_id,
-            "score": float(score),
-            "within_aois": [
+            'img_id': img_id,
+            'path': 'image://thumbnails/' + img_id,
+            'score': float(score),
+            'within_aois': [
                 label for label, score in aoi_scores.items() if score >= 0.25
             ],
-            "pos_ms": float(pos_ms),
-            "label": label,
+            'pos_ms': float(pos_ms),
+            'label': label,
         }
 
         self.thumbnail_info[segmentIdx].append(info)
@@ -407,8 +443,10 @@ class SegmentModel(QObject):
 
         utterances = part["text"].tolist()
         speakers = part["speaker"].tolist()
+        start_times = part['start timestamp [sec]'].tolist()
+        end_times = part['end timestamp [sec]'].tolist()
 
-        return [{"text": u, "speaker": s} for s, u in zip(speakers, utterances)]
+        return [{"text": u, "speaker": s, "start_time": st, "end_time": et} for s, u, st, et in zip(speakers, utterances, start_times, end_times)]
 
     def speaker_time_by_role(self, idx):
         start_ts = self.start_ts[idx]

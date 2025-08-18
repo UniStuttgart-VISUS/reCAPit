@@ -6,18 +6,19 @@ import sys
 import threading
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 from pathlib import Path
-from AppConfig import *
+from AppConfig import AppConfig
 from CustomVideoOutput import CustomVideoOutput
 from HeatmapProvider import HeatmapOverlayProvider
-from NotesModel import *
+from NotesModel import NotesModel
 from PyQt6.QtGui import QSurfaceFormat
 from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from PyQt6.QtWidgets import QApplication
-from SegmentModel import *
+from SegmentModel import SegmentModel
 from StackedSeries import StackedSeries
-from TimelineModel import *
-from TopicCard import *
+from TimelineModel import SubjectMultimodalData
 
 
 class WorkerThread(threading.Thread):
@@ -49,31 +50,31 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     root_dir = args.user_config.parent
-    manifest = json.load(open(args.manifest, 'r', encoding='utf-8'))
-    user_config = json.load(open(args.user_config, 'r', encoding='utf-8'))
+    manifest = json.load(open(args.manifest, encoding='utf-8'))
+    user_config = json.load(open(args.user_config, encoding='utf-8'))
 
     if 'refined' in manifest['artifacts']['segments']:
         topic_segments_file = Path(manifest['artifacts']['segments']['refined']['path'])
     elif 'initial' in manifest['artifacts']['segments']:
         topic_segments_file = Path(manifest['artifacts']['segments']['initial']['path'])
     else:
-        logging.error('No registered segments in manifest!')
-        exit()
-        
+        logger.error('No registered segments in manifest!')
+        sys.exit()
+
     if 'areas_of_interests' not in manifest['sources']:
-        logging.error('No registered areas_of_interests in manifest!')
-        exit()
+        logger.error('No registered areas_of_interests in manifest!')
+        sys.exit()
 
     transcript_file = Path(manifest['artifacts']['transcript']['path'])
     aoi_file = Path(manifest['sources']['areas_of_interests']['path'])
-    
+
     if not aoi_file.is_file():
-        logging.error(f'Path "{topic_segments_file}" does to refer to valid AOIs!')
-        exit()
+        logger.error('Path "%s" does to refer to valid AOIs!', topic_segments_file)
+        sys.exit()
 
     if not topic_segments_file.is_file(): 
-        logging.error(f'Path "{topic_segments_file}" does to refer to valid topic segments!')
-        exit()
+        logger.error('Path "%s" does to refer to valid topic segments!', topic_segments_file)
+        sys.exit()
 
     min_timestamp = 0
     max_timestamp = manifest['duration_sec']
@@ -101,7 +102,7 @@ if __name__ == '__main__':
         if not path.is_file():
             continue
 
-        logging.info(f'Processing multi time signal {path} ...')
+        logger.info('Processing multi time signal %s ...', path)
         signal = pd.read_csv(path)
         stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=manifest_model.Labels(), log_transform=user_config['streamgraph'][mt]['log_scale'])
         segment_model.register_multi_time(mt, stacks)
@@ -112,7 +113,7 @@ if __name__ == '__main__':
             if not path.is_file():
                 continue
 
-            logging.info(f'Processing video overlay {path} ...')
+            logger.info('Processing video overlay %s ...', path)
             heatmap_info = pd.read_csv(path)
             heatmap_info['filename'] = heatmap_info['filename'].apply(lambda x: path.parent / x)
             heatmap_overlay_provider = HeatmapOverlayProvider(heatmap_info, cmap=user_config['video_overlay'][vo]['colormap'])
@@ -120,42 +121,41 @@ if __name__ == '__main__':
             engine.addImageProvider(overlay_root, heatmap_overlay_provider)
 
     if transcript_file.is_file():
-        logging.info(f'Registering transcript {transcript_file} ...')
+        logger.info('Registering transcript %s ...', transcript_file)
         transcript = pd.read_csv(transcript_file)
         segment_model.set_transcript(transcript)
 
     if 'notes' in manifest['artifacts']:
         notes_diffs_file = Path(manifest['artifacts']['notes']['path'])
-        logging.info(f'Registering notes file {notes_diffs_file} ...')
+        logger.info('Registering notes file %s ...', notes_diffs_file)
         notes_model = NotesModel(pd.read_csv(notes_diffs_file))
         segment_model.set_notes(notes_model)
 
     if args.savefile_id is not None:
         load_dir = root_dir / 'saved_state' / args.savefile_id
         segment_model.import_state(in_dir=Path(load_dir))
-        logging.info(f'Successfully loaded save file: "{load_dir}"!')
+        logger.info('Successfully loaded save file: "%s"!', load_dir)
 
     engine.rootContext().setContextProperty('aoiModel', manifest_model)
     engine.rootContext().setContextProperty('topicSegments', segment_model)
     engine.load('App.qml')
 
     window = engine.rootObjects()[0]
-    window.setProperty("title", str(root_dir))
+    window.setProperty('title', str(root_dir))
 
-    def quitApp():
+    def quit_app() -> None:
         engine.deleteLater()
-        curr_date = datetime.datetime.now().strftime('%Y-%m-%d')
-        curr_time = datetime.datetime.now().strftime('%H-%M-%S')
+        curr_date = datetime.datetime.now().strftime('%Y-%m-%d')  # noqa: DTZ005
+        curr_time = datetime.datetime.now().strftime('%H-%M-%S')  # noqa: DTZ005
 
         out_dir = root_dir / 'saved_state' / curr_date / curr_time
         out_dir.mkdir(parents=True, exist_ok=True)
 
         if manifest_model.export_user_config(args.user_config):
-            logging.info(f'Successfully saved user config to: "{args.user_config}"!')
+            logger.info('Successfully saved user config to: "%s"!', args.user_config)
 
         if segment_model.export_state(out_dir=out_dir):
-            logging.info(f'Successfully saved current state to: "{out_dir}"!')
+            logger.info('Successfully saved current state to: "%s"!', out_dir)
 
-    app.aboutToQuit.connect(quitApp)
+    app.aboutToQuit.connect(quit_app)
     sys.exit(app.exec())
-
