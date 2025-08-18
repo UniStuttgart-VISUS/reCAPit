@@ -15,6 +15,8 @@ GroupBox {
     //property ListModel labelsModel: ListModel {}
     //property alias textContentQuote: textAreaOut.text
 
+    signal linkActivated(string link)
+
     function setOutText(text) 
     {
         textAreaOut.text = text;
@@ -125,6 +127,10 @@ GroupBox {
             text: control.textContent
             textFormat: Text.RichText
             wrapMode: Text.WordWrap
+
+            onLinkActivated: (link) => {
+                control.linkActivated(link);
+            }
 
             background: Rectangle {
                 radius: 5

@@ -6,7 +6,6 @@ import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
 import QtQml
 
-import "."
 import "../js/utils.js" as Utils
 
 Item {
@@ -47,7 +46,7 @@ Item {
             radius: parent.radius
             border.width: -1
             border.color: "black"
-            color: buttonContainer.color
+            color: buildButton.hovered ? Qt.lighter(buttonContainer.color, 1.3) : buttonContainer.color
 
             Image {
                 anchors.centerIn: parent

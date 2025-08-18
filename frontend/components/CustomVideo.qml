@@ -42,6 +42,10 @@ Rectangle {
     radius: 5
     focus: true
 
+    function setPosition(posMsec) {
+        video.setPosition(posMsec);
+    }
+
     onActiveChanged: {
         if (!active) {
             video.pause();
@@ -277,6 +281,23 @@ Rectangle {
 
             spacing: 10
 
+            Image {
+                id: playPauseBtn
+
+                Layout.preferredHeight: 20
+                Layout.preferredWidth: 20
+
+                source: (video.playbackState === MediaPlayer.PlayingState) ? "../icons/media_pause.png" : "../icons/media_play.png"
+                fillMode: Image.PreserveAspectFit
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        video.playbackState === MediaPlayer.PlayingState ? video.pause() : video.play()
+                    }
+                }
+            }
+
             Text {
                 text: Utils.timeFormat(video.position/1000);
                 font.family: "Arial"
@@ -326,6 +347,7 @@ Rectangle {
                     border.color: "#bdbebf"
                 }
             }
+            
             ButtonGroup {
                 id: childGroup
                 exclusive: true

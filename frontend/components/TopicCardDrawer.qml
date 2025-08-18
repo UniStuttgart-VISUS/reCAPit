@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls.Basic 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
+import QtQuick.Effects
 import QtQml
 
 Drawer {
@@ -15,6 +16,7 @@ Drawer {
     required property var colormap
 
     property var drawerOpened: false
+    property var dialogue: topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex)
 
     signal saveChanges(string title, string quotes, string notes)
 
@@ -31,7 +33,7 @@ Drawer {
             if (!speaker_count[speaker])
                 speaker_count[speaker] = 1;
 
-            const utterance_id = "%1%2".arg(speaker.toUpperCase().slice(0, 2)).arg(speaker_count[speaker]);
+            const utterance_id = "<a href=\"%1\">%2%3%4</a>".arg(idx).arg(String.fromCodePoint(0x29C9)).arg(speaker.toUpperCase().slice(0, 2)).arg(speaker_count[speaker]);
             dialogueStr += "<h3>%1 <font color=\"#aaa\">(%2)</font></h3><p>%3</p>".arg(speaker).arg(utterance_id).arg(utterance_speaker_pairs[idx].text);
             speaker_count[speaker] = speaker_count[speaker] + 1;
         }
@@ -166,13 +168,37 @@ Drawer {
                                     //border.width: 2
 
                                     MouseArea {
+                                        hoverEnabled: true
                                         anchors.fill: parent
+                                        /*
                                         onClicked: { 
+                                            topicSegments.deregister_video_crop(drawer.cardIndex, index);
+                                            thumbnailPreview.model = topicSegments.ThumbnailCrops(drawer.cardIndex)
+                                            thumbnailPreview.model = Qt.binding(function() { return topicSegments.ThumbnailCrops(drawer.cardIndex)} )
+                                        }
+                                        onEntered: {
+                                            effect.saturation = -1.0 
+                                        }
+                                        onExited: {
+                                            effect.saturation = 0.0
+                                        }
+                                        */
+                                    }
+                                    /*
+                                    MultiEffect {
+                                        id: effect
+                                        anchors.fill: imgThumb
+                                        source: imgThumb
+                                        saturation: -1.0   // normal color at start
+                                        Behavior on saturation {
+                                            NumberAnimation { duration: 500; easing.type: Easing.InOutQuad }
                                         }
                                     }
+                                    */
 
                                     Image {
                                         id: imgThumb
+                                        visible: false
                                         anchors.fill: parent
                                         source: outer.modelData["path"] + "#0"
                                         fillMode: Image.PreserveAspectFit
@@ -234,9 +260,15 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
+                    onLinkActivated: (link) => {
+                        const idx = parseInt(link);
+                        const time_ms = dialogue[idx].start_time * 1000
+                        video.setPosition(time_ms);
+                    }
+
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
-                    textContent: drawer.formattedDialogue(topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex), keywordDialog.userKeywords)
+                    textContent: drawer.formattedDialogue(dialogue, keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
                 }
