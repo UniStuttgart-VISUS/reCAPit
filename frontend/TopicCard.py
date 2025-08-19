@@ -1,8 +1,9 @@
 from PyQt6.QtCore import QObject, pyqtSlot
+from ThumbnailModel import ThumbnailModel
 import numpy as np
 
 class TopicCardData(QObject):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.pos_start_sec = 0
         self.pos_end_sec = 0
@@ -10,7 +11,7 @@ class TopicCardData(QObject):
         self.labels = []
         self.text_dialogues = ""
         self.text_notes = ""
-        self.thumbnail_crops = []
+        self.thumbnail_crops = ThumbnailModel()
         self.speaker_role_time_distr = {}
         self.aoi_activity_distr = {}
         self.aoi_attention_distr = {}
@@ -66,10 +67,6 @@ class TopicCardData(QObject):
     def TextNotes(self):
         return self.text_notes
 
-    @pyqtSlot(list)
-    def SetThumbnailCrops(self, paths):
-        self.thumbnail_crops = paths
-
     @pyqtSlot(result=list)
     def KeywordsDialogue(self):
         return self.keywords_dialogue
@@ -78,7 +75,7 @@ class TopicCardData(QObject):
     def KeywordsDialogueString(self):
         return ', '.join(self.keywords_dialogue)
 
-    @pyqtSlot(result=list)
+    @pyqtSlot(result=ThumbnailModel)
     def ThumbnailCrops(self):
         return self.thumbnail_crops
 
@@ -102,7 +99,7 @@ class TopicCardData(QObject):
         if len(prob) > 0:
             idx = np.argmax(prob)
             return keys[idx]
-        return ""
+        return ''
 
     @pyqtSlot(result='QVariantMap')
     def AoiActivityDistribution(self):

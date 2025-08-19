@@ -1,13 +1,7 @@
 from __future__ import annotations
+from typing import Any
 
-import json
-import logging
-from pathlib import Path
-from json.decoder import JSONDecodeError
-
-import numpy as np
-import pandas as pd
-import shapely
+from ThumbnailModel import ThumbnailModel
 from HeatmapProvider import HeatmapOverlayProvider
 from NotesModel import NotesModel
 from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot
@@ -16,6 +10,12 @@ from PyQt6.QtMultimedia import QVideoSink
 from StackedSeries import StackedSeries
 from ThumbnailProvider import ThumbnailProvider
 from TopicCard import TopicCardData
+from pathlib import Path
+from json.decoder import JSONDecodeError
+from TimelineModel import SubjectMultimodalData
+from AppConfig import AppConfig
+
+
 from utils import (
     blend_images,
     fill_between,
@@ -25,13 +25,20 @@ from utils import (
     merge_transcript,
 )
 
+import json
+import logging
+import numpy as np
+import pandas as pd
+import shapely
+
 
 class SegmentModel(QObject):
     queryResultsAvailable = pyqtSignal(int, list, list)
 
     def __init__(
-        self, segments, multimodal_recordings, meta_model, video_src, parent=None
-    ):
+        self, segments: pd.DataFrame, multimodal_recordings: dict[str, SubjectMultimodalData], 
+        meta_model: AppConfig, video_src: dict[str, dict], parent: object = None,
+    ) -> None:
         super().__init__(parent)
         self.meta_model = meta_model
         self.meta_model.setParent(self)
@@ -69,19 +76,19 @@ class SegmentModel(QObject):
             ),
         )
 
-    def init_segments(self, segments):
+    def init_segments(self, segments: pd.DataFrame) -> None:
         self.segments = fill_between(segments, max_ts=self.MaxTimestamp())
         num_segments = len(self.segments.index)
 
-        self.start_ts = self.segments["start timestamp [sec]"].tolist()
-        self.end_ts = self.segments["end timestamp [sec]"].tolist()
-        self.titles = self.segments["title"].tolist()
-        self.summaries = self.segments["summary"].tolist()
-        self.has_card = self.segments["Displayed"].tolist()
+        self.start_ts = self.segments['start timestamp [sec]'].tolist()
+        self.end_ts = self.segments['end timestamp [sec]'].tolist()
+        self.titles = self.segments['title'].tolist()
+        self.summaries = self.segments['summary'].tolist()
+        self.has_card = self.segments['Displayed'].tolist()
 
-        self.quotes_text = [{"original": "", "formatted": ""}] * num_segments
-        self.quotes_note = [""] * num_segments
-        self.thumbnail_info = [[] for _ in range(num_segments)]
+        self.quotes_text = [{'original': '', 'formatted': ''}] * num_segments
+        self.quotes_note = [''] * num_segments
+        self.thumbnail_info = [ThumbnailModel(self) for _ in range(num_segments)]
         self.marked = [False] * num_segments
         self.labels = [[] for _ in range(num_segments)]
         self.card_sizes = [385] * num_segments
@@ -90,46 +97,46 @@ class SegmentModel(QObject):
             provider.segments_start = self.start_ts
             provider.segments_end = self.end_ts
 
-    def set_transcript(self, transcript: pd.DataFrame):
+    def set_transcript(self, transcript: pd.DataFrame) -> None:
         self.transcript = merge_transcript(transcript)
-        self.transcript = self.transcript[self.transcript["speaker"].notna()]
-        self.transcript["role"] = self.transcript["speaker"].map(
-            lambda s: self.meta_model.speaker_role(s)
+        self.transcript = self.transcript[self.transcript['speaker'].notna()]
+        self.transcript['role'] = self.transcript['speaker'].map(
+            lambda s: self.meta_model.speaker_role(s),
         )
-        self.transcript["duration [sec]"] = (
-            self.transcript["end timestamp [sec]"]
-            - self.transcript["start timestamp [sec]"]
+        self.transcript['duration [sec]'] = (
+            self.transcript['end timestamp [sec]']
+            - self.transcript['start timestamp [sec]']
         )
 
-    def set_notes(self, notes: NotesModel):
+    def set_notes(self, notes: NotesModel) -> None:
         self.notes_model = notes
         self.notes_model.setParent(self)
         self.has_notes = True
 
-    def set_activity(self, activity: StackedSeries):
+    def set_activity(self, activity: StackedSeries) -> None:
         self.activity = activity
         self.activity.setParent(self)
         self.has_activity = True
 
-    def register_multi_time(self, name, ts: StackedSeries):
+    def register_multi_time(self, name: str, ts: StackedSeries) -> None:
         ts.setParent(self)
         self.multi_time[name] = ts
 
-    def set_attention(self, attention: StackedSeries):
+    def set_attention(self, attention: StackedSeries) -> None:
         self.attention = attention
         self.attention.setParent(self)
         self.has_attention = True
 
     def add_video_overlay_provider(
-        self, name, heatmap_provider: HeatmapOverlayProvider
-    ):
+        self, name: str, heatmap_provider: HeatmapOverlayProvider,
+    ) -> None:
         self.heatmap_overlay_providers[name] = heatmap_provider
         self.heatmap_overlay_providers[name].segments_start = self.start_ts
         self.heatmap_overlay_providers[name].segments_end = self.end_ts
         return f'heatmaps_{name}'
 
     @pyqtSlot(str, str)
-    def UpdateOverlayColormap(self, name, cmap_str):
+    def UpdateOverlayColormap(self, name: str, cmap_str: str) -> None:
         self.heatmap_overlay_providers[name].set_colormap(cmap_str)
 
     """
@@ -161,7 +168,8 @@ class SegmentModel(QObject):
                     self.titles[idx] = data['title']
                     self.quotes_note[idx] = data['text_notes']
                     self.quotes_text[idx] = data['text_dialogues']
-                    self.thumbnail_info[idx] = data['thumbnail_info']
+                    self.thumbnail_info[idx].thumbnail_data = data['thumbnail_info']
+
                     self.labels[idx].extend([ti['label'] for ti in data['thumbnail_info']])
 
                     for img_path in (card_dir / 'thumbnails').iterdir():
@@ -194,7 +202,7 @@ class SegmentModel(QObject):
                     title = self.titles[idx]
                     text_notes = self.quotes_note[idx]
                     text_dialogues = self.quotes_text[idx]
-                    thumbnail_info = self.thumbnail_info[idx]
+                    thumbnail_info = self.thumbnail_info[idx].thumbnail_data
 
                     out_json = {
                         'marked': marked,
@@ -202,6 +210,19 @@ class SegmentModel(QObject):
                         'text_notes': text_notes,
                         'text_dialogues': text_dialogues,
                         'thumbnail_info': thumbnail_info,
+                        # NOTE Statistics are exported for downstream analysis tasks
+                        # They are NOT imported to reCAPit and exist only for convenience
+                        'statistics': {
+                            'start_sec': self.PosStartSec(idx),
+                            'end_sec': self.PosEndSec(idx),
+                            'speaker_percentage': self.speaker_time_by_speaker(idx),
+                            'movement_percentage': self.GetTimeSeries(
+                                'bottom', idx,
+                            ).LabelDistribution(),
+                            'attention_percentage': self.GetTimeSeries(
+                                'top', idx,
+                            ).LabelDistribution(),
+                        },
                     }
                     json.dump(out_json, f, ensure_ascii=False, indent=4)
 
@@ -221,45 +242,45 @@ class SegmentModel(QObject):
                 return False
         return True
 
-    def process_query_results(self, res):
+    def process_query_results(self, res: dict[str, Any]) -> None:
         self.queryResultsAvailable.emit(
-            res["meta"]["snippet_index"],
-            res["result"]["scores"],
-            res["result"]["indices"],
+            res['meta']['snippet_index'],
+            res['result']['scores'],
+            res['result']['indices'],
         )
 
-    @pyqtSlot(int, result="QVariantMap")
-    def VideoOverlaySources(self, segment_idx):
+    @pyqtSlot(int, result='QVariantMap')
+    def VideoOverlaySources(self, segment_idx: int) -> dict[str, str]:
         return {
-            name: f"image://heatmaps_{name}/" + provider.img_id(segment_idx)
+            name: f'image://heatmaps_{name}/' + provider.img_id(segment_idx)
             for name, provider in self.heatmap_overlay_providers.items()
         }
 
     @pyqtSlot(str, int, result=list)
-    def FindSimilarSegments(self, text, snippet_idx):
-        self.service.exec_query(text, top_k=30, meta={"snippet_index": snippet_idx})
+    def FindSimilarSegments(self, text: str, snippet_idx: int) -> list:
+        self.service.exec_query(text, top_k=30, meta={'snippet_index': snippet_idx})
         return []
 
 
     @pyqtSlot(int, int)
     def deregister_video_crop(self, segment_idx: int, crop_idx: int) -> None:
         del self.labels[segment_idx][crop_idx]
-        del self.thumbnail_info[segment_idx][crop_idx]
+        self.thumbnail_info[segment_idx].removeRow(crop_idx)
 
 
     @pyqtSlot(QVideoSink, float, int, float, float, float, float, str)
     def RegisterVideoCrop(
         self,
-        videoSink,
-        pos_ms,
-        segmentIdx,
-        norm_x,
-        norm_y,
-        norm_width,
-        norm_height,
-        overlay_src,
-    ):
-        img = videoSink.videoFrame().toImage()
+        video_sink: QVideoSink,
+        pos_ms: float,
+        segment_idx: int,
+        norm_x: float,
+        norm_y: float,
+        norm_width: float,
+        norm_height: float,
+        overlay_src: str,
+    ) -> None:
+        img = video_sink.videoFrame().toImage()
         size = img.size()
 
         x = int(norm_x * size.width())
@@ -268,7 +289,7 @@ class SegmentModel(QObject):
         width = int(norm_width * size.width())
         height = int(norm_height * size.height())
 
-        selection_shape = shapely.box(x, y, x + width, y + height)
+        selection_shape = shapely.box(norm_x, norm_y, norm_x + norm_width, norm_y + norm_height)
         aoi_scores = {}
 
         for label, aoi_data in self.meta_model.shapes.items():
@@ -281,84 +302,56 @@ class SegmentModel(QObject):
         if overlay_src in self.heatmap_overlay_providers:
             target_provider = self.heatmap_overlay_providers[overlay_src]
             overlay = target_provider.compute_overlay(
-                self.start_ts[segmentIdx], self.end_ts[segmentIdx]
+                self.start_ts[segment_idx], self.end_ts[segment_idx],
             )
             overlay_img, _ = target_provider.requestImage(
-                target_provider.img_id(segmentIdx), QSize()
+                target_provider.img_id(segment_idx), QSize(),
             )
             crop_overlay_gaze_img = overlay_img.copy(x, y, width, height)
 
             score = overlay[y : y + height, x : x + width].sum() / overlay.sum()
             crop = blend_images(crop, crop_overlay_gaze_img)
 
-            total_score = sum(aoi_scores.values())
-            aoi_scores = {label: score / total_score for label, score in aoi_scores.items()}
         else:
             score = 0.0
 
         img_id, label = self.thumbnail_provider.add_to_collection(
-            segmentIdx, crop, overlay_src,
+            segment_idx, crop, overlay_src,
         )
 
-        self.labels[segmentIdx].append(label)
-
-        info = {
-            'img_id': img_id,
-            'path': 'image://thumbnails/' + img_id,
-            'score': float(score),
-            'within_aois': [
-                label for label, score in aoi_scores.items() if score >= 0.25
-            ],
-            'pos_ms': float(pos_ms),
-            'label': label,
-        }
-
-        self.thumbnail_info[segmentIdx].append(info)
+        self.labels[segment_idx].append(label)
+        self.thumbnail_info[segment_idx].append(img_id, aoi_scores, pos_ms*1e-3, label)
 
 
     @pyqtSlot(float, float)
-    def AdjustFilter(self, min_dur_sec, display_dur_sec):
+    def AdjustFilter(self, min_dur_sec: float, display_dur_sec: float) -> None:
         segments = self.original_segments.copy()
         segments = filter_segments(segments, min_dur_sec, display_dur_sec)
         self.init_segments(segments)
 
 
     @pyqtSlot(int, result=list)
-    def ThumbnailInfo(self, segment_idx):
+    def ThumbnailInfo(self, segment_idx: int) -> list:
         return []
         #return self.thumbnail_info[segment_idx]
 
     @pyqtSlot(int, result=list)
-    def ThumbnailIndicatorPositions(self, segment_idx):
+    def ThumbnailIndicatorPositions(self, segment_idx: int) -> list[float]:
         return [
-            (1e-3 * info["pos_ms"] - self.GetPosStart(segment_idx))
+            (info['pos_sec'] - self.GetPosStart(segment_idx))
             / (self.GetPosEnd(segment_idx) - self.GetPosStart(segment_idx))
             for info in self.thumbnail_info[segment_idx]
         ]
 
     @pyqtSlot(int, result=list)
-    def ThumbnailIndicatorLabels(self, segment_idx):
-        return [info["label"] for info in self.thumbnail_info[segment_idx]]
+    def ThumbnailIndicatorLabels(self, segment_idx: int) -> list[str]:
+        return [info['label'] for info in self.thumbnail_info[segment_idx]]
 
     @pyqtSlot(int, result=list)
-    def VideoCropSources(self, segment_idx):
-        return self.thumbnail_info[segment_idx]
+    def VideoCropLabels(self, segment_idx: int) -> list[str]:
+        return [info['label'] for info in self.thumbnail_info[segment_idx]]
 
-    @pyqtSlot(int, result=list)
-    def VideoCropLabels(self, segment_idx):
-        return [info["label"] for info in self.thumbnail_info[segment_idx]]
-
-    @pyqtSlot(int, result=list)
-    def VideoCropAspectRatios(self, segment_idx):
-        img_ids = self.thumbnail_provider.collection_thumbnails(segment_idx)
-        aspect_ratios = []
-
-        for img_id in img_ids:
-            img = self.thumbnail_provider.thumbnails[img_id]["image"]
-            aspect_ratios.append(img.width() / img.height() if img.width() > 0 else 0)
-        return aspect_ratios
-
-    def delete_segment(self, target_idx):
+    def delete_segment(self, target_idx: int) -> None:
         del self.start_ts[target_idx]
         del self.end_ts[target_idx]
         del self.titles[target_idx]
@@ -398,11 +391,11 @@ class SegmentModel(QObject):
 
     @pyqtSlot(result=str)
     def VideoSourceTopDown(self):
-        return "file:///" + self.video_src["workspace"]["path"]
+        return 'file:///' + self.video_src['workspace']['path']
 
     @pyqtSlot(result=list)
     def VideoSourcesPeripheral(self):
-        return ["file:///" + str(self.video_src["room"]["path"])]
+        return ['file:///' + str(self.video_src['room']['path'])]
 
     @pyqtSlot(result=int)
     def SpeechLineCount(self):
@@ -425,30 +418,30 @@ class SegmentModel(QObject):
         return self.has_move_heatmaps
 
     @pyqtSlot(str)
-    def ToggleLabel(self, label):
+    def ToggleLabel(self, label: str):
         if label in self.active_labels:
             self.active_labels.remove(label)
         else:
             self.active_labels.append(label)
 
     @pyqtSlot(int, result=list)
-    def GetUtteranceSpeakerPairs(self, index):
+    def GetUtteranceSpeakerPairs(self, index: int):
         start_ts = self.start_ts[index]
         end_ts = self.end_ts[index]
 
         part = self.transcript[
-            (self.transcript["start timestamp [sec]"] >= start_ts)
-            & (self.transcript["end timestamp [sec]"] <= end_ts)
+            (self.transcript['start timestamp [sec]'] >= start_ts)
+            & (self.transcript['end timestamp [sec]'] <= end_ts)
         ]
 
-        utterances = part["text"].tolist()
-        speakers = part["speaker"].tolist()
+        utterances = part['text'].tolist()
+        speakers = part['speaker'].tolist()
         start_times = part['start timestamp [sec]'].tolist()
         end_times = part['end timestamp [sec]'].tolist()
 
-        return [{"text": u, "speaker": s, "start_time": st, "end_time": et} for s, u, st, et in zip(speakers, utterances, start_times, end_times)]
+        return [{'text': u, 'speaker': s, 'start_time': st, 'end_time': et} for s, u, st, et in zip(speakers, utterances, start_times, end_times)]
 
-    def speaker_time_by_role(self, idx):
+    def speaker_time_by_role(self, idx: int) -> dict[str, float]:
         start_ts = self.start_ts[idx]
         end_ts = self.end_ts[idx]
 
@@ -456,50 +449,63 @@ class SegmentModel(QObject):
         total_dur = end_ts - start_ts
 
         part = self.transcript[
-            (self.transcript["start timestamp [sec]"] >= start_ts)
-            & (self.transcript["end timestamp [sec]"] <= end_ts)
+            (self.transcript['start timestamp [sec]'] >= start_ts)
+            & (self.transcript['end timestamp [sec]'] <= end_ts)
         ]
-        role_durations = part.groupby("role")["duration [sec]"].sum()
+        role_durations = part.groupby('role')['duration [sec]'].sum()
         return {role: float(role_durations.get(role, 0)) / total_dur for role in roles}
 
+    def speaker_time_by_speaker(self, idx: int) -> dict[str, float]:
+        start_ts = self.start_ts[idx]
+        end_ts = self.end_ts[idx]
+
+        total_dur = end_ts - start_ts
+
+        part = self.transcript[
+            (self.transcript['start timestamp [sec]'] >= start_ts)
+            & (self.transcript['end timestamp [sec]'] <= end_ts)
+        ]
+        speaker_durations = part.groupby('speaker')['duration [sec]'].sum()
+        return {speakers: float(speaker_durations.get(speakers, 0)) / total_dur for speakers in self.meta_model.Identifiers()}
+
     @pyqtSlot(int, result=str)
-    def Title(self, index):
+    def Title(self, index: int):
         return self.titles[index]
 
     @pyqtSlot(int, result=list)
-    def Labels(self, index):
+    def Labels(self, index: int):
         return self.labels[index]
 
     @pyqtSlot(int, result=str)
-    def Summary(self, index):
+    def Summary(self, index: int):
         return self.summaries[index]
 
     @pyqtSlot(int, result=str)
-    def TextDialoguesOriginal(self, index):
+    def TextDialoguesOriginal(self, index: int):
         return self.quotes_text[index]['original']
 
     @pyqtSlot(int, result=str)
-    def TextDialoguesFormatted(self, index):
+    def TextDialoguesFormatted(self, index: int):
         return self.quotes_text[index]['formatted']
 
     @pyqtSlot(int, result=str)
-    def TextNotes(self, index):
+    def TextNotes(self, index: int):
         return self.quotes_note[index]
 
-    @pyqtSlot(int, result=list)
-    def ThumbnailCrops(self, index):
+    @pyqtSlot(int, result=ThumbnailModel)
+    def ThumbnailCrops(self, index: int):
         return self.thumbnail_info[index]
 
     @pyqtSlot(int, result=float)
-    def PosEndSec(self, index):
+    def PosEndSec(self, index: int):
         return self.end_ts[index]
 
     @pyqtSlot(int, result=float)
-    def PosStartSec(self, index):
+    def PosStartSec(self, index: int):
         return self.start_ts[index]
 
     @pyqtSlot(int, result=bool)
-    def IsMarked(self, index):
+    def IsMarked(self, index: int):
         return self.marked[index]
 
     @pyqtSlot(result=list)
@@ -532,10 +538,10 @@ class SegmentModel(QObject):
         tcd.speaker_role_time_distr = self.speaker_time_by_role(index)
 
         tcd.aoi_activity_distr = self.GetTimeSeries(
-            "bottom", index
+            'bottom', index,
         ).LabelDistribution()
         tcd.aoi_attention_distr = self.GetTimeSeries(
-            "top", index
+            'top', index,
         ).LabelDistribution()
 
         tcd.text_notes = self.quotes_note[index]
@@ -585,7 +591,7 @@ class SegmentModel(QObject):
 
         for segment_idx in range(len(self.start_ts)):
             pairs = self.GetUtteranceSpeakerPairs(segment_idx)
-            segment_txt = ".".join([p["text"].lower() for p in pairs])
+            segment_txt = '.'.join([p['text'].lower() for p in pairs])
 
             for kw in keywords:
                 kw = kw.lower()
@@ -597,26 +603,27 @@ class SegmentModel(QObject):
 
     @pyqtSlot(int, str)
     def SetQuoteText(self, index, text):
-        text_units = text.split("\n\n")
-        text_units = [t.replace("\n", " ").strip() for t in text_units if len(t) > 0]
+        text_units = text.split('\n\n')
+        text_units = [t.replace('\n', ' ').strip() for t in text_units if len(t) > 0]
         formatted = []
+        speaker_quotes = []
 
         for tu in text_units:
             results = []
 
             for line in self.GetUtteranceSpeakerPairs(index):
-                line_text = line["text"].replace("\n", " ").strip()
+                line_text = line['text'].replace('\n', ' ').strip()
                 match = longest_common_substring(tu, line_text)
 
-                src = line["speaker"]
+                src = line['speaker']
                 cnt = sum(other_src == src for other_src, _, _ in results)
                 results.append((src, cnt, match))
 
-            max_idx = np.argmax([res["size"] for _, _, res in results])
+            max_idx = np.argmax([res['size'] for _, _, res in results])
             src, idx, res = results[max_idx]
 
-            if (res["size"] / len(tu)) > 0.5:
-                quote_label = f"{src.upper()[:2]}{idx + 1}"
+            if (res['size'] / len(tu)) > 0.5:
+                quote_label = f'{src.upper()[:2]}{idx + 1}'
 
                 if quote_label not in self.labels[index]:
                     self.labels[index].append(quote_label)
@@ -624,11 +631,16 @@ class SegmentModel(QObject):
                 formatted.append(
                     f'{tu[0 : res["a"]]} <font color="grey"><b>{quote_label}</b></font> <font color="black"><u>{tu[res["a"] : res["a"] + res["size"]]}</u></font>{tu[res["a"] + res["size"] :]}'
                 )
+                speaker_quotes.append(
+                    {'speaker': src, 'label': quote_label ,'text': tu[res['a'] : res['a'] + res['size']]},
+                )
             else:
                 formatted.append(tu)
 
-        formatted = "<br><br>".join(formatted)
-        self.quotes_text[index] = {"original": text, "formatted": formatted}
+        formatted = '<br><br>'.join(formatted)
+        self.quotes_text[index] = {'original': text,
+                                   'formatted': formatted,
+                                   'quotes': speaker_quotes}
 
     @pyqtSlot(int, result=NotesModel)
     def GetNotes(self, index):
@@ -636,7 +648,7 @@ class SegmentModel(QObject):
         end_ts = self.end_ts[index]
         return self.notes_model.slice(start_ts, end_ts)
 
-    @pyqtSlot(int, result="QVariantMap")
+    @pyqtSlot(int, result='QVariantMap')
     def GetMultiRecData(self, index):
         start_ts = self.start_ts[index]
         end_ts = self.end_ts[index]

@@ -338,7 +338,7 @@ Item {
                         implicitWidth: imgGrid.implicitWidth
                         implicitHeight: imgGrid.implicitHeight + 50
 
-                        visible: topicCardRoot.cardData.ThumbnailCrops().length > 0
+                        visible: topicCardRoot.cardData.ThumbnailCrops().count > 0
 
                         color: '#fff'
                         radius: 10
@@ -351,6 +351,7 @@ Item {
                             rows: 5
 
                             Repeater {
+                                id: rep
                                 model: topicCardRoot.cardData.ThumbnailCrops()
                                 delegate: 
                                 Item {
@@ -449,7 +450,6 @@ Item {
                                             source: outer.modelData["path"] + "#" + rectImg.rotationAngle
                                             fillMode: Image.PreserveAspectFit
                                         }
-
                                     }
 
                                     Row {
@@ -478,7 +478,7 @@ Item {
                                             }
                                         }
                                         Repeater {
-                                            model: outer.modelData["within_aois"]
+                                            model: outer.modelData["aoiScores"]
 
                                             delegate: Rectangle {
                                                 id: inner

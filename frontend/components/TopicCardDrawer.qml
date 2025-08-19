@@ -111,8 +111,6 @@ Drawer {
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
                         topicSegments.RegisterVideoCrop(frame, pos_ms, drawer.cardIndex, xpos, ypos, width, height, overlay_src); 
-                        thumbnailPreview.model = topicSegments.ThumbnailCrops(drawer.cardIndex);
-                        thumbnailPreview.model = Qt.binding(function() { return topicSegments.ThumbnailCrops(drawer.cardIndex)} )
                     }
                 }
 
@@ -170,12 +168,10 @@ Drawer {
                                     MouseArea {
                                         hoverEnabled: true
                                         anchors.fill: parent
-                                        /*
                                         onClicked: { 
                                             topicSegments.deregister_video_crop(drawer.cardIndex, index);
-                                            thumbnailPreview.model = topicSegments.ThumbnailCrops(drawer.cardIndex)
-                                            thumbnailPreview.model = Qt.binding(function() { return topicSegments.ThumbnailCrops(drawer.cardIndex)} )
                                         }
+                                        /*
                                         onEntered: {
                                             effect.saturation = -1.0 
                                         }
@@ -198,7 +194,7 @@ Drawer {
 
                                     Image {
                                         id: imgThumb
-                                        visible: false
+                                        visible: true
                                         anchors.fill: parent
                                         source: outer.modelData["path"] + "#0"
                                         fillMode: Image.PreserveAspectFit
