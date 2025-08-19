@@ -1,13 +1,3 @@
-import argparse
-import datetime
-import json
-import logging
-import sys
-import threading
-import pandas as pd
-
-logger = logging.getLogger(__name__)
-
 from pathlib import Path
 from AppConfig import AppConfig
 from CustomVideoOutput import CustomVideoOutput
@@ -20,9 +10,19 @@ from SegmentModel import SegmentModel
 from StackedSeries import StackedSeries
 from TimelineModel import SubjectMultimodalData
 
+import argparse
+import datetime
+import json
+import logging
+import sys
+import threading
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 
 class WorkerThread(threading.Thread):
-    def __init__(self, result_queue, model : SegmentModel, daemon=False):
+    def __init__(self, result_queue, model : SegmentModel, daemon=False) -> None:
         super().__init__(daemon=daemon)
         self.result_queue = result_queue
         self.model = model

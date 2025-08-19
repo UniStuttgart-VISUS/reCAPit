@@ -5,7 +5,7 @@ from PyQt6.QtQuick import QQuickImageProvider
 
 class ThumbnailProvider(QQuickImageProvider):
     def __init__(self):
-        super(ThumbnailProvider, self).__init__(QQuickImageProvider.ImageType.Image)
+        super().__init__(QQuickImageProvider.ImageType.Image)
         self.thumbnails = {}
 
     def add_to_collection(self, cidx, img, type):
@@ -17,13 +17,10 @@ class ThumbnailProvider(QQuickImageProvider):
         elif type == 'move':
             symbol = u"\U000021F5"
         else:
-            symbol = ''
-
-        #cnt_type = len([t for t in self.thumbnails.values() if t['type'] == type])
-        #label = f'{symbol} {cnt_type:02d}'
+            symbol = 'T'
 
         cnt_type = len([t for t in self.thumbnails.values() if t['type'] == type and t['segment_idx'] == cidx])
-        label = f'{symbol}{cnt_type:02d}'
+        label = f'{symbol}{cnt_type}'
         return img_id, label
 
     def requestImage(self, img_id_comp, requested_size):

@@ -1,10 +1,12 @@
 import numpy as np
 import json
+from pathlib import Path
 from PyQt6.QtCore import QObject, QPointF, pyqtSlot
 
 
 class AppConfig(QObject):
-    def __init__(self, manifest, user_config, event_subtypes, parent=None):
+    def __init__(self, manifest: dict[str, dict], user_config: dict[str, dict], 
+                 event_subtypes: dict[str, set], parent=None):
         super().__init__(parent)
 
         aois = json.load(open(manifest['sources']['areas_of_interests']['path'], 'r'))
@@ -30,23 +32,22 @@ class AppConfig(QObject):
         self.id2roles = {r['id']: r['role'] for r in manifest['recordings']}
         self.audio_src = manifest['sources']['audio']['path']
 
-        
-    def export_user_config(self, path):
+    def export_user_config(self, path: Path) -> bool:
         try:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.user_config, f, indent=4)
                 return True
-        except Exception:
+        except ValueError:
             return False
 
-    def speaker_role(self, speaker_id):
+    def speaker_role(self, speaker_id: str) -> str:
         return self.id2roles[speaker_id]
 
     @pyqtSlot(result=str)
-    def GetTopMultiTimeLabel(self):
+    def GetTopMultiTimeLabel(self) -> str:
         if 'top' in self.user_config['streamgraph']:
             return self.user_config['streamgraph']['top']['label']
-        return ""
+        return ''
 
     @pyqtSlot(result=str)
     def GetBottomMultiTimeLabel(self):
