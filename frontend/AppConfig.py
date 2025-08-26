@@ -43,17 +43,9 @@ class AppConfig(QObject):
     def speaker_role(self, speaker_id: str) -> str:
         return self.id2roles[speaker_id]
 
-    @pyqtSlot(result=str)
-    def GetTopMultiTimeLabel(self) -> str:
-        if 'top' in self.user_config['streamgraph']:
-            return self.user_config['streamgraph']['top']['label']
-        return ''
-
-    @pyqtSlot(result=str)
-    def GetBottomMultiTimeLabel(self):
-        if 'bottom' in self.user_config['streamgraph']:
-            return self.user_config['streamgraph']['bottom']['label']
-        return ""
+    @pyqtSlot(result=list)
+    def GetMultiTimeLabels(self) -> list:
+        return [val['label'] for val in self.user_config['streamgraph'].values()]
 
     @pyqtSlot(result=float)
     def SegmentMinDurSec(self):

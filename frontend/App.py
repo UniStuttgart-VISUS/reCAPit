@@ -72,7 +72,7 @@ if __name__ == '__main__':
         logger.error('Path "%s" does to refer to valid AOIs!', topic_segments_file)
         sys.exit()
 
-    if not topic_segments_file.is_file(): 
+    if not topic_segments_file.is_file():
         logger.error('Path "%s" does to refer to valid topic segments!', topic_segments_file)
         sys.exit()
 
@@ -97,14 +97,16 @@ if __name__ == '__main__':
     engine = QQmlApplicationEngine()
     engine.addImageProvider('thumbnails', segment_model.thumbnail_provider)
 
-    for mt, conf in user_config['streamgraph'].items():
-        path = Path(manifest['artifacts']['multi_time'][conf['source']]['path'])
+    for mt in user_config['streamgraph']:
+        path = Path(manifest['artifacts']['multi_time'][mt]['path'])
         if not path.is_file():
             continue
 
         logger.info('Processing multi time signal %s ...', path)
         signal = pd.read_csv(path)
-        stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,labels=manifest_model.Labels(), log_transform=user_config['streamgraph'][mt]['log_scale'])
+        stacks = StackedSeries.from_signals(signal, min_ts=min_timestamp, max_ts=max_timestamp,
+                                            labels=manifest_model.Labels(), 
+                                            log_transform=user_config['streamgraph'][mt]['log_scale'])
         segment_model.register_multi_time(mt, stacks)
 
     if 'video_overlay' in manifest['artifacts']:

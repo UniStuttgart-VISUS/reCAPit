@@ -13,7 +13,7 @@ class TopicCardData(QObject):
         self.text_notes = ""
         self.thumbnail_crops = ThumbnailModel()
         self.speaker_role_time_distr = {}
-        self.aoi_activity_distr = {}
+        self.dists_stats = {}
         self.aoi_attention_distr = {}
         self.marked = False
         self.segment_index = 0
@@ -86,6 +86,10 @@ class TopicCardData(QObject):
     @pyqtSlot(result=float)
     def PosStartSec(self):
         return self.pos_start_sec
+
+    @pyqtSlot(result='QVariantMap')
+    def DistributionsStatistics(self):
+        return self.dists_stats
 
     @pyqtSlot(result='QVariantMap')
     def SpeakerTimeDistribution(self):

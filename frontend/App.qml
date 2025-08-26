@@ -438,8 +438,7 @@ ApplicationWindow {
                     {title: topicSegments.GetLabel(i), 
                     dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    stacksTop: topicSegments.GetTimeSeries("top", i),
-                    stacksBottom:  topicSegments.GetTimeSeries("bottom", i),
+                    stacks: topicSegments.GetRegisteredTimeSeries(i),
                     min_ts: start_ts,
                     max_ts: end_ts,
                     tickInfos: topicSegments.ThumbnailInfo(i),
@@ -510,9 +509,7 @@ ApplicationWindow {
                                                         cardData: cardData, 
                                                         segmentIndex: indices[i],
                                                         cardIndex: i,
-                                                        cmap: appwin.cmapGlobal,
-                                                        hasActivity: topicSegments.HasActivity(),
-                                                        hasAttention: topicSegments.HasAttention(),
+                                                        cmap: appwin.cmapGlobal
                                                     });
 
             if (tcObject == null) {
@@ -649,9 +646,7 @@ ApplicationWindow {
             textColor: "#909090"
             z: 200
 
-            streamTopId: aoiModel.GetTopMultiTimeLabel()
-            streamBottomId: aoiModel.GetBottomMultiTimeLabel()
-
+            streamLabels: aoiModel.GetMultiTimeLabels()
             identifiers: aoiModel.Identifiers()
 
             h1: 175
