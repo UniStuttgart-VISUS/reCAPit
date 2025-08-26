@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any
+import base64
 
 from ThumbnailModel import ThumbnailModel
 from HeatmapProvider import HeatmapOverlayProvider
@@ -8,7 +9,7 @@ from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage
 from PyQt6.QtMultimedia import QVideoSink
 from StackedSeries import StackedSeries
-from ThumbnailProvider import ThumbnailProvider
+from ThumbnailProvider import ThumbnailProvider, qimage_to_base64
 from TopicCard import TopicCardData
 from pathlib import Path
 from json.decoder import JSONDecodeError
@@ -86,7 +87,7 @@ class SegmentModel(QObject):
         self.summaries = self.segments['summary'].tolist()
         self.has_card = self.segments['Displayed'].tolist()
 
-        self.quotes_text = [{'original': '', 'formatted': ''}] * num_segments
+        self.quotes_text = [{'original': '', 'formatted': '', 'quotes': []}] * num_segments
         self.quotes_note = [''] * num_segments
         self.thumbnail_info = [ThumbnailModel(self) for _ in range(num_segments)]
         self.marked = [False] * num_segments
@@ -101,7 +102,7 @@ class SegmentModel(QObject):
         self.transcript = merge_transcript(transcript)
         self.transcript = self.transcript[self.transcript['speaker'].notna()]
         self.transcript['role'] = self.transcript['speaker'].map(
-            lambda s: self.meta_model.speaker_role(s),
+            lambda s: self.meta_model.speaker_role(s.replace(' ', '')),
         )
         self.transcript['duration [sec]'] = (
             self.transcript['end timestamp [sec]']
@@ -166,11 +167,11 @@ class SegmentModel(QObject):
                 try:
                     self.marked[idx] = data['marked']
                     self.titles[idx] = data['title']
-                    self.quotes_note[idx] = data['text_notes']
-                    self.quotes_text[idx] = data['text_dialogues']
-                    self.thumbnail_info[idx].thumbnail_data = data['thumbnail_info']
+                    self.quotes_note[idx] = data['notes']
+                    self.quotes_text[idx] = data['dialogues']
+                    self.thumbnail_info[idx].thumbnail_data = data['thumbnails']
 
-                    self.labels[idx].extend([ti['label'] for ti in data['thumbnail_info']])
+                    self.labels[idx].extend([ti['label'] for ti in data['thumbnails']])
 
                     for img_path in (card_dir / 'thumbnails').iterdir():
                         img = QImage(str(img_path))
@@ -188,6 +189,10 @@ class SegmentModel(QObject):
     def export_state(self, out_dir : str | Path) -> bool:
         if isinstance(out_dir, str):
             out_dir = Path(out_dir)
+
+        kg_json = self.create_knowledge_graph()
+        with open(out_dir / 'kg.json', 'w', encoding='utf-8') as f:
+            json.dump(kg_json, f, ensure_ascii=False, indent=2)
 
         for idx in range(len(self.start_ts)):
             if not self.has_card[idx]:
@@ -207,22 +212,9 @@ class SegmentModel(QObject):
                     out_json = {
                         'marked': marked,
                         'title': title,
-                        'text_notes': text_notes,
-                        'text_dialogues': text_dialogues,
-                        'thumbnail_info': thumbnail_info,
-                        # NOTE Statistics are exported for downstream analysis tasks
-                        # They are NOT imported to reCAPit and exist only for convenience
-                        'statistics': {
-                            'start_sec': self.PosStartSec(idx),
-                            'end_sec': self.PosEndSec(idx),
-                            'speaker_percentage': self.speaker_time_by_speaker(idx),
-                            'movement_percentage': self.GetTimeSeries(
-                                'bottom', idx,
-                            ).LabelDistribution(),
-                            'attention_percentage': self.GetTimeSeries(
-                                'top', idx,
-                            ).LabelDistribution(),
-                        },
+                        'notes': text_notes,
+                        'dialogues': text_dialogues,
+                        'thumbnails': thumbnail_info,
                     }
                     json.dump(out_json, f, ensure_ascii=False, indent=4)
 
@@ -236,11 +228,129 @@ class SegmentModel(QObject):
                         success = img.save(str(thumbnail_dir / f"{info['img_id']}.png"))
 
                         if not success:
-                            raise ValueError(f"Failed to save {info['img_id']}")
+                            msg = f"Failed to save {info['img_id']}"
+                            raise ValueError(msg)
             except Exception as e:
                 logging.error(e)
                 return False
         return True
+
+    def create_knowledge_graph(self) -> dict[str, dict]:
+        nodes = []
+        edges = []
+        prev_root_node = None
+
+        for idx in range(len(self.start_ts)):
+            if not (self.has_card[idx] and self.marked[idx]):
+                continue
+
+            segment_id = idx
+            root_node_id = f'ROOT_{segment_id:02d}'
+            note_node_id = f'NOTES_{segment_id:02d}'
+
+            root_node = {
+                'id': root_node_id,
+                'data':
+                    {'title': self.titles[idx],
+                      'text': self.summaries[idx],
+                      'stats': {
+                            'start_sec': self.PosStartSec(idx),
+                            'end_sec': self.PosEndSec(idx),
+                            'speaker_percentage': self.speaker_time_by_speaker(idx),
+                            'movement_percentage': self.GetTimeSeries(
+                                'attention', idx,
+                            ).LabelDistribution(),
+                            'attention_percentage': self.GetTimeSeries(
+                                'movement', idx,
+                            ).LabelDistribution(),
+                        },
+                    },
+                'type': 'segment',
+            }
+            nodes.append(root_node)
+
+            if prev_root_node is not None:
+                edges.append({
+                    'id': f'e{prev_root_node["id"]}-{root_node_id}',
+                    'data': {'label': 'before'},
+                    'source': prev_root_node['id'],
+                    'target': root_node_id,
+                })
+
+            prev_root_node = root_node
+
+            if len(self.quotes_note[idx]) > 0:
+                nodes.append({
+                    'id': note_node_id,
+                    'data': { 'text': self.quotes_note[idx] },
+                    'type': 'notes',
+                    'parentId': root_node_id,
+                })
+
+                edges.append({
+                    'id': f'e{root_node_id}-{note_node_id}',
+                    'data': {'label': 'within'},
+                    'source': root_node_id,
+                    'target': note_node_id,
+                })
+
+            for q in self.quotes_text[idx]['quotes']:
+                quote_node_id = f'QUOTE_{segment_id:02d}_{q["label"]}'
+
+                nodes.append({
+                    'id': quote_node_id,
+                    'data': q,
+                    'type': 'quote',
+                    'parentId': root_node_id,
+                })
+
+                edges.append({
+                    'id': f'e{root_node_id}-{quote_node_id}',
+                    'data': {'label': 'within'},
+                    'source': root_node_id,
+                    'target': quote_node_id,
+                })
+
+            thumbnail_info = self.thumbnail_info[idx].thumbnail_data
+
+            for info in thumbnail_info:
+                img, _ = self.thumbnail_provider.requestImage(
+                    info['img_id'] + '#0', QSize(),
+                )
+                thumbnail_node_id = f'THUMB_{segment_id:02d}_{info["label"]}'
+
+                try:
+                    img_data = qimage_to_base64(img)
+
+                    nodes.append({
+                        'id': thumbnail_node_id,
+                        'data': {
+                            'imgData': img_data,
+                            'label': info['label'],
+                            'aoi_scores': info['aoi_scores'],
+                        },
+                        'type': 'thumbnail',
+                        'parentId': root_node_id,
+                    })
+
+                    edges.append({
+                        'id': f'e{root_node_id}-{thumbnail_node_id}',
+                        'data': {'label': 'within'},
+                        'source': root_node_id,
+                        'target': thumbnail_node_id,
+                    })
+                except (OSError, ValueError) as e:
+                    logging.error(e)
+
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'meta': {
+                'speakers': self.meta_model.Identifiers(),
+                'aois': self.meta_model.Labels(),
+            },
+        }
+
 
     def process_query_results(self, res: dict[str, Any]) -> None:
         self.queryResultsAvailable.emit(
@@ -403,11 +513,11 @@ class SegmentModel(QObject):
 
     @pyqtSlot(result=bool)
     def HasAttention(self):
-        return len(self.multi_time) > 1
+        return 'bottom' in self.multi_time
 
     @pyqtSlot(result=bool)
     def HasActivity(self):
-        return len(self.multi_time) > 0
+        return 'top' in self.multi_time
 
     @pyqtSlot(result=bool)
     def HasGazeHeatmap(self):
@@ -535,21 +645,19 @@ class SegmentModel(QObject):
         tcd.title = self.titles[index]
         tcd.marked = self.marked[index]
         tcd.summary = self.summaries[index]
-        tcd.speaker_role_time_distr = self.speaker_time_by_role(index)
 
-        tcd.aoi_activity_distr = self.GetTimeSeries(
-            'bottom', index,
-        ).LabelDistribution()
-        tcd.aoi_attention_distr = self.GetTimeSeries(
-            'top', index,
-        ).LabelDistribution()
+        tcd.dists_stats = {}
+        tcd.dists_stats['speaker'] = self.speaker_time_by_role(index)
+
+        for key in self.multi_time:
+            tcd.dists_stats[key] = self.GetTimeSeries(key, index).LabelDistribution()
 
         tcd.text_notes = self.quotes_note[index]
         tcd.text_dialogues = self.quotes_text[index]
         tcd.pos_start_sec = start_ts[index]
         tcd.pos_end_sec = end_ts[index]
         tcd.thumbnail_crops = self.thumbnail_info[index]
-        tcd.aoi_activity_distr = {k: 7 * v for k, v in tcd.aoi_activity_distr.items()}
+        #tcd.aoi_activity_distr = {k: 7 * v for k, v in tcd.aoi_activity_distr.items()}
         return tcd
 
     @pyqtSlot(int, result=bool)
@@ -657,33 +765,11 @@ class SegmentModel(QObject):
             for rec_id, multimodal_data in self.multimodal_recordings.items()
         }
 
-    @pyqtSlot(int, result=StackedSeries)
-    def GetTopMultiTime(self, index):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-        
-        self.multi_time['top'].recompute(self.active_labels)
-        return self.multi_time['top'].slice(start_ts, end_ts)
-
-    @pyqtSlot(int, result=StackedSeries)
-    def GetBottomMultiTime(self, index):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-
-        self.multi_time['bottom'].recompute(self.active_labels)
-        return self.multi_time['bottom'].slice(start_ts, end_ts)
-
     @pyqtSlot(str, int, result=StackedSeries)
     def GetTimeSeries(self, key, index):
         if key not in self.multi_time:
             logging.error(
-                f'Cannot access time series "{key}". Currently registered timelines: {self.multi_time.keys()}.'
-            )
-            self.register_multi_time(
-                key,
-                StackedSeries.empty(
-                    self.MinTimestamp(), self.MaxTimestamp(), self.meta_model.Labels()
-                ),
+                f'Cannot access time series "{key}". Currently registered timelines: {self.multi_time.keys()}.',  # noqa: G004
             )
 
         start_ts = self.start_ts[index]
@@ -691,6 +777,12 @@ class SegmentModel(QObject):
 
         self.multi_time[key].recompute(self.active_labels)
         return self.multi_time[key].slice(start_ts, end_ts)
+
+    @pyqtSlot(int, result=list)
+    def GetRegisteredTimeSeries(self, index:int):
+        start_ts = self.start_ts[index]
+        end_ts = self.end_ts[index]
+        return [mt.slice(start_ts, end_ts) for mt in self.multi_time.values()]
 
     @pyqtSlot(int, result=str)
     def GetNotesCard(self, index):
