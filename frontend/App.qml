@@ -647,7 +647,7 @@ ApplicationWindow {
             z: 200
 
             streamLabels: aoiModel.GetMultiTimeLabels()
-            identifiers: aoiModel.Identifiers()
+            identifiers: [...aoiModel.Identifiers()].sort()
 
             h1: 175
             h2: 30

@@ -58,7 +58,7 @@ Item {
                 cmap: aoiRiver.cmap
                 mtsModel: modelData
                 width: aoiRiver.width
-                height: aoiRiver.height / aoiRiver.stacks.length
+                height: (0.9*aoiRiver.height) / aoiRiver.stacks.length
                 flipped: index === 1
                 z: 10
             }

@@ -128,6 +128,17 @@ def filter_segments(topics, min_dur_1, min_dur_2):
     return topics
 
 
+def fill_gaps(topics, threshold_sec=15):
+    merged = []
+    for _, row in topics.iterrows():
+        if len(merged) > 0 and row['start timestamp [sec]'] - threshold_sec > merged[-1]['start timestamp [sec]']:
+            merged[-1]['end timestamp [sec]'] = row['start timestamp [sec]']
+        merged.append(row)
+
+    return pd.DataFrame.from_records(merged)
+
+
+
 def fill_between(topics, max_ts):
     last_ts = 0
     new_rows = []

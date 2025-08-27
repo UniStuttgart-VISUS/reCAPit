@@ -20,7 +20,6 @@ def compute_stacks(signals):
         if len(stacked_signals) > 0:
             accu_signal += stacked_signals[-1]
         stacked_signals.append(accu_signal)
-
     return stacked_signals
 
 
@@ -93,23 +92,10 @@ class StackedSeries(QObject):
         out['timestamp [sec]'] = np.linspace(min_ts, max_ts, len(out.index))
 
         return cls(stacks=out, signals=signals, labels=labels)
-        
+
     @pyqtSlot(result='QVariantMap')
     def LabelDistribution(self):
-        #return {l: float(self.signals[l].mean().item()) for l in self.labels}
         return {l: float(self.signals[l].mean()) for l in self.labels_active}
-        total = 0
-        #total = self.signals['timestamp [sec]'].iloc[-1] - self.signals['timestamp [sec]'].iloc[0]
-        distr = {}
-
-        for l in self.labels:
-            distr[l] = self.signals[l].sum()
-            total += distr[l]
-
-        if total < 1e-12:
-            total = 1
-
-        return {k: float(v.item() / total)for k, v in distr.items()}
 
 
     @pyqtSlot(float, float, result=StackedSeries)
@@ -117,7 +103,6 @@ class StackedSeries(QObject):
         start_index = self.stacks[self.stacks['timestamp [sec]'] < start_ts].index[-1] if not self.stacks[self.stacks['timestamp [sec]'] < start_ts].empty else None
         mask_stacks = (self.stacks['timestamp [sec]'] >= start_ts) & (self.stacks['timestamp [sec]'] <= end_ts)
         mask_signals = (self.signals['timestamp [sec]'] >= start_ts) & (self.signals['timestamp [sec]'] <= end_ts)
-        #mask = (self.stacks['timestamp [sec]'] >= start_ts) & (self.stacks['timestamp [sec]'] <= end_ts)
 
         if start_index is not None:
             mask_stacks[start_index] = True

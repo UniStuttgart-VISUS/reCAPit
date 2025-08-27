@@ -20,6 +20,7 @@ from AppConfig import AppConfig
 from utils import (
     blend_images,
     fill_between,
+    fill_gaps,
     filter_segments,
     linear_layout,
     longest_common_substring,
@@ -78,7 +79,7 @@ class SegmentModel(QObject):
         )
 
     def init_segments(self, segments: pd.DataFrame) -> None:
-        self.segments = fill_between(segments, max_ts=self.MaxTimestamp())
+        self.segments = fill_between(fill_gaps(segments, threshold_sec=5), max_ts=self.MaxTimestamp())
         num_segments = len(self.segments.index)
 
         self.start_ts = self.segments['start timestamp [sec]'].tolist()
@@ -248,6 +249,12 @@ class SegmentModel(QObject):
             root_node_id = f'ROOT_{segment_id:02d}'
             note_node_id = f'NOTES_{segment_id:02d}'
 
+            dists_stats = {}
+            dists_stats['speaker'] = self.speaker_time_by_speaker(idx)
+
+            for key in self.multi_time:
+                dists_stats[key] = self.GetTimeSeries(key, idx).LabelDistribution()
+
             root_node = {
                 'id': root_node_id,
                 'data':
@@ -256,13 +263,7 @@ class SegmentModel(QObject):
                       'stats': {
                             'start_sec': self.PosStartSec(idx),
                             'end_sec': self.PosEndSec(idx),
-                            'speaker_percentage': self.speaker_time_by_speaker(idx),
-                            'movement_percentage': self.GetTimeSeries(
-                                'attention', idx,
-                            ).LabelDistribution(),
-                            'attention_percentage': self.GetTimeSeries(
-                                'movement', idx,
-                            ).LabelDistribution(),
+                            'distributions': dists_stats,
                         },
                     },
                 'type': 'segment',

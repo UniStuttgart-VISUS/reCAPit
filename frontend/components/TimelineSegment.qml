@@ -158,7 +158,7 @@ Rectangle {
                     id: repDataTypes
 
                     model: Object.values(dia)[0].AvailableDataTypes()
-                    property var recIds: Object.keys(dia)
+                    property var recIds: [...Object.keys(dia)].sort()
 
                     delegate: ListView {
                         property var currDatatype: modelData
