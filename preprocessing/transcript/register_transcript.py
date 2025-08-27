@@ -27,11 +27,11 @@ if __name__ == '__main__':
 
         for rec in tqdm(man.get_recordings(), disable=True):
             out_dir = args.out_dir / rec['id']
-            out_dir.mkdir(exist_ok=True)
+            out_dir.mkdir(exist_ok=True, parents=True)
             out_path = out_dir / 'transcript.csv'
 
             transcript_rec = transcript[transcript['speaker'] == rec['id']].copy()
-            transcript_rec['event data'] = transcript_rec['text'] 
+            transcript_rec['event data'] = transcript_rec['text']
             transcript_rec['event type'] = 'speech'
             transcript_rec['event subtype'] = rec['role']
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
