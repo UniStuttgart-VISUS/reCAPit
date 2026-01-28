@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls.Basic 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Shapes 1.2
+import QtQuick.Effects
 import QtQml
 
 Drawer {
@@ -12,10 +13,10 @@ Drawer {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     required property int cardIndex
-    required property var cardData
     required property var colormap
 
     property var drawerOpened: false
+    property var dialogue: topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex)
 
     signal saveChanges(string title, string quotes, string notes)
 
@@ -32,7 +33,7 @@ Drawer {
             if (!speaker_count[speaker])
                 speaker_count[speaker] = 1;
 
-            const utterance_id = "%1%2".arg(speaker.toUpperCase().slice(0, 2)).arg(speaker_count[speaker]);
+            const utterance_id = "<a href=\"%1\">%2%3%4</a>".arg(idx).arg(String.fromCodePoint(0x29C9)).arg(speaker.toUpperCase().slice(0, 2)).arg(speaker_count[speaker]);
             dialogueStr += "<h3>%1 <font color=\"#aaa\">(%2)</font></h3><p>%3</p>".arg(speaker).arg(utterance_id).arg(utterance_speaker_pairs[idx].text);
             speaker_count[speaker] = speaker_count[speaker] + 1;
         }
@@ -55,9 +56,9 @@ Drawer {
         video.selectionHeight = 0;
         drawer.drawerOpened = true;
 
-        dialogueTextSelection.setOutText(drawer.cardData.TextDialoguesOriginal());
-        notesTextSelection.setOutText(drawer.cardData.TextNotes());
-        notesTextSelection.labels = drawer.cardData.Labels()
+        dialogueTextSelection.setOutText(topicSegments.TextDialoguesOriginal(drawer.cardIndex));
+        notesTextSelection.setOutText(topicSegments.TextNotes(drawer.cardIndex));
+        notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex)
     }
 
     onClosed: {
@@ -73,7 +74,7 @@ Drawer {
             Layout.preferredHeight: 50
 
             id: heading
-            text: drawer.cardData.Title()
+            text: topicSegments.Title(drawer.cardIndex)
             wrapMode: Text.WordWrap
 
             font.pixelSize: 20
@@ -101,8 +102,8 @@ Drawer {
                     Layout.preferredHeight: 550
 
                     videoOverlaySources: topicSegments.VideoOverlaySources(drawer.cardIndex)
-                    startPosition: drawer.cardData.PosStartSec() * 1000
-                    endPosition: drawer.cardData.PosEndSec() * 1000
+                    startPosition: topicSegments.PosStartSec(drawer.cardIndex) * 1000
+                    endPosition: topicSegments.PosEndSec(drawer.cardIndex) * 1000
                     active: drawer.drawerOpened
                     topDownSource: topicSegments.VideoSourceTopDown()
                     peripheralSources: topicSegments.VideoSourcesPeripheral()
@@ -110,8 +111,6 @@ Drawer {
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
                         topicSegments.RegisterVideoCrop(frame, pos_ms, drawer.cardIndex, xpos, ypos, width, height, overlay_src); 
-                        thumbnailPreview.model = topicSegments.GetTopicCardData(drawer.cardIndex).ThumbnailCrops();
-                        thumbnailPreview.model = Qt.binding(function() { return drawer.cardData.ThumbnailCrops()} )
                     }
                 }
 
@@ -150,7 +149,7 @@ Drawer {
                             anchors.fill: parent
                             clip: true
 
-                            model: drawer.cardData.ThumbnailCrops()
+                            model: topicSegments.ThumbnailCrops(drawer.cardIndex)
                             delegate: 
                             Item {
                                 id: outer
@@ -167,13 +166,35 @@ Drawer {
                                     //border.width: 2
 
                                     MouseArea {
+                                        hoverEnabled: true
                                         anchors.fill: parent
                                         onClicked: { 
+                                            topicSegments.deregister_video_crop(drawer.cardIndex, index);
+                                        }
+                                        /*
+                                        onEntered: {
+                                            effect.saturation = -1.0 
+                                        }
+                                        onExited: {
+                                            effect.saturation = 0.0
+                                        }
+                                        */
+                                    }
+                                    /*
+                                    MultiEffect {
+                                        id: effect
+                                        anchors.fill: imgThumb
+                                        source: imgThumb
+                                        saturation: -1.0   // normal color at start
+                                        Behavior on saturation {
+                                            NumberAnimation { duration: 500; easing.type: Easing.InOutQuad }
                                         }
                                     }
+                                    */
 
                                     Image {
                                         id: imgThumb
+                                        visible: true
                                         anchors.fill: parent
                                         source: outer.modelData["path"] + "#0"
                                         fillMode: Image.PreserveAspectFit
@@ -235,9 +256,15 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
+                    onLinkActivated: (link) => {
+                        const idx = parseInt(link);
+                        const time_ms = dialogue[idx].start_time * 1000
+                        video.setPosition(time_ms);
+                    }
+
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
-                    textContent: drawer.formattedDialogue(topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex), keywordDialog.userKeywords)
+                    textContent: drawer.formattedDialogue(dialogue, keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
                 }
@@ -248,7 +275,7 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
-                    labels: drawer.cardData.Labels()
+                    labels: topicSegments.Labels(drawer.cardIndex)
                     title: String.fromCodePoint(0x1F5D2) + "  Notes  " + String.fromCodePoint(0x1F5D2)
                     textContent: topicSegments.GetNotes(drawer.cardIndex).allHTML()
                     placeHolderText: "Insert excerpts from the above notes here"
@@ -268,7 +295,7 @@ Drawer {
                 text: "Save Changes"
                 onClicked: {
                     saveChanges(heading.text, dialogueTextSelection.getOutText(), notesTextSelection.getOutText());
-                    notesTextSelection.labels = drawer.cardData.Labels();
+                    notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex);
                 }
             }
 

@@ -15,6 +15,8 @@ GroupBox {
     //property ListModel labelsModel: ListModel {}
     //property alias textContentQuote: textAreaOut.text
 
+    signal linkActivated(string link)
+
     function setOutText(text) 
     {
         textAreaOut.text = text;
@@ -94,7 +96,8 @@ GroupBox {
 
                         onClicked: {
                             const cursor_pos = textAreaOut.cursorPosition;
-                            const symbol_chr = String.fromCodePoint(0x27E8) + modelData + String.fromCodePoint(0x27E9);
+                            //const symbol_chr = String.fromCodePoint(0x27E8) + modelData + String.fromCodePoint(0x27E9);
+                            const symbol_chr = "[" + modelData + "]";
 
                             //control.textContentQuote = control.textContentQuote.slice(0, cursor_pos) + symbol_chr + control.textContentQuote.slice(cursor_pos, -1);
                             textAreaOut.text = textAreaOut.text.slice(0, cursor_pos) + symbol_chr + textAreaOut.text.slice(cursor_pos, -1);
@@ -125,6 +128,10 @@ GroupBox {
             text: control.textContent
             textFormat: Text.RichText
             wrapMode: Text.WordWrap
+
+            onLinkActivated: (link) => {
+                control.linkActivated(link);
+            }
 
             background: Rectangle {
                 radius: 5

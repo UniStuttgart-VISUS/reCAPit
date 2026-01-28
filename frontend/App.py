@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 """
 class WorkerThread(threading.Thread):
-    def __init__(self, result_queue, model : SegmentModel, daemon=False):
+    def __init__(self, result_queue, model : SegmentModel, daemon=False) -> None:
         super().__init__(daemon=daemon)
         self.result_queue = result_queue
         self.model = model
@@ -50,4 +50,3 @@ if __name__ == '__main__':
     pro_manager.open_manager()
 
     sys.exit(app.exec())
-

@@ -1,11 +1,32 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTransform
+from PyQt6.QtCore import Qt, QByteArray, QBuffer
+from PyQt6.QtGui import QTransform, QImage
 from PyQt6.QtQuick import QQuickImageProvider
 
+import base64
+
+def qimage_to_base64(qimage: QImage, fmt: str = 'PNG') -> str:
+    # Save QImage into QByteArray via QBuffer
+    byte_array = QByteArray()
+    buffer = QBuffer(byte_array)
+
+    if not buffer.open(QBuffer.OpenModeFlag.WriteOnly):
+        msg = 'Failed to open QBuffer for writing.'
+        raise OSError(msg)
+
+    # Try saving the image
+    if not qimage.save(buffer, fmt):
+        msg = f"Failed to save QImage to buffer in format '{fmt}'."
+        raise ValueError(msg)
+
+    # Convert QByteArray to Python bytes
+    raw_bytes = byte_array.data()
+
+    # Encode to Base64 using Python's module
+    return base64.encodebytes(raw_bytes).decode('utf-8')
 
 class ThumbnailProvider(QQuickImageProvider):
     def __init__(self):
-        super(ThumbnailProvider, self).__init__(QQuickImageProvider.ImageType.Image)
+        super().__init__(QQuickImageProvider.ImageType.Image)
         self.thumbnails = {}
 
     def add_to_collection(self, cidx, img, type):
@@ -17,13 +38,10 @@ class ThumbnailProvider(QQuickImageProvider):
         elif type == 'move':
             symbol = u"\U000021F5"
         else:
-            symbol = ''
-
-        #cnt_type = len([t for t in self.thumbnails.values() if t['type'] == type])
-        #label = f'{symbol} {cnt_type:02d}'
+            symbol = 'T'
 
         cnt_type = len([t for t in self.thumbnails.values() if t['type'] == type and t['segment_idx'] == cidx])
-        label = f'{symbol} {cnt_type:02d}'
+        label = f'{symbol}{cnt_type}'
         return img_id, label
 
     def requestImage(self, img_id_comp, requested_size):

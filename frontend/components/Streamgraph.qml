@@ -16,11 +16,34 @@ Item {
 
     transform: Scale{xScale: 1; yScale: flipped ? -1 : 1; origin.x: shapeContainer.width / 2; origin.y: shapeContainer.height / 2}
 
+    /*
     Component.onCompleted: {
         for (var idx = 0; idx < mtsModel.StackCount(); idx++) {
             var component = Qt.createComponent("AreaPath.qml");
             if (component.status == Component.Ready) {
                 component.createObject(shapeContainer, {pathStr: mtsModel.StackAsSvgPath(idx, shapeContainer.width, shapeContainer.height), areaColor: cmap[mtsModel.Label(idx)]});
+            }
+        }
+    }
+    */
+
+    // In Streamgraph.qml
+    property bool contentCreated: false
+
+    onWidthChanged: createContent()
+    onHeightChanged: createContent()
+
+    function createContent() {
+        if (width > 0 && height > 0 && !contentCreated) {
+            contentCreated = true;
+            for (var idx = 0; idx < mtsModel.StackCount(); idx++) {
+                var component = Qt.createComponent("AreaPath.qml");
+                if (component.status == Component.Ready) {
+                    component.createObject(shapeContainer, {
+                        pathStr: mtsModel.StackAsSvgPath(idx, width, height), 
+                        areaColor: cmap[mtsModel.Label(idx)]
+                    });
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Effects
 import QtMultimedia
 import QtQuick.Layouts 1.0
+import QtQuick.Dialogs
 import QtQuick.Shapes 1.2
 import QtQml
 
@@ -16,7 +17,7 @@ import QtQuick.Controls.Basic
 ApplicationWindow {
     id: appwin
     visible: true
-    width: 2000
+    width: 1920
     height: 1080
     color: "white"
     title: ""
@@ -34,11 +35,7 @@ ApplicationWindow {
     readonly property int timelineSegmentHeight: 90 + 175 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
 
     property var segmentIndicesOfCards: []
-    property var keywordMatchedIndices: []
-    property var allCardData : []
-
     property var segmentIndicesWithCards : []
-    property var targetSegmentIndices : []
 
     property int currentEditCardIndex: 0
     property bool drawerVisible: false
@@ -46,40 +43,7 @@ ApplicationWindow {
     property list<string> segmentIndicesMarkers : []
     property list<real> segmentIndicesScores : []
 
-    signal buildStory()
     signal reset()
-
-    function interpolateColor(value, colorscheme) {
-        // Clamp value between 0 and 1
-        value = Math.max(0, Math.min(1, value));
-        var colors;
-
-        if (colorscheme === "BuGn")
-            colors = ["#edf8fb","#b2e2e2","#66c2a4","#238b45"];
-        else if (colorscheme === "BuPu")
-            colors = ["#edf8fb","#b3cde3","#8c96c6","#88419d"];
-        else if (colorscheme === "GnBu")
-            colors = ["#f0f9e8","#bae4bc","#7bccc4","#2b8cbe"];
-        else if (colorscheme === "OrRd")
-            colors = ["#fef0d9","#fdcc8a","#fc8d59","#d7301f"];
-        else if (colorscheme === "PuBuGn")
-            colors = ["#f6eff7","#bdc9e1","#67a9cf","#02818a"];
-        else if (colorscheme === "PuBu")
-            colors = ["#f1eef6","#bdc9e1","#74a9cf","#0570b0"];
-        else if (colorscheme === "PuRd")
-            colors = ["#f1eef6","#d7b5d8","#df65b0","#ce1256"];
-        else if (colorscheme === "RdPu")
-            colors = ["#feebe2","#fbb4b9","#f768a1","#ae017e"]
-        else if (colorscheme === "YlGnBu")
-            colors = ["#ffffcc","#a1dab4","#41b6c4","#225ea8"];
-            //colors = ["#fafafa","#a1dab4","#41b6c4","#225ea8"];
-
-        // Determine the bin index (0 to 3)
-        const binIndex = Math.min(Math.floor(value * colors.length), colors.length - 1);
-
-        // Return the color corresponding to the bin
-        return colors[binIndex];
-    }
 
     PreferenceWindow {
         id: preferencePane
@@ -190,7 +154,25 @@ ApplicationWindow {
 
             MenuSeparator { }
             Action { 
-                text: qsTr("Preferences") 
+                text: qsTr("&Restore state...") 
+                shortcut: StandardKey.Open
+                onTriggered: {
+                    loadDialog.open();
+                }
+            }
+
+            Action { 
+                text: qsTr("&Save state") 
+                shortcut: StandardKey.Save
+                onTriggered: {
+                    saveDialog.open();
+                }
+            }
+
+            MenuSeparator { }
+
+            Action { 
+                text: qsTr("&Preferences") 
                 shortcut: StandardKey.Preferences
                 onTriggered: {
                     preferencePane.show();
@@ -207,9 +189,20 @@ ApplicationWindow {
             }
         }
         Menu {
+            title: qsTr("&Edit")
+            Action { 
+                text: qsTr("Find")
+                shortcut: StandardKey.Find
+                onTriggered: {
+                    keywordDialog.open();
+                }
+            }
+        }
+        Menu {
             title: qsTr("&View")
             Action { 
                 text: qsTr("Scale up") 
+                shortcut: StandardKey.ZoomIn
                 onTriggered: {
                     scroll.contentWidth *= 1.5;
                     appwin.reset();
@@ -217,6 +210,7 @@ ApplicationWindow {
             }
             Action { 
                 text: qsTr("Scale down") 
+                shortcut: StandardKey.ZoomOut
                 onTriggered: {
                     scroll.contentWidth /= 1.5;
                     appwin.reset();
@@ -224,18 +218,13 @@ ApplicationWindow {
             }
             Action { 
                 text: qsTr("Reset") 
+                shortcut: StandardKey.Refresh
                 onTriggered: {
-                    var targetIndices = [];
-                    for (var i = 0; i < appwin.allCardData.length; ++i) {
-                        targetIndices.push(appwin.allCardData[i].SegmentIndex());
-                    }
-
                     for (var i = 0; i < cardsRoot.children.length; ++i) {
                         const idx = cardsRoot.children[i].cardData.SegmentIndex();
-                        cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
-                        appwin.segmentIndicesScores[i] = 0.0;
+                        cardsRoot.children[i].opacity = 1.0;
+                        appwin.segmentIndicesScores[idx] = 0.0;
                     }
-                    targetSegmentIndices = targetIndices;
                 }
             }
         }
@@ -269,25 +258,23 @@ ApplicationWindow {
         contentHeight: appwin.height
 
         cardIndex: appwin.segmentIndicesOfCards[appwin.currentEditCardIndex]
-        cardData: appwin.allCardData[cardIndex]
         colormap: appwin.cmapGlobal
 
-        onSaveChanges: (heading, quotes_text, quotes_notes) => {
+        onSaveChanges: (user_title, user_text, user_notes) => {
             const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
             var targetCard = cardsRoot.children[appwin.currentEditCardIndex];
 
             for (var idx = 0; idx < tsRoot.children.length; ++idx) {
                 if (tsRoot.children[idx].topicIndex === cardIndex) {
-                    tsRoot.children[idx].title = heading;
+                    tsRoot.children[idx].title = user_title;
                 }
             }
-            topicSegments.SetLabel(cardIndex, heading);
-            topicSegments.SetQuoteNote(cardIndex, quotes_notes);
-            topicSegments.SetQuoteText(cardIndex, quotes_text);
+            topicSegments.SetLabel(cardIndex, user_title);
+            topicSegments.SetQuoteNote(cardIndex, user_notes);
+            topicSegments.SetQuoteText(cardIndex, user_text);
 
             tsRoot.children[cardIndex].tickInfos = topicSegments.ThumbnailInfo(cardIndex);
             targetCard.cardData = topicSegments.GetTopicCardData(cardIndex)
-            appwin.allCardData[cardIndex] = targetCard.cardData;
         }
     }
 
@@ -295,27 +282,18 @@ ApplicationWindow {
         id: keywordDialog
         anchors.centerIn: parent
 
-        width: 400
-        height: 300
+        width: 500
+        height: 350
+
+        closePolicy: Popup.CloseOnEscape
 
         onKeywordSearch: (keywords) => {
-            appwin.keywordMatchedIndices = topicSegments.KeywordMatches(keywords);
-            var targetIndices = [];
-
-            for (var i = 0; i < appwin.allCardData.length; ++i) {
-                const cardData = appwin.allCardData[i];
-                const matched = appwin.keywordMatchedIndices.indexOf(cardData.SegmentIndex()) !== -1
-
-                if (matched) {
-                    targetIndices.push(cardData.SegmentIndex());
-                }
-            }
+            var targetIndices = topicSegments.KeywordMatches(keywords);
             for (var i = 0; i < cardsRoot.children.length; ++i) {
                 const idx = cardsRoot.children[i].cardData.SegmentIndex();
                 cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
-                appwin.segmentIndicesScores[i] = targetIndices.includes(idx) ? 1.0 : 0.0;
+                appwin.segmentIndicesScores[idx] = targetIndices.includes(idx) ? 1.0 : 0.0;
             }
-            targetSegmentIndices = targetIndices;
         }
     }
 
@@ -375,11 +353,11 @@ ApplicationWindow {
 
                 if (output_indices.includes(target_index)) {
                     const j = output_indices.indexOf(target_index);
-                    cardsRoot.children[i].color = appwin.interpolateColor(output_scores[j], "PuBuGn")
+                    cardsRoot.children[i].color = Utils.interpolateColor(output_scores[j], "PuBuGn")
                     cardsRoot.children[i].score = output_scores[j];
                 }
                 else {
-                    cardsRoot.children[i].color = appwin.interpolateColor(0.0, "PuBuGn")
+                    cardsRoot.children[i].color = Utils.interpolateColor(0.0, "PuBuGn")
                     cardsRoot.children[i].score = -1;
                 }
 
@@ -446,45 +424,32 @@ ApplicationWindow {
     }
 
     function resetNow() {
-        var allCards = []
-        for (var i = 0; i < topicSegments.rowCount(); ++i) {
-            allCards.push(topicSegments.GetTopicCardData(i));
-        }
-        appwin.allCardData = allCards;
-
         deleteAllSegments();
         deleteAllCards();
 
         const allTopicIndices = [...Array(topicSegments.rowCount()).keys()];
+        var markers = [];
+        var scores = [];
+
         createSegments(allTopicIndices);
         findCardLayout();
 
-
-        var indicesWithCards = []
         for (var i = 0; i < topicSegments.rowCount(); ++i) {
-            const segmentVisible = allTopicIndices.indexOf(i) !== -1;
-            if (segmentVisible && topicSegments.HasCard(i))
-                indicesWithCards.push(i);
+            const marker = topicSegments.IsMarked(i) ? "⭐" : "";
 
-            appwin.segmentIndicesMarkers.push("");
-            appwin.segmentIndicesScores.push(0);
+            markers.push(marker);
+            scores.push(0.0);
         }
 
-        segmentIndicesWithCards = indicesWithCards;
-        targetSegmentIndices = [...indicesWithCards];
+        var indicesWithCards = topicSegments.IndicesOfCards();
+
+        appwin.segmentIndicesWithCards = indicesWithCards;
+        appwin.segmentIndicesMarkers = markers;
+        appwin.segmentIndicesScores = scores;
     }
 
     function compressSegments() {
-        var targetIndices = [];
-
-        for (var i = 0; i < appwin.allCardData.length; ++i) {
-            const cardData = appwin.allCardData[i];
-            const marked = cardData.IsMarked();
-
-            if (marked) {
-                targetIndices.push(cardData.SegmentIndex());
-            }
-        }
+        var targetIndices = topicSegments.MarkedIndices();
 
         if (targetIndices.length > 0) {
             deleteAllSegments();
@@ -496,7 +461,6 @@ ApplicationWindow {
         else {
             console.log("WARNING: Build nothing to compress!")
         }
-        targetSegmentIndices = targetIndices;
     }
  
 
@@ -525,8 +489,7 @@ ApplicationWindow {
                     {title: topicSegments.GetLabel(i), 
                     dia: topicSegments.GetMultiRecData(i), 
                     tan: topicSegments.GetNotes(i),
-                    stacksTop: topicSegments.GetTimeSeries("top", i),
-                    stacksBottom:  topicSegments.GetTimeSeries("bottom", i),
+                    stacks: topicSegments.GetRegisteredTimeSeries(i),
                     min_ts: start_ts,
                     max_ts: end_ts,
                     tickInfos: topicSegments.ThumbnailInfo(i),
@@ -587,7 +550,7 @@ ApplicationWindow {
         const cards_loc = topicSegments.GetCardLayout(target_loc, target_card_width, scroll.contentWidth * 1.5);
         
         for (var i = 0; i < target_loc.length; ++i) {
-            const cardData = appwin.allCardData[indices[i]];
+            const cardData = topicSegments.GetTopicCardData(indices[i]);
             var tcComponent = Qt.createComponent("components/TopicCard.qml");
             var tcObject = tcComponent.createObject(cardsRoot, 
                                                     {
@@ -597,9 +560,7 @@ ApplicationWindow {
                                                         cardData: cardData, 
                                                         segmentIndex: indices[i],
                                                         cardIndex: i,
-                                                        cmap: appwin.cmapGlobal,
-                                                        hasActivity: topicSegments.HasActivity(),
-                                                        hasAttention: topicSegments.HasAttention(),
+                                                        cmap: appwin.cmapGlobal
                                                     });
 
             if (tcObject == null) {
@@ -650,7 +611,7 @@ ApplicationWindow {
 
             onClicked: function() {
                 appwin.reset();
-                //scroll.hScrollBar.position = 0.0;
+                scroll.ScrollBar.horizontal.position = 0.0;
             }
         }
 
@@ -664,7 +625,7 @@ ApplicationWindow {
 
             onClicked: function() {
                 appwin.compressSegments();
-                //scroll.hScrollBar.position = 0.0;
+                scroll.ScrollBar.horizontal.position = 0.0;
             }
         }
 
@@ -739,10 +700,8 @@ ApplicationWindow {
             textColor: "#909090"
             z: 200
 
-            streamTopId: aoiModel.GetTopMultiTimeLabel()
-            streamBottomId: aoiModel.GetBottomMultiTimeLabel()
-
-            identifiers: aoiModel.Identifiers()
+            streamLabels: aoiModel.GetMultiTimeLabels()
+            identifiers: [...aoiModel.Identifiers()].sort()
 
             h1: 175
             h2: 30
@@ -814,18 +773,13 @@ ApplicationWindow {
 
                 width: repB.boxW
                 height: repB.boxH
-                color: (index < appwin.segmentIndicesScores.length) ? appwin.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
+                color: (index < appwin.segmentIndicesScores.length) ? Utils.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
                 border.color: '#d9d9d9'
 
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
                         scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
-                        for (var i = 0; i < tsRoot.children.length; ++i) {
-                            if (tsRoot.children[i].topicIndex === segmentIndicesWithCards[index]) {
-                                scroll.ScrollBar.horizontal.position = tsRoot.children[i].x / tsRoot.width;
-                            }
-                        }
                     }
                 }
 

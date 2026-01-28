@@ -15,8 +15,7 @@ Rectangle {
     required property var title
     required property var dia
     required property var tan
-    required property var stacksTop
-    required property var stacksBottom
+    required property var stacks
     required property var cmap
     required property var meta
     required property int topicIndex
@@ -92,22 +91,22 @@ Rectangle {
         AOIRiver {
             id: aoiRiver
             Layout.fillWidth: true
-            height: 175
+            Layout.preferredHeight: 175
 
-            cmapTop: root.cmap
-            cmapBottom: root.cmap
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
             tickInfos: root.tickInfos
-            stacksTop: root.stacksTop
-            stacksBottom: root.stacksBottom
+
+            cmap: root.cmap
+            stacks: root.stacks
+
             xScale: xScaleG
         }
 
         TopicBar {
             id: topicBar
             Layout.fillWidth: true
-            height: 30
+            Layout.preferredHeight: 30
             z: 20
             title: "%1 (%2)".arg(root.title).arg(cardIndex)
             checked: root.hasCard
@@ -159,7 +158,7 @@ Rectangle {
                     id: repDataTypes
 
                     model: Object.values(dia)[0].AvailableDataTypes()
-                    property var recIds: Object.keys(dia)
+                    property var recIds: [...Object.keys(dia)].sort()
 
                     delegate: ListView {
                         property var currDatatype: modelData

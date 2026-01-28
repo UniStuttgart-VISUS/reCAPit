@@ -15,7 +15,7 @@ def generate_prompt_summary(text, language):
     return [
           {
               "role": "system",
-              "content": f"You are a linguist who provides concise and accurate summaries from {language} dialogues and utterances."
+              "content": f"You are a linguist who provides concise and accurate summaries from {language} dialogues and utterances. Your output should be in {language}."
           },
           {
               "role": "user", 
@@ -27,7 +27,7 @@ def generate_prompt_keywords(text, language):
     return [
           {
               "role": "system",
-              "content": f"You are a linguist who extracts topics from {language} dialogue transcripts."
+              "content": f"You are a linguist who extracts topics from {language} dialogue transcripts. Your output should be in {language}."
           },
           {
               "role": "user", 
@@ -39,7 +39,7 @@ def generate_prompt_title(text, language):
     return [
           {
               "role": "system",
-              "content": f"You are a linguist who creates {language} titles for dialogue transcripts."
+              "content": f"You are a linguist who creates {language} titles for dialogue transcripts. Your output should be in {language}"
           },
           {
               "role": "user", 

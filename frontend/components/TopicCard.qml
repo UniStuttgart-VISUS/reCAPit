@@ -14,8 +14,10 @@ Item {
     required property int cardIndex
     required property var cmap
 
-    required property bool hasAttention
-    required property bool hasActivity
+    readonly property var icon_sets: {
+                           "speaker": "../icons/speech.png",
+                           "attention": "../icons/eye.png",
+                           "movement": "../icons/move.png"}
 
     signal onClicked(targetIndex: int)
     signal onEntered(targetIndex: int)
@@ -88,28 +90,28 @@ Item {
                     return pieData;
                 }
 
-                PieChart {
-                    id: pieSpeakerTime
-                    sourcePic: "../icons/speech.png"
-                    data: topicCard.getPieData(cardData.SpeakerTimeDistribution(), topicCardRoot.cmap)
-                    width: 50; height: 50; x: topicCardRoot.width - 25; y: 50; z: 5
-                }
-                PieChart {
-                    id: pieAoiActivity
-                    sourcePic: "../icons/move.png"
-                    data: topicCard.getPieData(cardData.AoiActivityDistribution(), topicCardRoot.cmap)
-                    width: 50; height: 50; x: topicCardRoot.width - 25; y: 120; z: 5
-                    visible: topicCardRoot.hasActivity
-                }
+                Column {
+                    x: topicCardRoot.width - 25
+                    y: 50
+                    z: 5
+                    spacing: 30
 
-                PieChart {
-                    id: pieAoiAttention
-                    sourcePic: "../icons/eye.png"
-                    data: topicCard.getPieData(cardData.AoiAttentionDistribution(), topicCardRoot.cmap)
-                    width: 50; height: 50; x: topicCardRoot.width - 25; y: 190; z: 5
-                    visible: topicCardRoot.hasAttention
-                }
+                    Repeater {
+                        id: repPie
+                        property var distStats: cardData.DistributionsStatistics()
+                        // FIXME : Reverse sorting is a bad hack so that the speaker distribution appears on top
+                        model: Object.keys(distStats).reverse()
 
+                        delegate: PieChart {
+                            required property string modelData
+
+                            sourcePic: topicCardRoot.icon_sets[modelData]
+                            data: topicCard.getPieData(repPie.distStats[modelData], topicCardRoot.cmap)
+                            width: 50
+                            height: 50
+                        }
+                    }
+                }
 
                 ColumnLayout {
                     spacing: 10
@@ -338,7 +340,7 @@ Item {
                         implicitWidth: imgGrid.implicitWidth
                         implicitHeight: imgGrid.implicitHeight + 50
 
-                        visible: topicCardRoot.cardData.ThumbnailCrops().length > 0
+                        visible: topicCardRoot.cardData.ThumbnailCrops().count > 0
 
                         color: '#fff'
                         radius: 10
@@ -351,6 +353,7 @@ Item {
                             rows: 5
 
                             Repeater {
+                                id: rep
                                 model: topicCardRoot.cardData.ThumbnailCrops()
                                 delegate: 
                                 Item {
@@ -449,7 +452,6 @@ Item {
                                             source: outer.modelData["path"] + "#" + rectImg.rotationAngle
                                             fillMode: Image.PreserveAspectFit
                                         }
-
                                     }
 
                                     Row {
@@ -478,7 +480,7 @@ Item {
                                             }
                                         }
                                         Repeater {
-                                            model: outer.modelData["within_aois"]
+                                            model: outer.modelData["aoiScores"]
 
                                             delegate: Rectangle {
                                                 id: inner

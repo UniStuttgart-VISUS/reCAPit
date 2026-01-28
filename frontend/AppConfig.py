@@ -73,29 +73,20 @@ class AppConfig(QObject):
         self.id2roles = {r['id']: r['role'] for r in manifest['recordings']}
         self.audio_src = manifest['sources']['audio']['path']
 
-        
-    def export_user_config(self, path):
+    def export_user_config(self, path: Path) -> bool:
         try:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.user_config, f, indent=4)
                 return True
-        except Exception:
+        except ValueError:
             return False
 
-    def speaker_role(self, speaker_id):
+    def speaker_role(self, speaker_id: str) -> str:
         return self.id2roles[speaker_id]
 
-    @pyqtSlot(result=str)
-    def GetTopMultiTimeLabel(self):
-        if 'top' in self.user_config['streamgraph']:
-            return self.user_config['streamgraph']['top']['label']
-        return ""
-
-    @pyqtSlot(result=str)
-    def GetBottomMultiTimeLabel(self):
-        if 'bottom' in self.user_config['streamgraph']:
-            return self.user_config['streamgraph']['bottom']['label']
-        return ""
+    @pyqtSlot(result=list)
+    def GetMultiTimeLabels(self) -> list:
+        return [val['label'] for val in self.user_config['streamgraph'].values()]
 
     @pyqtSlot(result=float)
     def SegmentMinDurSec(self):

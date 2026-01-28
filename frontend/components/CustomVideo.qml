@@ -46,6 +46,10 @@ Rectangle {
     radius: 5
     focus: true
 
+    function setPosition(posMsec) {
+        video.setPosition(posMsec);
+    }
+
     onActiveChanged: {
         if (!active) {
             video.pause();
@@ -86,6 +90,33 @@ Rectangle {
                 }
                 */
             }
+        }
+    }
+
+    Window {
+        id: winRoot
+        visibility: videoRoot.videoInFullscreen ? Window.FullScreen : Window.Hidden
+        color: "black"
+        title: "Video Fullscreen"
+
+        VideoOutput {
+            id: videoFullOutput
+            anchors.fill: parent
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                video.playbackState == MediaPlayer.PlayingState ? video.pause() : video.play()
+            }
+        }
+
+        Keys.onEscapePressed: {
+            videoRoot.videoInFullscreen = false;
+        }
+
+        onClosing: {
+            videoRoot.videoInFullscreen = false;
         }
     }
 
@@ -132,8 +163,8 @@ Rectangle {
             Layout.fillHeight: true
 
             color: "black"
-            border.color: "red"
-            border.width: videoRoot.selectionMode > 0 ? 3 : 0
+            //border.color: "red"
+            //border.width: videoRoot.selectionMode > 0 ? 3 : 0
 
             VideoOutput {
                 id: videoOutput
@@ -207,9 +238,14 @@ Rectangle {
             }
 
             MouseArea {
+                id: mouseArea
+
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                property int anchorX;
+                property int anchorY;
 
                 onClicked: (mouse) => {
                     if (videoRoot.selectionMode === 0) {
@@ -220,6 +256,8 @@ Rectangle {
                         selectionRect.y = mouse.y;
                         selectionRect.width = 0;
                         selectionRect.height = 0;
+                        mouseArea.anchorX = mouse.x;
+                        mouseArea.anchorY = mouse.y;
                         videoRoot.selectionMode = 2;
                     }
                     else {
@@ -241,8 +279,21 @@ Rectangle {
 
                 onPositionChanged: (mouse) => {
                     if (videoRoot.selectionMode == 2) {
-                        selectionRect.width = mouse.x - selectionRect.x
-                        selectionRect.height = mouse.y - selectionRect.y
+                        selectionRect.width = Math.abs(mouse.x - mouseArea.anchorX);
+                        selectionRect.height = Math.abs(mouse.y - mouseArea.anchorY)
+
+                        if (mouse.x < mouseArea.anchorX) {
+                            selectionRect.x = mouse.x;
+                        }
+                        else {
+                            selectionRect.x = mouseArea.anchorX;
+                        }
+                        if (mouse.y < mouseArea.anchorY) {
+                            selectionRect.y = mouse.y;
+                        }
+                        else {
+                            selectionRect.y = mouseArea.anchorY;
+                        }
                     }
                 }
             }
@@ -280,42 +331,6 @@ Rectangle {
 
                 selectionRect.width = 0;
                 selectionRect.height = 0;
-
-                onMoved: {
-                    video.setPosition(startPosition + control.position * (endPosition - startPosition));
-                }
-
-                background: Rectangle {
-                    x: control.leftPadding
-                    y: control.topPadding + control.availableHeight / 2 - height / 2
-                    implicitWidth: 200
-                    implicitHeight: 4
-                    width: control.availableWidth
-                    height: implicitHeight
-                    radius: 2
-                    color: "#bdbebf"
-
-                    Rectangle {
-                        width: control.visualPosition * parent.width
-                        height: parent.height
-                        color: "#fff"
-                        radius: 2
-                    }
-                }
-
-                handle: Rectangle {
-                    x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
-                    y: control.topPadding + control.availableHeight / 2 - height / 2
-                    implicitWidth: 16
-                    implicitHeight: 16
-                    radius: 8
-                    color: control.pressed ? "#f0f0f0" : "#f6f6f6"
-                    border.color: "#bdbebf"
-                }
-            }
-            ButtonGroup {
-                id: childGroup
-                exclusive: true
             }
 
             onVideoOverlaySelected: (name) => {

@@ -9,8 +9,7 @@ Rectangle {
     id: rootLegend
 
     required property string textColor
-    required property string streamTopId
-    required property string streamBottomId
+    required property var streamLabels
     required property var identifiers
 
     required property int h1
@@ -48,6 +47,27 @@ Rectangle {
                     width: parent.width / 2
                     height: parent.height
 
+                    Repeater {
+                        model: rootLegend.streamLabels
+                        delegate: 
+                        Item {
+                            required property string modelData
+
+                            width: parent.width
+                            height: parent.height / 2
+
+                            Text {
+                                anchors.centerIn: parent
+                                id: text11
+                                text: modelData
+                                color: rootLegend.textColor
+                                font.bold: false
+                                font.capitalization: Font.AllUppercase
+                                transform: Rotation { origin.x: text11.width / 2; origin.y: text11.height / 2; angle: -90}
+                            }
+                        }
+                    }
+                    /*
                     Item {
                         width: parent.width
                         height: parent.height / 2
@@ -76,6 +96,7 @@ Rectangle {
                             transform: Rotation { origin.x: text12.width / 2; origin.y: text12.height / 2; angle: -90}
                         }
                     }
+                    */
                 }
             }
         }
