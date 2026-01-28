@@ -87,7 +87,7 @@ class ProjectManager(QAbstractListModel):
         if action == 'viewer':
             self.curr_project.open_project_viewer(self.app, self.qf, root_dir, name)
         elif action == 'manifest':
-            self.curr_project.open_project_manifest(root_dir)
+            self.curr_project.open_project_manifest(self.app, root_dir)
         else:
             logger.error(f'Unknown action "{action}" on project "{name}"')
 
