@@ -62,9 +62,13 @@ class RecordingListModel(QAbstractListModel):
     SourceGazeRole = Qt.ItemDataRole.UserRole + 3
     ArtifactsRole = Qt.ItemDataRole.UserRole + 4
 
-    def __init__(self, recordings, parent: object = None) -> None:
+    def __init__(self, parent: object = None) -> None:
         super().__init__(parent)
+
+    def set_recordings(self, recordings: list) -> None:
+        self.beginResetModel()
         self.recordings = recordings
+        self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()) -> int:  # noqa: ARG002, B008, N802
         return len(self.recordings)
@@ -117,6 +121,7 @@ class RecordingListModel(QAbstractListModel):
                     'offset_sec': '',
                 },
             },
+            'artifacts': {},
         })
         self.endInsertRows()
 
@@ -166,34 +171,45 @@ class Manifest(QObject):
     recordingsChanged = pyqtSignal()  # noqa: N815
     participantRolesChanges = pyqtSignal()  # noqa: N815
     wasModifiedChanged = pyqtSignal()  # noqa: N815
+    manifestChanged = pyqtSignal(dict)  # noqa: N815
+
+    @pyqtSlot()
+    def on_property_change(self) -> None:
+        self.manifestChanged.emit(self._manifest.copy())
+        self.write_to_json()
 
     def __init__(self, manifest_path: Path, parent: object = None) -> None:
         super().__init__(parent)
 
-        with open(manifest_path, encoding='utf-8') as f:
-            self._manifest = json.load(f)
+        self._supported_languages = ['auto', 'english', 'german', 'french', 'spanish', 'italian']
+        self._participant_roles = QStringListModel()
+        self.manifest_path = manifest_path
+        self._recordings = RecordingListModel()
 
-            self._supported_languages = ['auto', 'english', 'german', 'french', 'spanish', 'italian']
+        self.languageChanged.connect(self.on_property_change)
+        self.durationSecChanged.connect(self.on_property_change)
+        self.audioChanged.connect(self.on_property_change)
+        self.aoiChanged.connect(self.on_property_change)
+        self.notesChanged.connect(self.on_property_change)
+        self.videoWorkspaceChanged.connect(self.on_property_change)
+        self.videoSideChanged.connect(self.on_property_change)
+        self.recordingsChanged.connect(self.on_property_change)
 
-            self._participant_roles = QStringListModel()
-            self._participant_roles.setStringList(self._manifest['roles'])
+        self._participant_roles.dataChanged.connect(self._sync_roles_to_manifest)
+        self._participant_roles.rowsInserted.connect(self._sync_roles_to_manifest)
+        self._participant_roles.rowsRemoved.connect(self._sync_roles_to_manifest)
 
-            self._participant_roles.dataChanged.connect(self._sync_roles_to_manifest)
-            self._participant_roles.rowsInserted.connect(self._sync_roles_to_manifest)
-            self._participant_roles.rowsRemoved.connect(self._sync_roles_to_manifest)
+        self._recordings.dataChanged.connect(self.on_property_change)
+        self._recordings.rowsInserted.connect(self.on_property_change)
+        self._recordings.rowsRemoved.connect(self.on_property_change)
 
-            if self._manifest['language'] not in self._supported_languages:
-                msg = f'Manifest specifies unsupported language: "{self._manifest["language"]}"'
-                raise RuntimeError(msg)
+        self.load_from_json()
 
-            self._recordings = RecordingListModel(self._manifest['recordings'])
-            self._sources = {}
-            self._arts = {}
-            self._was_modified = False
-
+    @pyqtSlot()
     def _sync_roles_to_manifest(self) -> None:
         """Sync the roles from the model back to the manifest dictionary."""
         self._manifest['roles'] = self._participant_roles.stringList()
+        self.on_property_change()
 
     def _set_modified(self) -> None:
         if not self._was_modified:
@@ -308,8 +324,27 @@ class Manifest(QObject):
         self._participant_roles = value
         self.participantRolesChanges.emit()
 
-    def export_to_json(self, manifest_path:Path) -> None:
-        with open(manifest_path, 'w', encoding='utf-8') as f:
+    @pyqtSlot()
+    def load_from_json(self) -> None:
+        with open(self.manifest_path, encoding='utf-8') as f:
+            self._manifest = json.load(f)
+
+            self._participant_roles.setStringList(self._manifest['roles'])
+            self._recordings.set_recordings(self._manifest['recordings'])
+
+            if self._manifest['language'] not in self._supported_languages:
+                msg = f'Manifest specifies unsupported language: "{self._manifest["language"]}"'
+                raise RuntimeError(msg)
+
+            self._was_modified = False
+
+            print("reload")
+            self.on_property_change()
+
+    @pyqtSlot()
+    def write_to_json(self) -> None:
+        print("write")
+        with open(self.manifest_path, 'w', encoding='utf-8') as f:
             json.dump(self._manifest, f, indent=4)
 
 

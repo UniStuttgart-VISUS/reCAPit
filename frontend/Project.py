@@ -84,10 +84,16 @@ class Project(QObject):
         self.preprocessing_pipeline = PreprocessingPipeline(self.manifest_path, root_dir, self)
 
         self.manifest = Manifest(self.manifest_path)
+
+        self.manifest.manifestChanged.connect(self.preprocessing_pipeline.reevaluate_pipeline_status)
+        self.preprocessing_pipeline.reevaluate_pipeline_status(self.manifest._manifest)
+        self.preprocessing_pipeline.pipelineStepCompleted.connect(self.manifest.load_from_json)
+
         self.engine.rootContext().setContextProperty('manifest', self.manifest)
         self.engine.rootContext().setContextProperty('preprocessingPipeline', self.preprocessing_pipeline)
         self.engine.load('windows/ManifestWindow.qml')
         app.aboutToQuit.connect(self.quit_manifest)
+
 
     def open_project_viewer(self, app: QApplication, qf: QSurfaceFormat, root_dir: Path, name: str) -> None:
         self.export_dir = root_dir / 'export'
@@ -168,7 +174,8 @@ class Project(QObject):
 
     @pyqtSlot()
     def quit_manifest(self) -> None:
-        self.manifest.export_to_json(self.manifest_path)
+        self.engine.deleteLater()
+        self.manifest.write_to_json()
 
     def quit_project(self) -> None:
         self.engine.deleteLater()

@@ -7,7 +7,7 @@ from subprocess import CompletedProcess
 from pathlib import Path
 from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot, QDir, pyqtProperty, Qt, QAbstractListModel, QModelIndex, QStringListModel, QVariant
 
-transcript_script_path = Path('../preprocessing/transcript').resolve()
+transcript_scripts_dir = Path('../preprocessing/transcript').resolve()
 
 def popen_and_call(on_exit: Callable[[int], None],
                    on_output: Callable[[str], None], cmd: list, cwd: str) -> None:
@@ -36,7 +36,9 @@ def popen_and_call(on_exit: Callable[[int], None],
 
 class PreprocessingPipeline(QObject):
     transcriptCompleted = pyqtSignal(int)  # noqa: N815
-    pipelineRunningChanged = pyqtSignal()  # noqa: N815
+    pipelineStepCompleted = pyqtSignal()  # noqa: N815
+    globalTranscriptReadyChanged = pyqtSignal()  # noqa: N815
+    recordingTranscriptReadyChanged = pyqtSignal()  # noqa: N815
     stdOutLine = pyqtSignal(str)  # noqa: N815
 
     def __init__(self, meta_file: Path, root_dir: Path, parent: object = None) -> None:
@@ -45,23 +47,55 @@ class PreprocessingPipeline(QObject):
         self.meta_file = meta_file
         self.root_dir = root_dir
         self.active_thread = None
-        self.transcriptCompleted.connect(self.pipelineRunningChanged)
+        self.transcriptCompleted.connect(self.pipelineStepCompleted)
 
-    @pyqtProperty(bool, notify=pipelineRunningChanged)
+        self._global_transcript_ready = False
+        self._recording_transcript_ready = False
+
+    @pyqtSlot(dict)
+    def reevaluate_pipeline_status(self, manifest: dict) -> None:
+        self._global_transcript_ready = 'audio' in manifest['sources']
+        self.globalTranscriptReadyChanged.emit()
+
+        self._recording_transcript_ready = 'transcript' in manifest['artifacts']
+        self.recordingTranscriptReadyChanged.emit()
+
+    @pyqtProperty(bool, notify=pipelineStepCompleted)
     def pipeline_running(self) -> str:
         return self.active_thread is not None and self.active_thread.is_alive()
 
+    @pyqtProperty(bool, notify=globalTranscriptReadyChanged)
+    def global_transcript_ready(self) -> bool:
+        return self._global_transcript_ready
+
+    @pyqtProperty(bool, notify=recordingTranscriptReadyChanged)
+    def recording_transcript_ready(self) -> bool:
+        return self._recording_transcript_ready
+
     @pyqtSlot()
-    def run_transcript(self) -> None:
+    def run_transcript_global(self) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_transcript_global.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
         ]
-
         if self.active_thread is not None and self.active_thread.is_alive():
             return
 
         self.active_thread = popen_and_call(self.transcriptCompleted.emit,
-                                            self.stdOutLine.emit, cmd, transcript_script_path)
-        self.pipelineRunningChanged.emit()
+                                            self.stdOutLine.emit, cmd, transcript_scripts_dir)
+        #self.pipelineStepCompleted.emit()
+
+    @pyqtSlot()
+    def run_transcript_recording(self) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_transcript_recording.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+        ]
+        if self.active_thread is not None and self.active_thread.is_alive():
+            return
+
+        self.active_thread = popen_and_call(self.transcriptCompleted.emit,
+                                            self.stdOutLine.emit, cmd, transcript_scripts_dir)
+        #self.pipelineStepCompleted.emit()

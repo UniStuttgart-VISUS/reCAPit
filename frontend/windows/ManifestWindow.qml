@@ -567,32 +567,65 @@ ApplicationWindow {
 
                 GroupBox {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 200
 
                     title: "Transcript"
 
-                    Row {
-                        spacing: 20
-                        BusyIndicator {
+                    GridLayout {
+                        anchors.fill: parent
+                        columns: 3
+                        rowSpacing: 15
+
+                        Text {
+                            text: "Generate Transcript"
+                            font.bold: true
+                        }
+
+                        ProgressBar {
+                            Layout.fillWidth: true
                             id: transcriptRunningIndicator
-                            running: false
+                            indeterminate: false
+                            value: 1.0
                         }
 
                         Connections {
                             target: preprocessingPipeline
                             function onTranscriptCompleted(returnCode) { 
                                 print(returnCode);
-                                transcriptRunningIndicator.running = false;
+                                transcriptRunningIndicator.indeterminate = false;
                             }
                         }
 
                         Button {
-                            text: "Generate transcript"
-                            enabled: !preprocessingPipeline.pipeline_running
+                            Layout.preferredHeight: 25
+                            text: "Run"
+                            enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.global_transcript_ready
                             onClicked: {
-                                transcriptRunningIndicator.running = true;
+                                transcriptRunningIndicator.indeterminate = false;
                                 transcriptTab.currStdOut = "";
-                                preprocessingPipeline.run_transcript()
+                                preprocessingPipeline.run_transcript_global()
+                            }
+                        }
+
+                        Text {
+                            text: "Split Transcript"
+                            font.bold: true
+                        }
+
+                        ProgressBar {
+                            Layout.fillWidth: true
+                            id: transcriptRunningIndicator2
+                            indeterminate: false
+                            value: 1.0
+                        }
+
+                        Button {
+                            Layout.preferredHeight: 25
+                            text: "Run"
+                            enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.recording_transcript_ready
+                            onClicked: {
+                                transcriptRunningIndicator2.indeterminate = false;
+                                transcriptTab.currStdOut = "";
+                                preprocessingPipeline.run_transcript_recording()
                             }
                         }
 
@@ -601,6 +634,7 @@ ApplicationWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.maximumHeight: 300
                     Layout.bottomMargin: 25
                     Layout.topMargin: 5
                     
