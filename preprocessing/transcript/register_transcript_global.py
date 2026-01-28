@@ -14,7 +14,7 @@ from collections.abc import Callable
 from faster_whisper import WhisperModel
 #from pyannote.audio import Pipeline
 #from pyannote.audio.pipelines.utils.hook import ProgressHook
-#import gc
+import gc
 
 LANGUAGES = {
     "en": "english",
@@ -147,29 +147,28 @@ def stt(audio_path: Path, language: str,
         model_size: str ='large-v3') -> None:
 
     model = WhisperModel(model_size, device='cuda', compute_type='float16')
-    segments, info = model.transcribe(audio_path, beam_size=5, 
+
+    segments, info = model.transcribe(audio_path, beam_size=5,
                                       language=language if language in LANGUAGES else None,
                                       word_timestamps=True, vad_filter=True)
     last_segment = None
-    #print(info)
 
     for curr_segment in segments:
-        if last_segment is not None:
-            last_text, last_start, last_end = last_segment
-            if curr_segment.start - last_end <= max_speech_pause:
-                last_segment = (last_text + ' ' + curr_segment.text,
-                                last_start, curr_segment.end)
+        for curr_word in curr_segment.words:
+            if last_segment is not None:
+                last_text, last_start, last_end = last_segment
+                if curr_word.start - last_end <= max_speech_pause:
+                    last_segment = (last_text + curr_word.word, last_start, curr_word.end)
+                else:
+                    print(last_segment)
+                    consumer_callback(last_segment)
+                    last_segment = (curr_word.word, curr_word.start, curr_word.end)
             else:
-                print(last_segment)
-                consumer_callback(last_segment)
-                last_segment = (curr_segment.text, curr_segment.start, curr_segment.end)
-        else:
-            last_segment = (curr_segment.text, curr_segment.start, curr_segment.end)
+                last_segment = (curr_word.word, curr_word.start, curr_word.end)
 
     if last_segment is not None:
         consumer_callback(last_segment)
-
-    print('DONE')
+    return model
 
 
 if __name__ == '__main__':
@@ -187,8 +186,7 @@ if __name__ == '__main__':
         rec_root = args.root_dir
 
         transcript_segments = []
-        stt(audio_path, man.get_language(), args.max_speech_pause, transcript_segments.append)
-        print(len(transcript_segments))
+        model = stt(audio_path, man.get_language(), args.max_speech_pause, transcript_segments.append)
         transcript = pd.DataFrame.from_records(transcript_segments,
                                                columns=('text',
                                                         'start timestamp [sec]',
@@ -197,5 +195,17 @@ if __name__ == '__main__':
         transcript['speaker'] = ''
         transcript.to_csv(out_path, index=False, encoding='utf-8-sig')
         man.register_artifact('transcript', {'path': str(out_path), 'offset_sec': 0.0})
-
         logging.info('Registered "transcript" as an global artifact')
+
+    """
+    # Cleanup model after everything is done
+    if 'model' in locals():
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+        del model
+        """
+    print('-------------------DONE-------------------')
+    gc.collect()
+    sys.exit(0)
