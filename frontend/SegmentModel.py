@@ -184,16 +184,81 @@ class SegmentModel(QObject):
                 self.quotes_text[idx] = data["text_dialogues"]
                 self.thumbnail_info[idx] = data["thumbnail_info"]
 
-                for img_path in (card_dir / "thumbnails").iterdir():
-                    img = QImage(str(img_path))
-                    self.thumbnail_provider.thumbnails[img_path.stem] = {
-                        "image": img,
-                        "segment_idx": idx,
-                        "type": "unknown",
+                    self.labels[idx].extend([ti['label'] for ti in data['thumbnails']])
+
+                    for img_path in (card_dir / 'thumbnails').iterdir():
+                        img = QImage(str(img_path))
+                        self.thumbnail_provider.thumbnails[img_path.stem] = {
+                            'image': img,
+                            'segment_idx': idx,
+                            'type': 'unknown',
+                        }
+                except JSONDecodeError as e:
+                    logging.error(e)
+                    return False
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def export_bookmarked(self, out_dir : str | Path) -> bool:
+        if isinstance(out_dir, str):
+            out_dir = Path(out_dir)
+
+        for idx in range(len(self.start_ts)):
+            if not self.has_card[idx] or not self.marked[idx]:
+                continue
+
+            title = self.titles[idx]
+            text_notes = self.quotes_note[idx]
+            text_dialogues = self.quotes_text[idx]
+            thumbnail_info = []
+
+            for info in self.thumbnail_info[idx].thumbnail_data:
+                img, _ = self.thumbnail_provider.requestImage(
+                    info['img_id'] + '#0', QSize(),
+                )
+                thumbnail_info.append({
+                    'label': info['label'],
+                    'imgData': qimage_to_base64(img),
+                })
+
+            try:
+                with open(out_dir / f'{idx:05d}.json', 'w', encoding='utf-8') as f:
+                    out_json = {
+                        'title': title,
+                        'time_range': {
+                            'start_sec': self.PosStartSec(idx),
+                            'end_sec': self.PosEndSec(idx),
+                        },
+                        'summary': self.summaries[idx],
+                        'notes': text_notes,
+                        'quotes': text_dialogues['quotes'],
+                        'thumbnails': thumbnail_info,
                     }
+                    json.dump(out_json, f, ensure_ascii=False, indent=4)
+
+            except (OSError, TypeError, ValueError, KeyError, IndexError) as e:
+                logging.error(e)
+                return False
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def export_state(self, out_dir : str | Path) -> bool:
+        if isinstance(out_dir, str):
+            out_dir = Path(out_dir)
+
+        kg_json = self.create_knowledge_graph()
+        with open(out_dir / 'kg.json', 'w', encoding='utf-8') as f:
+            json.dump(kg_json, f, ensure_ascii=False, indent=2)
+
 
     def export_state(self, out_dir):
         for idx in range(len(self.start_ts)):
+            marked = self.marked[idx]
+            title = self.titles[idx]
+            text_notes = self.quotes_note[idx]
+            text_dialogues = self.quotes_text[idx]
+            thumbnail_info = self.thumbnail_info[idx].thumbnail_data
+
             if not self.has_card[idx]:
                 continue
 
@@ -201,13 +266,7 @@ class SegmentModel(QObject):
             sub_dir.mkdir(parents=True, exist_ok=True)
 
             try:
-                with open(sub_dir / "card_data.json", "w", encoding="utf-8") as f:
-                    marked = self.marked[idx]
-                    title = self.titles[idx]
-                    text_notes = self.quotes_note[idx]
-                    text_dialogues = self.quotes_text[idx]
-                    thumbnail_info = self.thumbnail_info[idx]
-
+                with open(sub_dir / 'card_data.json', 'w', encoding='utf-8') as f:
                     out_json = {
                         "marked": marked,
                         "title": title,
@@ -215,6 +274,7 @@ class SegmentModel(QObject):
                         "text_dialogues": text_dialogues,
                         "thumbnail_info": thumbnail_info,
                     }
+
                     json.dump(out_json, f, ensure_ascii=False, indent=4)
 
                     thumbnail_dir = sub_dir / "thumbnails"
@@ -227,12 +287,109 @@ class SegmentModel(QObject):
                         success = img.save(str(thumbnail_dir / f"{info['img_id']}.png"))
 
                         if not success:
-                            raise ValueError(f"Failed to save {info['img_id']}")
-            except Exception as e:
+                            msg = f"Failed to save {info['img_id']}"
+                            raise ValueError(msg)
+            except (OSError, TypeError, ValueError, KeyError, IndexError) as e:
+                logging.error(e)
                 return False
         return True
 
-    def process_query_results(self, res):
+    def create_knowledge_graph(self) -> dict[str, dict]:
+        nodes = []
+        edges = []
+        prev_root_node = None
+
+        for idx in range(len(self.start_ts)):
+            if not (self.has_card[idx] and self.marked[idx]):
+                continue
+
+            segment_id = idx
+            root_node_id = f'ROOT_{segment_id:02d}'
+            note_node_id = f'NOTES_{segment_id:02d}'
+
+            dists_stats = {}
+            dists_stats['speaker'] = self.speaker_time_by_speaker(idx)
+
+            for key in self.multi_time:
+                dists_stats[key] = self.GetTimeSeries(key, idx).LabelDistribution()
+
+            root_node = {
+                'id': root_node_id,
+                'data':
+                    {'title': self.titles[idx],
+                      'text': self.summaries[idx],
+                      'stats': {
+                            'start_sec': self.PosStartSec(idx),
+                            'end_sec': self.PosEndSec(idx),
+                            'distributions': dists_stats,
+                        },
+                    },
+                'type': 'segment',
+            }
+            nodes.append(root_node)
+
+            if len(self.quotes_note[idx]) > 0:
+                nodes.append({
+                    'id': note_node_id,
+                    'data': { 'text': self.quotes_note[idx] },
+                    'type': 'notes',
+                    'parentId': root_node_id,
+                })
+
+            for q in self.quotes_text[idx]['quotes']:
+                quote_node_id = f'QUOTE_{segment_id:02d}_{q["label"]}'
+
+                nodes.append({
+                    'id': quote_node_id,
+                    'data': q,
+                    'type': 'quote',
+                    'parentId': root_node_id,
+                })
+
+            thumbnail_info = self.thumbnail_info[idx].thumbnail_data
+
+            for info in thumbnail_info:
+                img, _ = self.thumbnail_provider.requestImage(
+                    info['img_id'] + '#0', QSize(),
+                )
+                thumbnail_node_id = f'THUMB_{segment_id:02d}_{info["label"]}'
+
+                try:
+                    img_data = qimage_to_base64(img)
+
+                    nodes.append({
+                        'id': thumbnail_node_id,
+                        'data': {
+                            'imgData': img_data,
+                            'label': info['label'],
+                            'description': '',
+                            'aoi_scores': info['aoi_scores'],
+                        },
+                        'type': 'thumbnail',
+                        'parentId': root_node_id,
+                    })
+                    """
+                    edges.append({
+                        'id': f'e{root_node_id}-{thumbnail_node_id}',
+                        'data': {'label': 'within'},
+                        'source': root_node_id,
+                        'target': thumbnail_node_id,
+                    })
+                    """
+                except (OSError, ValueError) as e:
+                    logging.error(e)
+
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'meta': {
+                'speakers': self.meta_model.Identifiers(),
+                'aois': self.meta_model.Labels(),
+            },
+        }
+
+
+    def process_query_results(self, res: dict[str, Any]) -> None:
         self.queryResultsAvailable.emit(
             res["meta"]["snippet_index"],
             res["result"]["scores"],
@@ -327,10 +484,9 @@ class SegmentModel(QObject):
         self.init_segments(segments)
 
 
-    @pyqtSlot(int, result=list)
-    def ThumbnailInfo(self, segment_idx):
-        return []
-        #return self.thumbnail_info[segment_idx]
+    @pyqtSlot(int, result=ThumbnailModel)
+    def ThumbnailInfo(self, segment_idx: int) -> list:
+        return self.thumbnail_info[segment_idx]
 
     @pyqtSlot(int, result=list)
     def ThumbnailIndicatorPositions(self, segment_idx):

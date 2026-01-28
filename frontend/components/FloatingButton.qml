@@ -16,6 +16,8 @@ Item {
     required property string source
     required property string color
 
+    property alias tooltipText: buildButtonToolTip.text
+
     MultiEffect {
         source: buildButton
         anchors.fill: buildButton
@@ -33,6 +35,12 @@ Item {
         anchors.fill: parent
 
         text: buttonContainer.text
+
+        ToolTip {
+            id: buildButtonToolTip
+            parent: buildButton
+            visible: buildButton.hovered && tooltipText.length > 0
+        }
 
         contentItem: Text {
             text: parent.text

@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
                 frame_mask = (fg_mask == 255) & hand_mask
                 out_mask = (255*frame_mask).astype(np.uint8)
-                
+
                 if args.store_video:
                     out_frame = np.stack([out_mask, out_mask, out_mask], axis=2)
                     out_frame = cv.resize(out_frame, dsize=(frame_width, frame_height), interpolation=cv.INTER_AREA)
@@ -75,8 +75,8 @@ if __name__ == '__main__':
                 total_foreground = frame_mask.sum() / (img.shape[0]*img.shape[1])
 
                 if args.show_output:
-                    cv.imshow('Hand Landmarks', hand_detection.draw_landmarks_on_image(img, detection_result))    
-                    cv.imshow('Mask', out_mask)    
+                    cv.imshow('Hand Landmarks', hand_detection.draw_landmarks_on_image(img, detection_result))
+                    cv.imshow('Mask', out_mask)
                     cv.imshow('frame', img)
 
                 out_row = [pos_frame, pos_msec*1e-3, total_foreground]
@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
             man.register_multi_time('movement', {'path': str(out_path), 'categories': 'areas_of_interests'})
             logging.info('Registered "multi_time/movement" as an global artifact')
-            
+
             cap.release()
             if args.store_video:
                 writer.release()

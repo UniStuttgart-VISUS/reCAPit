@@ -99,7 +99,6 @@ class SubjectMultimodalData(QObject):
     def MinTimestamp(self):
         return self.min_timestamp
 
-
     @pyqtSlot(str, result=SubjectData)
     def SubjectData(self, data_type):
         return self.multimodal_data[data_type]

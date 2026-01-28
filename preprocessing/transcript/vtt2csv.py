@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--vtt_path', type=Path, required=True)
     args = parser.parse_args()
 
-    with open(args.vtt_path, 'r', encoding="utf-8") as input_file:
+    with open(args.vtt_path, encoding='utf-8') as input_file:
         parser = subtitle_parser.WebVttParser(input_file)
         parser.parse()
 

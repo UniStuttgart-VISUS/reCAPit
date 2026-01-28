@@ -22,6 +22,7 @@ Rectangle {
     property alias playbackState: video.playbackState
     property int startPosition
     property int endPosition
+    property real currentPosition
     property var active: false
     property int selectionMode: 0
     property var videoSink
@@ -35,8 +36,11 @@ Rectangle {
     property alias selectionHeight: selectionRect.height
 
     property bool hasVideoOverlays: Object.keys(videoOverlaySources).length > 0
+    property string activeVideoOverlay: "None"
+    property bool videoInFullscreen: false
 
     signal selectionChanged(var frame, real pos, real xpos, real ypos, real width, real height, string overlay_src)
+    signal videoEnterFullscreen()
 
     color: "black"
     radius: 5
@@ -50,7 +54,7 @@ Rectangle {
 
     onStartPositionChanged: {
         video.setPosition(startPosition);
-        control.value = 0
+        currentPosition = 0;
     }
 
     MediaPlayer {
@@ -60,7 +64,7 @@ Rectangle {
         property int savedPlaybackState: -1
 
         source: videoRoot.topDownSource
-        videoOutput: videoOutput
+        videoOutput: videoRoot.videoInFullscreen ? winRoot.videoFullOutput : videoOutput
         audioOutput: AudioOutput {
             volume: 1.0
         }
@@ -69,8 +73,8 @@ Rectangle {
             if (pos > endPosition) {
                 video.pause();
             }
-            control.value = 100 * (pos - startPosition) / (endPosition - startPosition);
-            const gaze_idx = Math.floor(0.001 * position * 4);
+            currentPosition = (pos - startPosition) / (endPosition - startPosition);
+            //const gaze_idx = Math.floor(0.001 * position * 4);
         }
 
         onMediaStatusChanged: (status) => {
@@ -176,14 +180,13 @@ Rectangle {
                 height: videoOutput.contentRect.height
                 x: videoOutput.contentRect.x
                 y: videoOutput.contentRect.y
-                source: (hasVideoOverlays && childGroup.checkedButton && childGroup.checkedButton.text in videoOverlaySources) ? videoOverlaySources[childGroup.checkedButton.text] : ""
+                source: (hasVideoOverlays && activeVideoOverlay in videoOverlaySources) ? videoOverlaySources[activeVideoOverlay] : ""
                 // Only show overlays on top-down video
-                visible:  hasVideoOverlays && childGroup.checkedButton.text !== "None" && bar.currentIndex === 0
+                visible:  hasVideoOverlays && activeVideoOverlay !== "None" && bar.currentIndex === 0
             }
 
             Item {
                 id: gazeOverlay
-
                 // Only show heatmap on top-down video
                 visible: bar.currentIndex === 0
 
@@ -221,20 +224,15 @@ Rectangle {
                     }
                     else {
                         const cr = videoOutput.contentRect;
-
                         if (mouse.button === Qt.LeftButton) {
-                            
-                            var overlay_src = childGroup.checkedButton.text;
-
                             videoRoot.selectionChanged(videoOutput.videoSink, 
                                                     video.position,
                                                     (selectionRect.x - cr.x) / cr.width, 
                                                     (selectionRect.y - cr.y) / cr.height, 
                                                     selectionRect.width / cr.width, 
                                                     selectionRect.height / cr.height,
-                                                    overlay_src);
+                                                    activeVideoOverlay);
                         }
-
                         selectionRect.width = 0;
                         selectionRect.height = 0;
                         videoRoot.selectionMode = 1;
@@ -250,29 +248,38 @@ Rectangle {
             }
         }
 
-        RowLayout {
+        VideoProgressBar {
+            id: videoProgressBar
             Layout.fillWidth: true
             Layout.leftMargin: 10
             Layout.rightMargin: 10
 
-            spacing: 10
+            progressValue: videoRoot.currentPosition
+            progressDisplayText: Utils.timeFormat(1e-3 * video.position)
 
-            Text {
-                text: Utils.timeFormat(video.position/1000);
-                font.family: "Arial"
-                font.pointSize: 10
-                font.bold: true
-                color: "white"
+            mediaStatusIcon: (video.playbackState === MediaPlayer.PlayingState) ? "../icons/media_pause.png" : "../icons/media_play.png"
+            videoOverlaySources: Object.keys(videoRoot.videoOverlaySources).concat(["None"])
+            overlaySrcIcon: "../icons/gear.png"
+            cropIcon: videoRoot.selectionMode === 0 ? "../icons/box_inactive.png" : "../icons/box_active.png"
+            aoiIcon: videoRoot.aoiOverlayEnabled ? "../icons/aoi_active.png" : "../icons/aoi_inactive.png"
+            fullScreenIcon: "../icons/fullscreen.png"
+
+            onProgressChanged: (pos) => {
+                video.setPosition(startPosition + pos * (endPosition - startPosition));
             }
 
-            Slider {
-                id: control
-                Layout.preferredHeight: 30
-                Layout.fillWidth: true
+            onVideoEnterFullscreen: {
+                videoRoot.videoInFullscreen = true;
+            }
 
-                from: 1
-                value: 0
-                to: 100
+            onFrameCropToggled: {
+                if (videoRoot.selectionMode == 0)
+                    videoRoot.selectionMode = 1;
+                else
+                    videoRoot.selectionMode = 0;
+
+                selectionRect.width = 0;
+                selectionRect.height = 0;
 
                 onMoved: {
                     video.setPosition(startPosition + control.position * (endPosition - startPosition));
@@ -311,96 +318,17 @@ Rectangle {
                 exclusive: true
             }
 
-            Item {
-                Layout.preferredHeight: 20
-                Layout.preferredWidth: 20
-                id: control2
-
-                property list<string> model: Object.keys(videoOverlaySources).concat(["None"])
-                visible: hasVideoOverlays
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        dropdownPopup.open();
-                    }
-                }
-
-                Image {
-                    anchors.fill: parent
-                    source: "../icons/gear.png"
-                    fillMode: Image.PreserveAspectFit
-                }
-
-                Popup {
-                    id: dropdownPopup
-
-                    y: control2.height - 1
-                    width: 125
-                    implicitHeight: contentItem.implicitHeight + 10
-                    padding: 5
-
-                    contentItem: ListView {
-                        clip: true
-                        spacing: 5
-                        implicitHeight: contentHeight
-                        model: control2.model 
-                        delegate: CheckBox {
-                            checked: true
-                            anchors.margins: 1
-                            required property string modelData
-                            text: modelData
-                            ButtonGroup.group: childGroup
-                            font.pixelSize: 12
-                        }
-                        currentIndex: 0
-
-                        ScrollIndicator.vertical: ScrollIndicator { }
-                    }
-
-                    background: Rectangle {
-                        border.color: "#333"
-                        radius: 2
-                    }
-                }
+            onVideoOverlaySelected: (name) => {
+                videoRoot.activeVideoOverlay = name;
             }
 
-            Image {
-                Layout.preferredHeight: 20
-                Layout.preferredWidth: 20
-
-                source: videoRoot.selectionMode === 0 ? "../icons/box_inactive.png" : "../icons/box_active.png"
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        if (videoRoot.selectionMode == 0)
-                            videoRoot.selectionMode = 1;
-                        else
-                            videoRoot.selectionMode = 0;
-
-                        selectionRect.width = 0;
-                        selectionRect.height = 0;
-
-                        video.pause();
-                    }
-                }
+            onAoiVisibleToggled: {
+                videoRoot.aoiOverlayEnabled = !videoRoot.aoiOverlayEnabled;
             }
 
-            Image {
-                Layout.preferredHeight: 20
-                Layout.preferredWidth: 20
-
-                source: videoRoot.aoiOverlayEnabled ? "../icons/aoi_active.png" : "../icons/aoi_inactive.png"
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        videoRoot.aoiOverlayEnabled = !videoRoot.aoiOverlayEnabled;
-                    }
-                }
+            onVideoStatusToggled: {
+                video.playbackState === MediaPlayer.PlayingState ? video.pause() : video.play()
             }
-
         }
     }
 }

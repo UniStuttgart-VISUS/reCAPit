@@ -2,8 +2,9 @@ from pathlib import Path
 import json
 
 class ManifestManager:
-    def __init__(self, path: Path, read_only=False):
+    def __init__(self, path: Path, root_dir:Path, read_only=False):
         self.file = None
+        self.root_dir = root_dir
         self.path = path
         self.read_only = read_only
 
@@ -38,16 +39,16 @@ class ManifestManager:
             return False
 
         return True
-        
+
     def get_duration_sec(self):
-        try: 
+        try:
             return self.manifest_json['duration_sec']
         except KeyError as e:
             msg = 'No duration specified in manifest'
             raise Exception(msg) from e
 
     def get_language(self):
-        try: 
+        try:
             return self.manifest_json['language']
         except KeyError as e:
             msg = 'No language specified in manifest'
@@ -55,7 +56,7 @@ class ManifestManager:
 
 
     def get_artifact(self, name):
-        try: 
+        try:
             artifacts = self._artifacts()
             return artifacts[name]
         except KeyError as e:
@@ -63,14 +64,14 @@ class ManifestManager:
             raise Exception(msg) from e
 
     def _artifacts(self):
-        try: 
+        try:
             return self.manifest_json['artifacts']
         except KeyError as e:
             msg = 'No registered artifacts in manifest'
             raise Exception(msg) from e
 
     def get_source(self, name):
-        try: 
+        try:
             sources = self._sources()
             return sources[name]
         except KeyError as e:
@@ -78,35 +79,38 @@ class ManifestManager:
             raise Exception(msg) from e
 
     def _sources(self):
-        try: 
+        try:
             return self.manifest_json['sources']
         except KeyError as e:
             msg = 'No sources in manifest'
             raise Exception(msg) from e
-            
+
     def get_video(self, name):
-        try: 
+        try:
             videos = self.get_source('videos')
             return videos[name]
         except Exception as e:
             msg = f'{name} is not a video source'
             raise Exception(msg) from e
 
+
     def get_areas_of_interests(self):
         return self.get_source('areas_of_interests')
+
 
     def get_transcript(self):
         return self.get_artifact('transcript')
 
+
     def get_recordings(self):
-        try: 
+        try:
             return self.manifest_json['recordings']
         except Exception as e:
             msg = 'No recordings in manifest'
             raise Exception(msg) from e
 
     def get_segments(self, name):
-        try: 
+        try:
             segments = self.get_artifact('segments')
             return segments[name]
         except Exception as e:
@@ -114,7 +118,7 @@ class ManifestManager:
             raise Exception(msg) from e
 
     def get_multi_time(self, name):
-        try: 
+        try:
             multi_times = self.get_artifact('multi_time')
             return multi_times[name]
         except Exception as e:
@@ -122,7 +126,7 @@ class ManifestManager:
             raise Exception(msg) from e
 
     def get_video_overlay(self, name):
-        try: 
+        try:
             video_overlays = self.get_artifact('video_overlay')
             return video_overlays[name]
         except Exception as e:
@@ -140,11 +144,9 @@ class ManifestManager:
         self.register_artifact('segments', {}, overwrite=False)
         self.manifest_json['artifacts']['segments'][name] = val
 
-
     def register_video_overlay(self, name, val):
         self.register_artifact('video_overlay', {}, overwrite=False)
         self.manifest_json['artifacts']['video_overlay'][name] = val
-
 
     def register_multi_time(self, name, val):
         self.register_artifact('multi_time', {}, overwrite=False)

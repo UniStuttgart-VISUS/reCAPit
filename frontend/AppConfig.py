@@ -1,11 +1,54 @@
 import numpy as np
 import json
-from PyQt6.QtCore import QObject, QPointF, pyqtSlot
+from pathlib import Path
+from PyQt6.QtCore import QObject, QPointF, pyqtSlot, QUrl
 
+
+def default_config() -> dict:
+    return {
+        'colormaps': {
+            'areas_of_interests': 'Accent',
+            'roles': 'Purples',
+        },
+        'multisampling': 4,
+        'segments': {
+            'display_dur_sec': 46.0,
+            'min_dur_sec': 31.0,
+        },
+        'streamgraph': {
+            'attention': {
+                'label': '\ud83d\udc40 Gaze',
+                'log_scale': False,
+            },
+            'movement': {
+                'label': '\ud83d\udc4b Move',
+                'log_scale': True,
+            }
+        },
+        'timeline': {
+            'mapped_fixations': {
+                'merge_threshold_sec': 0.5,
+            },
+            'transcript': {
+                'merge_threshold_sec': 1.0,
+            }
+        },
+        'video_overlay': {
+            'attention': {
+                'colormap': 'CET_L8'
+            },
+            'movement': {
+                'colormap': 'CET_L16',
+            },
+        },
+    }
 
 class AppConfig(QObject):
-    def __init__(self, manifest, user_config, event_subtypes, parent=None):
+    def __init__(self, manifest: dict[str, dict], user_config: dict[str, dict],
+                 export_dir: Path,
+                 event_subtypes: dict[str, set], parent=None):
         super().__init__(parent)
+        self.export_dir = export_dir
 
         aois = json.load(open(manifest['sources']['areas_of_interests']['path'], 'r'))
 
@@ -78,6 +121,10 @@ class AppConfig(QObject):
     @pyqtSlot(result='QVariant')
     def UserConfig(self):
         return self.user_config
+
+    @pyqtSlot(result=QUrl)
+    def ExportDir(self):
+        return QUrl.fromLocalFile(self.export_dir.as_posix())
 
     @pyqtSlot(result=str)
     def AudioSource(self):

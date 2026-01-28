@@ -23,7 +23,7 @@ Item {
             return [];
 
         tick_infos.forEach((x) => {
-            x.pos_px = xScale(x.pos_ms*1e-3);
+            x.pos_px = xScale(x.posSec);
         });
 
         const sorted = tick_infos.sort((a, b) => a.pos_px - b.pos_px);
@@ -109,6 +109,47 @@ Item {
             height: (parent.height - 0) / 2
             flipped: true
             z: 10
+        }
+        */
+    }
+
+    Repeater {
+        model: tickInfos
+        delegate: Item {
+            required property var modelData
+
+            x: xScale(modelData.posSec);
+            y: 0
+            z: 20  // Higher z-order to be on top
+
+            width: textRectBox.implicitWidth
+            height: parent.height
+
+            Rectangle {
+                x: parent.width / 2
+                width: 2
+                height: parent.height
+                color: "#f0f0f0"
+                z: 5
+            }
+
+            Rectangle {
+                id: textRectBox
+                width: txtLabel.implicitWidth + 5
+                height: 20
+                z: 15
+
+                anchors.centerIn: parent
+                color: "#e0e0e0"
+
+                Text {
+                    id: txtLabel
+                    anchors.centerIn: parent
+                    color: "white"
+                    text: modelData.label
+                    font.weight: Font.Bold
+                }
+            }
         }
     }
 }

@@ -91,12 +91,103 @@ ApplicationWindow {
         id: aboutWindow
     }
 
+    MessageDialog {
+        id: successDialog
+        buttons: MessageDialog.Ok
+    }
+
+    FolderDialog {
+        id: exportBookmarkedDialog
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.export_bookmarked(dir_path)
+
+            successDialog.title = "Export bookmarked segments";
+
+            if (success) {
+                successDialog.text = "Successfully exported bookmarked segments!";
+            }
+            else {
+                successDialog.text = "Failed to export bookmarked segments to %1".arg(dir_path);
+            }
+            successDialog.open();
+        }
+    }
+
+    FolderDialog {
+        id: saveDialog
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.export_state(dir_path)
+
+            successDialog.title = "Save state";
+
+            if (success) {
+                successDialog.text = "Successfully saved state!";
+            }
+            else {
+                successDialog.text = "Failed to save state to %1".arg(dir_path);
+            }
+            successDialog.open();
+        }
+    }
+
+    FolderDialog {
+        id: loadDialog
+        currentFolder: aoiModel.ExportDir()
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.import_state(dir_path)
+
+            successDialog.title = "Restore State";
+
+            if (success) {
+                successDialog.text = "Successfully loaded state!";
+            }
+            else {
+                successDialog.text = "Failed to load state from %1".arg(dir_path);
+            }
+
+            appwin.resetNow();
+            successDialog.open();
+        }
+    }
+
     menuBar: MenuBar {
         Menu {
             title: qsTr("&File")
-            Action { text: qsTr("&Open...") }
-            Action { text: qsTr("&Save") }
-            Action { text: qsTr("Save &As...") }
+
+            Action { 
+                text: qsTr("&Restore state...") 
+                shortcut: StandardKey.Open
+                onTriggered: {
+                    loadDialog.open();
+                }
+            }
+
+            Action { 
+                text: qsTr("&Save state") 
+                shortcut: StandardKey.Save
+                onTriggered: {
+                    saveDialog.open();
+                }
+            }
+
+            Action { 
+                text: qsTr("&Export bookmarked") 
+                onTriggered: {
+                    exportBookmarkedDialog.open();
+                }
+            }
+
+            Action { 
+                text: qsTr("&Open Project") 
+                onTriggered: {
+                    projectManager.open_manager();
+                    appwin.close();
+                }
+            }
+
             MenuSeparator { }
             Action { 
                 text: qsTr("Preferences") 
@@ -555,6 +646,7 @@ ApplicationWindow {
             width: 75
             height: 75
             source: "../icons/reset.png"
+            tooltipText: "Reset the timeline to its initial state"
 
             onClicked: function() {
                 appwin.reset();
@@ -568,6 +660,7 @@ ApplicationWindow {
             width: 75
             height: 75
             source: "../icons/compress.png"
+            tooltipText: "Compress the timeline, retaining only the marked segments."
 
             onClicked: function() {
                 appwin.compressSegments();
@@ -581,6 +674,7 @@ ApplicationWindow {
             width: 75
             height: 75
             source: "../icons/search.png"
+            tooltipText: "Open keyword search dialog"
 
             onClicked: function() {
                 keywordDialog.open();
@@ -709,7 +803,7 @@ ApplicationWindow {
             spacing: 0
             model: appwin.segmentIndicesMarkers
 
-            property real boxW: 20 
+            property real boxW: 35 
             property real boxH: 20 
 
             clip: true
@@ -739,7 +833,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     font.pixelSize: 16
 
-                    text: modelData
+                    text: "%1".arg(modelData)
                     opacity: 0.5
 
                     horizontalAlignment: Text.AlignHCenter

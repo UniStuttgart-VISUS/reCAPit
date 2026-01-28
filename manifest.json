@@ -12,47 +12,164 @@
             "role": "domain",
             "sources": {
                 "surface_fixations": {
-                    "path": "Carl/surface_fixations.csv",
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Carl\\sources\\surface_fix_v2.csv",
                     "offset_sec": 367.0
                 }
             },
-            "artifacts": {}
+            "artifacts": {
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Carl\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                },
+                "mapped_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Carl\\artifacts\\mapped_fix.csv",
+                    "categories": "areas_of_interests"
+                }
+            }
         },
         {
             "id": "Randy",
             "role": "vis",
             "sources": {
                 "surface_fixations": {
-                    "path": "Randy/surface_fixations.csv",
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Randy\\sources\\surface_fix_v2.csv",
                     "offset_sec": 160.09
                 }
             },
-            "artifacts": {}
+            "artifacts": {
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Randy\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                },
+                "mapped_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Randy\\artifacts\\mapped_fix.csv",
+                    "categories": "areas_of_interests"
+                }
+            }
+        },
+        {
+            "id": "Joe",
+            "role": "vis",
+            "sources": {},
+            "artifacts": {
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Joe\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                }
+            }
+        },
+        {
+            "id": "Bob",
+            "role": "vis",
+            "sources": {
+                "surface_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Bob\\sources\\surface_fix_v2.csv",
+                    "offset_sec": 283.2
+                }
+            },
+            "artifacts": {
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Bob\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                },
+                "mapped_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Bob\\artifacts\\mapped_fix.csv",
+                    "categories": "areas_of_interests"
+                }
+            }
+        },
+        {
+            "id": "Mike",
+            "role": "domain",
+            "sources": {
+                "surface_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Mike\\sources\\surface_fix_v2.csv",
+                    "offset_sec": 312.27
+                }
+            },
+            "artifacts": {
+                "mapped_fixations": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Mike\\artifacts\\mapped_fix.csv",
+                    "categories": "areas_of_interests"
+                },
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Mike\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                }
+            }
+        },
+        {
+            "id": "Moderator",
+            "role": "moderator",
+            "sources": {},
+            "artifacts": {
+                "transcript": {
+                    "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\recordings\\Moderator\\artifacts\\transcript.csv",
+                    "categories": "roles"
+                }
+            }
         }
     ],
     "sources": {
         "notes_snapshots": {
-            "path": "notes_snapshots",
+            "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\notes",
             "offset_sec": 95.66
         },
         "areas_of_interests": {
-            "path": "aois_labelme.json",
+            "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\aois.json",
             "offset_sec": 0.0
         },
         "audio": {
-            "path": "audio.wav",
+            "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\audio.wav",
             "offset_sec": 312.27
         },
         "videos": {
             "workspace": {
-                "path": "workspace.mp4",
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\videos\\top_down.mp4",
                 "offset_sec": 312.27
             },
             "room": {
-                "path": "room.mp4",
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\videos\\external_01.mp4",
+                "offset_sec": 312.27
+            },
+            "side": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\sources\\videos\\external_01.mp4",
                 "offset_sec": 312.27
             }
         }
     },
-    "artifacts": {}
+    "artifacts": {
+        "multi_time": {
+            "movement": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\multi_time\\movement.csv",
+                "categories": "areas_of_interests"
+            },
+            "attention": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\multi_time\\attention.csv",
+                "categories": "areas_of_interests"
+            }
+        },
+        "segments": {
+            "initial": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\segments\\initial.csv"
+            },
+            "refined": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\segments\\topic_segments.csv"
+            }
+        },
+        "video_overlay": {
+            "attention": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\video_overlays\\gaze.csv"
+            },
+            "movement": {
+                "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\video_overlays\\move.csv"
+            }
+        },
+        "transcript": {
+            "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\transcript.csv"
+        },
+        "notes": {
+            "path": "E:\\workshops\\maurice\\bandvis-workshop\\recapit\\data\\global\\artifacts\\notes_diff.csv"
+        }
+    }
 }

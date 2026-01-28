@@ -109,7 +109,7 @@ Rectangle {
             Layout.fillWidth: true
             height: 30
             z: 20
-            title: root.title
+            title: "%1 (%2)".arg(root.title).arg(cardIndex)
             checked: root.hasCard
             onCardVisibilityChanged: (visible) => {
                 root.hasCard = visible;
