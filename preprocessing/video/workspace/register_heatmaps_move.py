@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 import pandas as pd
 import numpy as np
 import argparse
@@ -16,7 +12,7 @@ from tqdm import tqdm
 from scipy.ndimage import correlate1d
 from pathlib import Path
 from utils import gaussian_kernel_1d, get_merged_aois_masks, get_aois, create_heatmap_img
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 def mean_activity(cap, hand_detector, back_sub, aoi_mask, start_msec, end_msec, downscale_factor=.5, show_output=True):

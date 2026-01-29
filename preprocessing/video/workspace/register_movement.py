@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 import cv2 as cv
 import pandas as pd
 import numpy as np
@@ -12,7 +8,7 @@ import logging
 from pathlib import Path
 from tqdm import tqdm
 from utils import get_aois, get_masks
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 if __name__ == '__main__':

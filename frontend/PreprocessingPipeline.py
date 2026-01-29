@@ -35,8 +35,9 @@ def popen_and_call(on_exit: Callable[[int], None],
 
 
 class PreprocessingPipeline(QObject):
-    transcriptCompleted = pyqtSignal(int)  # noqa: N815
-    pipelineStepCompleted = pyqtSignal()  # noqa: N815
+    transcriptGlobalCompleted = pyqtSignal(int)  # noqa: N815
+    transcriptRecordingCompleted = pyqtSignal(int)  # noqa: N815
+    runningStatusChanged = pyqtSignal()  # noqa: N815
     globalTranscriptReadyChanged = pyqtSignal()  # noqa: N815
     recordingTranscriptReadyChanged = pyqtSignal()  # noqa: N815
     stdOutLine = pyqtSignal(str)  # noqa: N815
@@ -47,7 +48,8 @@ class PreprocessingPipeline(QObject):
         self.meta_file = meta_file
         self.root_dir = root_dir
         self.active_thread = None
-        self.transcriptCompleted.connect(self.pipelineStepCompleted)
+        self.transcriptGlobalCompleted.connect(self.runningStatusChanged)
+        self.transcriptRecordingCompleted.connect(self.runningStatusChanged)
 
         self._global_transcript_ready = False
         self._recording_transcript_ready = False
@@ -60,7 +62,7 @@ class PreprocessingPipeline(QObject):
         self._recording_transcript_ready = 'transcript' in manifest['artifacts']
         self.recordingTranscriptReadyChanged.emit()
 
-    @pyqtProperty(bool, notify=pipelineStepCompleted)
+    @pyqtProperty(bool, notify=runningStatusChanged)
     def pipeline_running(self) -> str:
         return self.active_thread is not None and self.active_thread.is_alive()
 
@@ -82,9 +84,9 @@ class PreprocessingPipeline(QObject):
         if self.active_thread is not None and self.active_thread.is_alive():
             return
 
-        self.active_thread = popen_and_call(self.transcriptCompleted.emit,
+        self.active_thread = popen_and_call(self.transcriptGlobalCompleted.emit,
                                             self.stdOutLine.emit, cmd, transcript_scripts_dir)
-        #self.pipelineStepCompleted.emit()
+        self.runningStatusChanged.emit()
 
     @pyqtSlot()
     def run_transcript_recording(self) -> None:
@@ -96,6 +98,6 @@ class PreprocessingPipeline(QObject):
         if self.active_thread is not None and self.active_thread.is_alive():
             return
 
-        self.active_thread = popen_and_call(self.transcriptCompleted.emit,
+        self.active_thread = popen_and_call(self.transcriptRecordingCompleted.emit,
                                             self.stdOutLine.emit, cmd, transcript_scripts_dir)
-        #self.pipelineStepCompleted.emit()
+        self.runningStatusChanged.emit()

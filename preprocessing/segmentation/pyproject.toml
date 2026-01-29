@@ -11,4 +11,8 @@ dependencies = [
     "ruptures>=1.1.9",
     "scipy>=1.16.0",
     "sentence-transformers>=5.0.0",
+    "helper",
 ]
+
+[tool.uv.sources]
+helper = { path = "../../helper" }

@@ -1,20 +1,17 @@
 import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import torch
 import argparse
 import pandas as pd
 import logging
+import gc
 
 from tqdm import tqdm
 from pathlib import Path
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 from collections.abc import Callable
 from faster_whisper import WhisperModel
 #from pyannote.audio import Pipeline
 #from pyannote.audio.pipelines.utils.hook import ProgressHook
-import gc
 
 LANGUAGES = {
     "en": "english",

@@ -4,10 +4,10 @@ from PyQt6.QtQml import QQmlApplicationEngine
 from PyQt6.QtWidgets import QApplication
 from datetime import datetime, timezone
 
-from Manifest import empty_manifest
 from AppConfig import default_config
 
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QDir, pyqtProperty, Qt, QAbstractListModel, QModelIndex, QStringListModel
+from helper.manifest_manager import ManifestManager
 
 import json
 import logging
@@ -111,7 +111,7 @@ class ProjectManager(QAbstractListModel):
         export_dir.mkdir()
 
         with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(empty_manifest(), f, indent=4)
+            json.dump(ManifestManager.empty_manifest(), f, indent=4)
 
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(default_config(), f, indent=4)

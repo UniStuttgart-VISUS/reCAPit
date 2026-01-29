@@ -3,11 +3,10 @@ import pandas as pd
 import logging
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tqdm import tqdm
 from pathlib import Path
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -29,6 +28,7 @@ if __name__ == '__main__':
             transcript_rec['event data'] = transcript_rec['text']
             transcript_rec['event type'] = 'speech'
             transcript_rec['event subtype'] = rec['role']
+
             if transcript_rec.empty:
                 logging.error(f'Speaker with id "{rec['id']}" does not exist in transcript!')
                 sys.exit(1)
@@ -36,7 +36,7 @@ if __name__ == '__main__':
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
             transcript_rec.to_csv(out_path, index=None, encoding='utf-8-sig')
 
-            rec['artifacts']['transcript'] = {'path': out_path, 'categories': 'roles'}
+            rec['artifacts']['transcript'] = {'path': str(out_path), 'categories': 'roles'}
 
             logging.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
     sys.exit(0)

@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import pandas as pd
 import numpy as np
 import argparse
@@ -10,7 +6,7 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 from map_fixations import fix2AOI
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 def compute_attention_signals(dfs, min_timestamp, max_timestamp, bin_width_sec=1):

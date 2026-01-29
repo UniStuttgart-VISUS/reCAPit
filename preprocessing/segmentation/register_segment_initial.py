@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,7 +7,7 @@ import numpy as np
 import scipy.signal
 import logging
 from pathlib import Path
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 def mvt_segmentation(mvt, duration_sec, downsampling_factor=5, min_dur_sec=30, show_plot=True):

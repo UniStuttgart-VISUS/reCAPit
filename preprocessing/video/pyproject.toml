@@ -11,4 +11,8 @@ dependencies = [
     "scipy>=1.16.0",
     "shapely>=2.1.1",
     "tqdm>=4.67.1",
+    "helper",
 ]
+
+[tool.uv.sources]
+helper = { path = "../../helper" }

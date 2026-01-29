@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import argparse
 import pandas as pd
 import numpy as np
@@ -12,7 +8,7 @@ from pathlib import Path
 from docx2python import docx2python
 from diff_match_patch import diff_match_patch
 from tqdm import tqdm
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 def strip_chars(x: str):

@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import argparse
 import pandas as pd
 import openai
@@ -9,7 +5,7 @@ import os
 import logging
 
 from pathlib import Path
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 def generate_prompt_summary(text, language):
     return [

@@ -574,6 +574,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         columns: 3
                         rowSpacing: 15
+                        columnSpacing: 15
 
                         Text {
                             text: "Generate Transcript"
@@ -589,9 +590,11 @@ ApplicationWindow {
 
                         Connections {
                             target: preprocessingPipeline
-                            function onTranscriptCompleted(returnCode) { 
-                                print(returnCode);
+                            function onTranscriptGlobalCompleted(returnCode) { 
                                 transcriptRunningIndicator.indeterminate = false;
+                            }
+                            function onTranscriptRecordingCompleted(returnCode) { 
+                                transcriptRunningIndicator2.indeterminate = false;
                             }
                         }
 
@@ -600,7 +603,7 @@ ApplicationWindow {
                             text: "Run"
                             enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.global_transcript_ready
                             onClicked: {
-                                transcriptRunningIndicator.indeterminate = false;
+                                transcriptRunningIndicator.indeterminate = true;
                                 transcriptTab.currStdOut = "";
                                 preprocessingPipeline.run_transcript_global()
                             }
@@ -623,7 +626,7 @@ ApplicationWindow {
                             text: "Run"
                             enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.recording_transcript_ready
                             onClicked: {
-                                transcriptRunningIndicator2.indeterminate = false;
+                                transcriptRunningIndicator2.indeterminate = true;
                                 transcriptTab.currStdOut = "";
                                 preprocessingPipeline.run_transcript_recording()
                             }

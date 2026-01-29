@@ -11,4 +11,8 @@ dependencies = [
     "pyqt6>=6.10.2",
     "subtitle-parser>=2.0.1",
     "tqdm>=4.67.1",
+    "helper",
 ]
+
+[tool.uv.sources]
+helper = { path = "../../helper" }

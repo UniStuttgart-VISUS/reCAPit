@@ -9,4 +9,8 @@ dependencies = [
     "docx2python>=3.5.0",
     "pandas>=2.3.1",
     "tqdm>=4.67.1",
+    "helper",
 ]
+
+[tool.uv.sources]
+helper = { path = "../../helper" }

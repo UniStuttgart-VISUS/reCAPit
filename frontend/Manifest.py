@@ -1,163 +1,15 @@
 from pathlib import Path
-from AppConfig import AppConfig
-from CustomVideoOutput import CustomVideoOutput
-from HeatmapProvider import HeatmapOverlayProvider
-from NotesModel import NotesModel
-from PyQt6.QtGui import QSurfaceFormat
 from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterType
 from PyQt6.QtWidgets import QApplication
-from SegmentModel import SegmentModel
-from StackedSeries import StackedSeries
-from TimelineModel import SubjectMultimodalData
-from datetime import datetime, timezone
-
 from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot, QDir, pyqtProperty, Qt, QAbstractListModel, QModelIndex, QStringListModel, QVariant
+from helper.manifest_manager import ManifestManager
 
-import argparse
-import json
 import logging
 import sys
-import threading
-import pandas as pd
+
+from RecordingListModel import RecordingListModel
 
 logger = logging.getLogger(__name__)
-
-
-def empty_manifest() -> dict:
-    return {
-        'language': 'auto',
-        'duration_sec': 0.,
-        'roles': [],
-        'recordings': [],
-        'sources': {
-            'notes_snapshots': {
-                'path': '',
-                'offset_sec': 0.,
-            },
-            'areas_of_interests': {
-                'path': '',
-                'offset_sec': 0.,
-            },
-            'audio': {
-                'path': '',
-                'offset_sec': 0.,
-            },
-            'videos': {
-                'workspace': {
-                    'path': '',
-                    'offset_sec': 0.,
-                },
-                'side': {
-                    'path': '',
-                    'offset_sec': 0.,
-                },
-            },
-        },
-        'artifacts': {},
-    }
-
-class RecordingListModel(QAbstractListModel):
-    RecIdRole = Qt.ItemDataRole.UserRole + 1
-    RoleRole = Qt.ItemDataRole.UserRole + 2
-    SourceGazeRole = Qt.ItemDataRole.UserRole + 3
-    ArtifactsRole = Qt.ItemDataRole.UserRole + 4
-
-    def __init__(self, parent: object = None) -> None:
-        super().__init__(parent)
-
-    def set_recordings(self, recordings: list) -> None:
-        self.beginResetModel()
-        self.recordings = recordings
-        self.endResetModel()
-
-    def rowCount(self, parent=QModelIndex()) -> int:  # noqa: ARG002, B008, N802
-        return len(self.recordings)
-
-    def removeRow(self, row: int, parent=QModelIndex()):  # noqa: ANN201, B008, N802
-        return self.removeRows(row, 1, parent)
-
-    def removeRows(self, row: int, count: int, parent=QModelIndex()) -> bool:  # noqa: B008, N802
-        if row < 0 or row >= len(self.recordings) or count <= 0:
-            return False
-
-        self.beginRemoveRows(parent, row, row + count - 1)
-        for _ in range(count):
-            if row < len(self.recordings):
-                del self.recordings[row]
-
-        self.endRemoveRows()
-        return True
-
-    def setData(self, index: QModelIndex, value: QVariant, role: int) -> bool:
-        if not index.isValid() or index.row() >= len(self.recordings):
-            return False
-
-        row = index.row()
-        print(role)
-
-        if role == self.RecIdRole:
-            self.recordings[row]['id'] = value
-        elif role == self.RoleRole:
-            self.recordings[row]['role'] = value
-        elif role == self.SourceGazeRole:
-            self.recordings[row]['sources']['surface_fixations']['path'] = value
-        else:
-            return False
-
-        self.dataChanged.emit(index, index)
-        return True
-
-    @pyqtSlot(str, str)
-    def add_new(self, rec_id: str, rec_role: str) -> None:
-        row = self.rowCount()
-        self.beginInsertRows(QModelIndex(), row, row)
-
-        self.recordings.append({
-            'id': rec_id,
-            'role': rec_role,
-            'sources': {
-                'surface_fixations': {
-                    'path': '',
-                    'offset_sec': '',
-                },
-            },
-            'artifacts': {},
-        })
-        self.endInsertRows()
-
-    @pyqtSlot(str, result=int)
-    def str2role(self, role_str: str) -> int:  # noqa: N802
-        if role_str == 'recId':
-            return self.RecIdRole
-        if role_str == 'role':
-            return self.RoleRole
-        if role_str == 'sourceGaze':
-            return self.SourceGazeRole
-        return -1
-
-    def roleNames(self) -> dict[int, str]:  # noqa: N802
-        return {
-            self.RecIdRole: b'recId',
-            self.RoleRole: b'role',
-            self.SourceGazeRole: b'sourceGaze',
-        }
-
-    def data(self, index: QModelIndex, role: int):  # noqa: PLR0911
-        if not index.isValid() or index.row() >= len(self.recordings):
-            return None
-
-        row = index.row()
-
-        if role == self.RecIdRole:
-            return self.recordings[row]['id']
-        if role == self.RoleRole:
-            return self.recordings[row]['role']
-        if role == self.SourceGazeRole:
-            if 'surface_fixations' in self.recordings[row]['sources']:
-                return self.recordings[row]['sources']['surface_fixations']['path']
-            return ''
-        return None
-
 
 class Manifest(QObject):
     # Notification signals for bindable properties
@@ -175,15 +27,15 @@ class Manifest(QObject):
 
     @pyqtSlot()
     def on_property_change(self) -> None:
-        self.manifestChanged.emit(self._manifest.copy())
+        self.manifestChanged.emit(self._manifest_manager.manifest_json.copy())
         self.write_to_json()
 
     def __init__(self, manifest_path: Path, parent: object = None) -> None:
         super().__init__(parent)
 
-        self._supported_languages = ['auto', 'english', 'german', 'french', 'spanish', 'italian']
+        self._manifest_manager = ManifestManager(manifest_path, Path(''), read_only=False)
+
         self._participant_roles = QStringListModel()
-        self.manifest_path = manifest_path
         self._recordings = RecordingListModel()
 
         self.languageChanged.connect(self.on_property_change)
@@ -208,7 +60,7 @@ class Manifest(QObject):
     @pyqtSlot()
     def _sync_roles_to_manifest(self) -> None:
         """Sync the roles from the model back to the manifest dictionary."""
-        self._manifest['roles'] = self._participant_roles.stringList()
+        self._manifest_manager.set_roles(self._participant_roles.stringList())
         self.on_property_change()
 
     def _set_modified(self) -> None:
@@ -230,11 +82,11 @@ class Manifest(QObject):
 
     @pyqtSlot(result=list)
     def supported_languages(self) -> list[str]:
-        return self._supported_languages
+        return ManifestManager.supported_languages()
 
     @pyqtProperty(str, notify=audioChanged)
     def audio(self) -> str:
-        return self._manifest['sources']['audio']['path']
+        return self._manifest_manager.get_source('audio')['path']
 
     @pyqtProperty(bool, notify=wasModifiedChanged)
     def was_modified(self) -> bool:
@@ -242,70 +94,70 @@ class Manifest(QObject):
 
     @audio.setter
     def audio(self, val: str) -> None:
-        if self._manifest['sources']['audio']['path'] != val:
-            self._manifest['sources']['audio']['path'] = val
+        if self._manifest_manager.get_source('audio')['path'] != val:
+            self._manifest_manager.register_source('audio', {'path': val , 'offset_sec': 0})
             self.audioChanged.emit()
 
     @pyqtProperty(str, notify=videoWorkspaceChanged)
     def video_workspace(self) -> str:
-        return self._manifest['sources']['videos']['workspace']['path']
+        return self._manifest_manager.get_video('workspace')['path']
 
     @video_workspace.setter
     def video_workspace(self, val: str) -> None:
-        if self._manifest['sources']['videos']['workspace']['path'] != val:
-            self._manifest['sources']['videos']['workspace']['path'] = val
+        if self._manifest_manager.get_video('workspace')['path'] != val:
+            self._manifest_manager.register_video('workspace', {'path': val , 'offset_sec': 0})
             self.videoWorkspaceChanged.emit()
 
     @pyqtProperty(str, notify=videoSideChanged)
     def video_side(self) -> str:
-        return self._manifest['sources']['videos']['side']['path']
+        return self._manifest_manager.get_video('side')['path']
 
     @video_side.setter
     def video_side(self, val: str) -> None:
-        if self._manifest['sources']['videos']['side']['path'] != val:
-            self._manifest['sources']['videos']['side']['path'] = val
+        if self._manifest_manager.get_video('side')['path'] != val:
+            self._manifest_manager.register_video('side', {'path': val , 'offset_sec': 0})
             self.videoSideChanged.emit()
 
     @pyqtProperty(str, notify=notesChanged)
     def notes(self) -> str:
-        return self._manifest['sources']['notes_snapshots']['path']
+        return self._manifest_manager.get_source('notes_snapshots')['path']
 
     @notes.setter
     def notes(self, val: str) -> None:
-        if self._manifest['sources']['notes_snapshots']['path'] != val:
-            self._manifest['sources']['notes_snapshots']['path'] = val
+        if self._manifest_manager.get_source('notes_snapshots')['path'] != val:
+            self._manifest_manager.register_source('notes_snapshots', {'path': val , 'offset_sec': 0})
             self.notesChanged.emit()
 
     @pyqtProperty(str, notify=aoiChanged)
     def aoi(self) -> str:
-        return self._manifest['sources']['areas_of_interests']['path']
+        return self._manifest_manager.get_areas_of_interests()['path']
 
     @aoi.setter
     def aoi(self, val: str) -> None:
-        if self._manifest['sources']['areas_of_interests']['path'] != val:
-            self._manifest['sources']['areas_of_interests']['path'] = val
+        if self._manifest_manager.get_areas_of_interests()['path'] != val:
+            self._manifest_manager.register_source('areas_of_interests', {'path': val, 'offset_sec': 0})
             self.aoiChanged.emit()
 
     @pyqtProperty(float, notify=durationSecChanged)
     def duration_sec(self) -> float:
-        return self._manifest['duration_sec']
+        return self._manifest_manager.get_duration_sec()
 
     @duration_sec.setter
     def duration_sec(self, val: float) -> None:
-        if self._manifest['duration_sec'] != val:
-            self._manifest['duration_sec'] = val
+        if self._manifest_manager.get_duration_sec() != val:
+            self._manifest_manager.set_duration_sec(val)
             self.durationSecChanged.emit()
 
 
     @pyqtProperty(str, notify=languageChanged)
     def language(self) -> str:
-        return self._manifest['language']
+        return self._manifest_manager.get_language()
 
 
     @language.setter
     def language(self, val: str) -> None:
-        if self._manifest['language'] != val:
-            self._manifest['language'] = val
+        if self._manifest_manager.get_language() != val:
+            self._manifest_manager.set_language(val)
             self.languageChanged.emit()
 
 
@@ -326,26 +178,16 @@ class Manifest(QObject):
 
     @pyqtSlot()
     def load_from_json(self) -> None:
-        with open(self.manifest_path, encoding='utf-8') as f:
-            self._manifest = json.load(f)
-
-            self._participant_roles.setStringList(self._manifest['roles'])
-            self._recordings.set_recordings(self._manifest['recordings'])
-
-            if self._manifest['language'] not in self._supported_languages:
-                msg = f'Manifest specifies unsupported language: "{self._manifest["language"]}"'
-                raise RuntimeError(msg)
-
-            self._was_modified = False
-
-            print("reload")
-            self.on_property_change()
+        self._manifest_manager.load()
+        print(self._manifest_manager.manifest_json)
+        self._participant_roles.setStringList(self._manifest_manager.get_roles())
+        self._recordings.set_recordings(self._manifest_manager.get_recordings())
+        self._was_modified = False
+        self.on_property_change()
 
     @pyqtSlot()
     def write_to_json(self) -> None:
-        print("write")
-        with open(self.manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(self._manifest, f, indent=4)
+        self._manifest_manager.save()
 
 
 if __name__ == '__main__':

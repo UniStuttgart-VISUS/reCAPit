@@ -25,27 +25,6 @@ from PreprocessingPipeline import PreprocessingPipeline
 
 logger = logging.getLogger(__name__)
 
-def manifest_with_absolute_paths(root_dir:Path, manifest: dict) -> dict:
-    def convert_paths(obj):
-        if isinstance(obj, dict):
-            result = {}
-            for key, value in obj.items():
-                if key == 'path' and isinstance(value, str):
-                    # Convert relative path to absolute path
-                    result[key] = str(root_dir / value)
-                else:
-                    # Recursively process nested structures
-                    result[key] = convert_paths(value)
-            return result
-        elif isinstance(obj, list):
-            # Recursively process list items
-            return [convert_paths(item) for item in obj]
-        else:
-            # Return primitive values as-is
-            return obj
-
-    return convert_paths(manifest)
-
 
 class Project(QObject):
     def __init__(self, engine: QQmlApplicationEngine, parent: object = None) -> None:
@@ -86,8 +65,8 @@ class Project(QObject):
         self.manifest = Manifest(self.manifest_path)
 
         self.manifest.manifestChanged.connect(self.preprocessing_pipeline.reevaluate_pipeline_status)
-        self.preprocessing_pipeline.reevaluate_pipeline_status(self.manifest._manifest)
-        self.preprocessing_pipeline.pipelineStepCompleted.connect(self.manifest.load_from_json)
+        #self.preprocessing_pipeline.reevaluate_pipeline_status(self.manifest._manifest)
+        self.preprocessing_pipeline.runningStatusChanged.connect(self.manifest.load_from_json)
 
         self.engine.rootContext().setContextProperty('manifest', self.manifest)
         self.engine.rootContext().setContextProperty('preprocessingPipeline', self.preprocessing_pipeline)

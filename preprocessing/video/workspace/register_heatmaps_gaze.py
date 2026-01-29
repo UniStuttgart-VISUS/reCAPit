@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
 import pandas as pd
 import numpy as np
 import argparse
@@ -13,7 +9,7 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 from utils import *
-from manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager
 
 
 def create_heatmap_splatting(pos_x, pos_y, weights, size, kernel_size=151):
