@@ -20,8 +20,7 @@ import sys
 import threading
 import pandas as pd
 
-from Manifest import Manifest
-from PreprocessingPipeline import PreprocessingPipeline
+from ManifestEditor import PreprocessingPipeline, Manifest
 
 logger = logging.getLogger(__name__)
 
@@ -60,17 +59,17 @@ class Project(QObject):
     def open_project_manifest(self, app:QApplication, root_dir: Path) -> None:
         self.export_dir = root_dir / 'export'
         self.manifest_path = root_dir / 'manifest.json'
-        self.preprocessing_pipeline = PreprocessingPipeline(self.manifest_path, root_dir, self)
+        self.preprocessing_pipeline = PreprocessingPipeline.PreprocessingPipeline(self.manifest_path, root_dir, self)
 
-        self.manifest = Manifest(self.manifest_path)
+        self.manifest = Manifest.Manifest(self.manifest_path)
 
         self.manifest.manifestChanged.connect(self.preprocessing_pipeline.reevaluate_pipeline_status)
-        #self.preprocessing_pipeline.reevaluate_pipeline_status(self.manifest._manifest)
+        self.preprocessing_pipeline.reevaluate_pipeline_status(True, True)
         self.preprocessing_pipeline.runningStatusChanged.connect(self.manifest.load_from_json)
 
         self.engine.rootContext().setContextProperty('manifest', self.manifest)
         self.engine.rootContext().setContextProperty('preprocessingPipeline', self.preprocessing_pipeline)
-        self.engine.load('windows/ManifestWindow.qml')
+        self.engine.load('ManifestEditor/ManifestWindow.qml')
         app.aboutToQuit.connect(self.quit_manifest)
 
 
@@ -171,3 +170,12 @@ class Project(QObject):
 
         if self.segment_model.export_state(out_dir=export_sub_dir):
             logger.info('Successfully saved current state to: "%s"!', export_sub_dir)
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    engine = QQmlApplicationEngine()
+
+    pro = Project(engine)
+    pro.open_project_manifest(app, Path('C:\\Users\\kochme\\.recapit\\test'))
+
+    sys.exit(app.exec())

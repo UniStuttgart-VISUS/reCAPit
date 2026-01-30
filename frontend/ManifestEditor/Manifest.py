@@ -7,7 +7,7 @@ from helper.manifest_manager import ManifestManager
 import logging
 import sys
 
-from RecordingListModel import RecordingListModel
+from .RecordingListModel import RecordingListModel
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,11 @@ class Manifest(QObject):
     recordingsChanged = pyqtSignal()  # noqa: N815
     participantRolesChanges = pyqtSignal()  # noqa: N815
     wasModifiedChanged = pyqtSignal()  # noqa: N815
-    manifestChanged = pyqtSignal(dict)  # noqa: N815
+    manifestChanged = pyqtSignal(bool, bool)  # noqa: N815
 
     @pyqtSlot()
     def on_property_change(self) -> None:
-        self.manifestChanged.emit(self._manifest_manager.manifest_json.copy())
+        self.manifestChanged.emit(True, True)
         self.write_to_json()
 
     def __init__(self, manifest_path: Path, parent: object = None) -> None:
@@ -188,16 +188,4 @@ class Manifest(QObject):
     @pyqtSlot()
     def write_to_json(self) -> None:
         self._manifest_manager.save()
-
-
-if __name__ == '__main__':
-    from Project import Project
-
-    app = QApplication(sys.argv)
-    engine = QQmlApplicationEngine()
-
-    pro = Project(engine)
-    pro.open_project_manifest(app, Path('C:\\Users\\kochme\\.recapit\\test'))
-
-    sys.exit(app.exec())
 
