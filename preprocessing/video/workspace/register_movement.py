@@ -14,7 +14,7 @@ from helper.manifest_manager import ManifestManager
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--out_dir', type=Path, required=True)
+    parser.add_argument('--root_dir', type=Path, required=True)
     parser.add_argument('--detect_shadows', action='store_true')
     parser.add_argument('--show_output', action='store_true')
     parser.add_argument('--store_video', action='store_true')
@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with ManifestManager(args.manifest) as man:
+    with ManifestManager(args.manifest, args.root_dir) as man:
         cap = cv.VideoCapture(man.get_video('workspace')['path'])
 
         fps = cap.get(cv.CAP_PROP_FPS)
@@ -31,19 +31,21 @@ if __name__ == '__main__':
         frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
 
+        logging.info(f'Video Info: {frame_width}x{frame_height}, {fps} FPS, {frame_count} total frames')
+
         back_sub = cv.createBackgroundSubtractorKNN(history=3000, dist2Threshold=1000, detectShadows=False)
         hand_detector = hand_detection.HandDetector(num_hands=10, model_asset_path='hand_landmarker_latest.task')
 
         if args.store_video:
             fourcc = cv.VideoWriter_fourcc(*'avc1')
-            writer = cv.VideoWriter(str(args.out_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
+            writer = cv.VideoWriter(str(args.root_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
         aois = get_aois(man.get_areas_of_interests()['path'])
         masks = get_masks(aois, frame_width, frame_height)
         masks = {label: cv.resize(mask, fx=args.downsampling_factor, fy=args.downsampling_factor, dsize=None) for label, mask in masks.items()}
 
         out = []
-        out_path = args.out_dir / 'movement.csv'
+        out_path = args.root_dir / 'movement.csv'
 
         with tqdm(total=frame_count, unit='frames', disable=False) as t:
             while True:

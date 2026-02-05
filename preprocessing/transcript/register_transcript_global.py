@@ -4,6 +4,8 @@ import argparse
 import pandas as pd
 import logging
 import gc
+import tkinter as tk
+from tkinter import ttk
 
 from tqdm import tqdm
 from pathlib import Path
@@ -138,10 +140,43 @@ def diarization(audio_path:Path, hf_token:str) -> None:
 
 """
 
+class DebugVisualizer:
+    """Simple visual debug display for transcription progress using tkinter."""
+    
+    def __init__(self):
+        self.count = 0
+        self.root = tk.Tk()
+        self.root.title("Transcription")
+        self.root.geometry("450x100")
+        self.root.resizable(False, False)
+        
+        # Progress label
+        self.progress_label = tk.Label(self.root, text="Segments: 0 | Time: 0.0s", 
+                                       font=("Arial", 10, "bold"), padx=5, pady=2)
+        self.progress_label.pack()
+        
+        # Latest segment text
+        self.text_label = tk.Label(self.root, text="", font=("Arial", 9), 
+                                   wraplength=430, justify="left", padx=5, pady=2)
+        self.text_label.pack()
+        
+        self.root.update()
+    
+    def update(self, text: str, start: float, end: float):
+        self.count += 1
+        self.progress_label.config(text=f"Segments: {self.count} | Time: {end:.1f}s")
+        self.text_label.config(text=f"Latest: {text.strip()}")
+        self.root.update()
+    
+    def close(self):
+        self.root.destroy()
+
+
 def stt(audio_path: Path, language: str,
         max_speech_pause: float,
         consumer_callback: Callable[[str, float, float], None],
-        model_size: str ='large-v3') -> None:
+        model_size: str ='large-v3',
+        debug_visual: bool = False) -> None:
 
     model = WhisperModel(model_size, device='cuda', compute_type='float16')
 
@@ -149,6 +184,8 @@ def stt(audio_path: Path, language: str,
                                       language=language if language in LANGUAGES else None,
                                       word_timestamps=True, vad_filter=True)
     last_segment = None
+    
+    viz = DebugVisualizer() if debug_visual else None
 
     for curr_segment in segments:
         for curr_word in curr_segment.words:
@@ -159,12 +196,20 @@ def stt(audio_path: Path, language: str,
                 else:
                     print(last_segment)
                     consumer_callback(last_segment)
+                    if viz:
+                        viz.update(last_text, last_start, last_end)
                     last_segment = (curr_word.word, curr_word.start, curr_word.end)
             else:
                 last_segment = (curr_word.word, curr_word.start, curr_word.end)
 
     if last_segment is not None:
         consumer_callback(last_segment)
+        if viz:
+            viz.update(last_segment[0], last_segment[1], last_segment[2])
+    
+    if viz:
+        viz.close()
+    
     return model
 
 
@@ -173,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--max_speech_pause', type=float, default=0.5)
     parser.add_argument('--root_dir', type=Path, required=True)
+    parser.add_argument('--debug', action='store_true', help='Enable visual debug display')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
@@ -183,7 +229,8 @@ if __name__ == '__main__':
         rec_root = args.root_dir
 
         transcript_segments = []
-        model = stt(audio_path, man.get_language(), args.max_speech_pause, transcript_segments.append)
+        model = stt(audio_path, man.get_language(), args.max_speech_pause, 
+                   transcript_segments.append, debug_visual=args.debug)
         transcript = pd.DataFrame.from_records(transcript_segments,
                                                columns=('text',
                                                         'start timestamp [sec]',

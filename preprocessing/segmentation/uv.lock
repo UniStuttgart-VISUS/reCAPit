@@ -190,6 +190,11 @@ wheels = [
 ]
 
 [[package]]
+name = "helper"
+version = "0.1.4"
+source = { directory = "../../helper" }
+
+[[package]]
 name = "hf-xet"
 version = "1.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1050,6 +1055,7 @@ name = "segmentation"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "helper" },
     { name = "matplotlib" },
     { name = "openai" },
     { name = "pandas" },
@@ -1060,6 +1066,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "helper", directory = "../../helper" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "openai", specifier = ">=1.95.0" },
     { name = "pandas", specifier = ">=2.3.1" },

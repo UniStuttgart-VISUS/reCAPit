@@ -127,7 +127,7 @@ def transcript_segmentation_multi(transcript, model, gap_threshold=0.75, similar
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--out_dir', type=Path, required=True)
+    parser.add_argument('--root_dir', type=Path, required=True)
     parser.add_argument('--similarity_threshold', default=.5, required=False, type=float)
     parser.add_argument('--gap_threshold', default=1, required=False, type=float)
     parser.add_argument('--min_dur_sec', default=15, required=False, type=float)
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     root_dir = args.manifest.parent
 
-    with ManifestManager(args.manifest) as man:
+    with ManifestManager(args.manifest, args.root_dir) as man:
         transcript = pd.read_csv(man.get_transcript()['path'], encoding='utf-8-sig')
         transcript['text'] = transcript['text'].astype(str)
         transcript['speaker'] = transcript['speaker'].astype(str)
@@ -144,7 +144,7 @@ if __name__ == '__main__':
         model_name_or_path="Alibaba-NLP/gte-multilingual-base"
         model = SentenceTransformer(model_name_or_path, trust_remote_code=True)
 
-        out_path = args.out_dir / 'refined.csv'
+        out_path = args.root_dir / 'refined.csv'
 
         initial_segments = pd.read_csv(man.get_segments('initial')['path'])
         out_table = []

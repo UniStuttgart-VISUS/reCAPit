@@ -4,6 +4,7 @@ import mediapipe as mp
 import cv2 as cv
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
+from mediapipe.tasks import python
 
 
 def envelopes_from_landmarks(hand_landmark_list, size):
@@ -71,7 +72,10 @@ def create_hand_landmarker(num_hands, model_asset_path):
     VisionRunningMode = mp.tasks.vision.RunningMode
 
     options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=model_asset_path),
+        base_options=BaseOptions(
+                model_asset_path=model_asset_path,
+                delegate=python.BaseOptions.Delegate.CPU, # GPU not supported on windows
+            ),
         running_mode=VisionRunningMode.VIDEO,
         num_hands=num_hands,
         min_hand_detection_confidence=.05)

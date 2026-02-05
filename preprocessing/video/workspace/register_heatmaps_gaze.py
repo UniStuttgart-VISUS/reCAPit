@@ -77,14 +77,14 @@ if __name__ == '__main__':
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--delta_step_sec', type=float, required=False, default=30.)
     parser.add_argument('--kernel_size', type=int, required=False, default=211)
-    parser.add_argument('--out_dir', type=Path, required=True)
+    parser.add_argument('--root_dir', type=Path, required=True)
     parser.add_argument('--show_output', action='store_true')
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
 
-    with ManifestManager(args.manifest) as man:
-        root_dir = args.out_dir
+    with ManifestManager(args.manifest, args.root_dir) as man:
+        root_dir = args.root_dir
         out_dir = root_dir / 'gaze'
         out_dir.mkdir(exist_ok=True, parents=True)
 
@@ -112,5 +112,5 @@ if __name__ == '__main__':
                         break
                 t.update()
 
-        man.register_video_overlay('attention', {'path': str(args.out_dir / 'gaze.csv')})
+        man.register_video_overlay('attention', {'path': str(args.root_dir / 'gaze.csv')})
         logging.info('Registered "video_overlay/attention" as an global artifact')

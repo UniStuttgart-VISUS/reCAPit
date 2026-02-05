@@ -95,7 +95,8 @@ def segment_attributes(transcript_segment, language):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--gpt_model', default='gpt-4o-mini', required=False)
+    parser.add_argument('--root_dir', type=Path, required=True)
+    parser.add_argument('--gpt_model', default='gpt-5o-mini', required=False)
     parser.add_argument('--target_segments', default='refined', choices=('initial', 'refined'), required=False)
     parser.add_argument('--openai_api_key', required=False, type=str)
     args = parser.parse_args()
@@ -103,7 +104,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     root_dir = args.manifest.parent
 
-    with ManifestManager(args.manifest) as man:
+    with ManifestManager(args.manifest, args.root_dir) as man:
         if args.openai_api_key is None:
             openai_api_key = args.openai_api_key
 
