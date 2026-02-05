@@ -4,37 +4,44 @@ import sys
 
 from collections.abc import Callable
 from pathlib import Path
-from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot, QDir, pyqtProperty, Qt, QAbstractListModel, QModelIndex, QStringListModel, QVariant
+from PyQt6.QtCore import QObject, QProcess, QSize, pyqtSignal, pyqtSlot, QDir, pyqtProperty, Qt, QAbstractListModel, QModelIndex, QStringListModel, QVariant
 
 transcript_scripts_dir = Path('../preprocessing/transcript').resolve()
-video_scripts_dir = Path('../../preprocessing/video/workspace').resolve()
-gaze_scripts_dir = Path('../../preprocessing/gaze').resolve()
-notes_scripts_dir = Path('../../preprocessing/notes').resolve()
-segmentation_scripts_dir = Path('../../preprocessing/segmentation').resolve()
+video_scripts_dir = Path('../preprocessing/video/workspace').resolve()
+gaze_scripts_dir = Path('../preprocessing/gaze').resolve()
+notes_scripts_dir = Path('../preprocessing/notes').resolve()
+segmentation_scripts_dir = Path('../preprocessing/segmentation').resolve()
 
-def popen_and_call(on_exit: Callable[[int], None],
-                   on_output: Callable[[str], None], cmd: list, cwd: str) -> None:
 
-    def run_in_thread(on_exit: Callable[[int], None],
-                      on_output: Callable[[str], None], cmd: list, cwd: str) -> None:
+class ProcessManager(QObject):
+    completed = pyqtSignal(int)
+    stdOutLine = pyqtSignal(str)  # noqa: N815
 
-        proc = subprocess.Popen(cmd,
-                                cwd=cwd,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT,
-                                text=True,
-                                bufsize=1,
-                                universal_newlines=True,
-                                )
-        for line in proc.stdout:
-            on_output(line.rstrip())
+    def __init__(self, parent: object = None) -> None:
+        super().__init__(parent)
+        self.process = None
 
-        return_code = proc.wait()
-        on_exit(return_code)
+    def start_process(self, cmd: list, cwd: str) -> None:
+        if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
+            return
 
-    thread = threading.Thread(target=run_in_thread, args=(on_exit, on_output, cmd, cwd))
-    thread.start()
-    return thread
+        self.process = QProcess(self)
+        self.process.setWorkingDirectory(cwd)
+        self.process.readyReadStandardOutput.connect(self._on_stdout)
+        self.process.finished.connect(self.completed)
+        self.process.start(cmd[0], cmd[1:])
+
+    def _on_stdout(self) -> None:
+        data = self.process.readAllStandardOutput().data().decode()
+        for line in data.strip().split('\n'):
+            print(line)
+            self.stdOutLine.emit(line)
+
+    def cleanup(self) -> None:
+        if self.process and self.process.state() != QProcess.ProcessState.NotRunning:
+            self.process.terminate()
+            if not self.process.waitForFinished(3000):
+                self.process.kill()
 
 
 class PreprocessingPipeline(QObject):
@@ -47,7 +54,12 @@ class PreprocessingPipeline(QObject):
     notesCompleted = pyqtSignal(int)  # noqa: N815
     segmentInitialCompleted = pyqtSignal(int)  # noqa: N815
     segmentRefineCompleted = pyqtSignal(int)  # noqa: N815
+    segmentAttributesCompleted = pyqtSignal(int)  # noqa: N815
+    gazeSurfaceMappingCompleted = pyqtSignal(int)  # noqa: N815
+    gazeAOIMappingCompleted = pyqtSignal(int)  # noqa: N815
     runningStatusChanged = pyqtSignal()  # noqa: N815
+
+    videoMovementReady = pyqtSignal()  # noqa: N815
     globalTranscriptReadyChanged = pyqtSignal()  # noqa: N815
     recordingTranscriptReadyChanged = pyqtSignal()  # noqa: N815
     stdOutLine = pyqtSignal(str)  # noqa: N815
@@ -67,21 +79,30 @@ class PreprocessingPipeline(QObject):
         self.notesCompleted.connect(self.runningStatusChanged)
         self.segmentInitialCompleted.connect(self.runningStatusChanged)
         self.segmentRefineCompleted.connect(self.runningStatusChanged)
+        self.segmentAttributesCompleted.connect(self.runningStatusChanged)
+        self.gazeSurfaceMappingCompleted.connect(self.runningStatusChanged)
+        self.gazeAOIMappingCompleted.connect(self.runningStatusChanged)
 
         self._global_transcript_ready = False
         self._recording_transcript_ready = False
+        self._video_movement_ready = False
 
-    @pyqtSlot(bool, bool)
-    def reevaluate_pipeline_status(self, has_audio:bool, has_transcript: bool) -> None:
-        self._global_transcript_ready = has_audio
+        self.process_manager = ProcessManager()
+        self.process_manager.stdOutLine.connect(self.stdOutLine)
+
+    @pyqtSlot(bool, bool, bool)
+    def reevaluate_pipeline_status(self, global_transcript_ready:bool, video_movement_ready:bool, split_transcript_ready: bool) -> None:
+        self._global_transcript_ready = global_transcript_ready
         self.globalTranscriptReadyChanged.emit()
 
-        self._recording_transcript_ready = has_transcript
+        self._recording_transcript_ready = split_transcript_ready
         self.recordingTranscriptReadyChanged.emit()
+
+        self._video_movement_ready = video_movement_ready
+        self.videoMovementReady.emit()
 
     @pyqtProperty(bool, notify=runningStatusChanged)
     def pipeline_running(self) -> str:
-        print(self.active_thread is not None and self.active_thread.is_alive())
         return self.active_thread is not None and self.active_thread.is_alive()
 
     @pyqtProperty(bool, notify=globalTranscriptReadyChanged)
@@ -92,18 +113,21 @@ class PreprocessingPipeline(QObject):
     def recording_transcript_ready(self) -> bool:
         return self._recording_transcript_ready
 
-    @pyqtSlot()
-    def run_transcript_global(self) -> None:
+    @pyqtProperty(bool, notify=videoMovementReady)
+    def video_movement_ready(self) -> bool:
+        return self._video_movement_ready
+
+    @pyqtSlot(float)
+    def run_transcript_global(self, max_speech_pause: float) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_transcript_global.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
+            '--max_speech_pause', str(max_speech_pause),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.transcriptGlobalCompleted.emit,
-                                            self.stdOutLine.emit, cmd, transcript_scripts_dir)
+        cmd.append('--debug')
+        self.process_manager.start_process(cmd, str(transcript_scripts_dir))
+        self.process_manager.completed.connect(self.transcriptGlobalCompleted)
         self.runningStatusChanged.emit()
 
     @pyqtSlot()
@@ -113,68 +137,100 @@ class PreprocessingPipeline(QObject):
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.transcriptRecordingCompleted.emit,
-                                            self.stdOutLine.emit, cmd, transcript_scripts_dir)
+        self.process_manager.start_process(cmd, str(transcript_scripts_dir))
+        self.process_manager.completed.connect(self.transcriptRecordingCompleted)
         self.runningStatusChanged.emit()
 
-    @pyqtSlot()
-    def run_video_movement(self) -> None:
-        cmd = [
-            'uv', 'run', 'python', 'register_movement.py',
-            '--manifest', str(self.meta_file),
-            '--root_dir', str(self.root_dir),
-        ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.videoMovementCompleted.emit,
-                                            self.stdOutLine.emit, cmd, video_scripts_dir)
-        self.runningStatusChanged.emit()
-
-    @pyqtSlot()
-    def run_video_heatmap_gaze(self) -> None:
-        cmd = [
-            'uv', 'run', 'python', 'register_heatmaps_gaze.py',
-            '--manifest', str(self.meta_file),
-            '--root_dir', str(self.root_dir),
-        ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.videoHeatmapGazeCompleted.emit,
-                                            self.stdOutLine.emit, cmd, video_scripts_dir)
-        self.runningStatusChanged.emit()
-
-    @pyqtSlot()
-    def run_video_heatmap_move(self) -> None:
-        cmd = [
-            'uv', 'run', 'python', 'register_heatmaps_move.py',
-            '--manifest', str(self.meta_file),
-            '--root_dir', str(self.root_dir),
-        ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.videoHeatmapMoveCompleted.emit,
-                                            self.stdOutLine.emit, cmd, video_scripts_dir)
-        self.runningStatusChanged.emit()
-
-    @pyqtSlot()
-    def run_gaze_attention(self) -> None:
+    @pyqtSlot(float)
+    def run_attention(self, window_size_sec:float) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_attention.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
+            '--window_size_sec', str(window_size_sec),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.gazeAttentionCompleted.emit,
-                                            self.stdOutLine.emit, cmd, gaze_scripts_dir)
+        cmd.append('--debug')
+        print(' '.join(cmd))
+        self.process_manager.start_process(cmd, str(gaze_scripts_dir))
+        self.process_manager.completed.connect(self.gazeAttentionCompleted)
         self.runningStatusChanged.emit()
+
+    @pyqtSlot(str, int, str)
+    def run_gaze_surf_mapping(self, rec_id: str, min_tags:int, april_tag_family:str) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_surface_fixations.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--rec_id', str(rec_id),
+            '--min_tags', str(min_tags),
+            '--april_tag_family', str(april_tag_family),
+        ]
+        cmd.append('--show_output')
+        self.process_manager.start_process(cmd, str(gaze_scripts_dir))
+        self.process_manager.completed.connect(self.gazeSurfaceMappingCompleted)
+        self.runningStatusChanged.emit()
+
+    @pyqtSlot(str, int, str)
+    def run_gaze_aoi_mapping(self, rec_id: str) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_mapped_fixations.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--rec_id', str(rec_id),
+        ]
+        self.process_manager.start_process(cmd, str(gaze_scripts_dir))
+        self.process_manager.completed.connect(self.gazeAOIMappingCompleted)
+        self.runningStatusChanged.emit()
+
+    @pyqtSlot(float, bool)
+    def run_video_movement(self, downsampling_factor:float, detect_shadows:bool) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_movement.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--downsampling_factor', str(downsampling_factor),
+        ]
+
+        if detect_shadows:
+            cmd.append('--detect_shadows')
+
+        cmd.append('--show_output')
+
+        self.process_manager.start_process(cmd, str(video_scripts_dir))
+        self.process_manager.completed.connect(self.videoMovementCompleted)
+        self.runningStatusChanged.emit()
+
+    @pyqtSlot(float, float)
+    def run_video_heatmap_gaze(self, step_size:float, kernel_size:int) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_heatmaps_gaze.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--delta_step_sec', str(step_size),
+            '--kernel_size', str(int(kernel_size)),
+        ]
+
+        cmd.append('--show_output')
+        self.process_manager.start_process(cmd, str(video_scripts_dir))
+        self.process_manager.completed.connect(self.videoHeatmapGazeCompleted)
+        self.runningStatusChanged.emit()
+
+    @pyqtSlot(float, float)
+    def run_video_heatmap_move(self, step_size:float, kernel_size:int) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_heatmaps_move.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--delta_step_sec', str(step_size),
+            '--kernel_size', str(int(kernel_size)),
+        ]
+
+        cmd.append('--show_output')
+        print(' '.join(cmd))
+        self.process_manager.start_process(cmd, str(video_scripts_dir))
+        self.process_manager.completed.connect(self.videoHeatmapMoveCompleted)
+        self.runningStatusChanged.emit()
+
 
     @pyqtSlot()
     def run_notes(self) -> None:
@@ -183,37 +239,53 @@ class PreprocessingPipeline(QObject):
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.notesCompleted.emit,
-                                            self.stdOutLine.emit, cmd, notes_scripts_dir)
         self.runningStatusChanged.emit()
 
-    @pyqtSlot()
-    def run_segment_initial(self) -> None:
+    @pyqtSlot(str, float, float)
+    def run_segment_initial(self, input_signal:str,
+                            downsampling_factor:float,
+                            min_dur_sec: float) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_segment_initial.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
+            '--input_signal', str(input_signal),
+            '--downsampling_factor', str(downsampling_factor),
+            '--min_dur_sec', str(min_dur_sec),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
-
-        self.active_thread = popen_and_call(self.segmentInitialCompleted.emit,
-                                            self.stdOutLine.emit, cmd, segmentation_scripts_dir)
+        self.process_manager.start_process(cmd, str(segmentation_scripts_dir))
+        self.process_manager.completed.connect(self.segmentInitialCompleted)
         self.runningStatusChanged.emit()
 
-    @pyqtSlot()
-    def run_segment_refine(self) -> None:
+
+    @pyqtSlot(str, float, float)
+    def run_segment_refine(self, similarity_threshold:float,
+                            gap_threshold:float,
+                            min_dur_sec: float) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_segment_refine.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
+            '--similarity_threshold', str(similarity_threshold),
+            '--gap_threshold', str(gap_threshold),
+            '--min_dur_sec', str(min_dur_sec),
         ]
-        if self.active_thread is not None and self.active_thread.is_alive():
-            return
+        self.process_manager.start_process(cmd, str(segmentation_scripts_dir))
+        self.process_manager.completed.connect(self.segmentRefineCompleted)
+        self.runningStatusChanged.emit()
 
-        self.active_thread = popen_and_call(self.segmentRefineCompleted.emit,
-                                            self.stdOutLine.emit, cmd, segmentation_scripts_dir)
+    @pyqtSlot(str, str)
+    def run_segment_attributes(self,
+                               gpt_model:str,
+                               open_ai_key:str) -> None:
+        cmd = [
+            'uv', 'run', 'python', 'register_segment_attributes.py',
+            '--manifest', str(self.meta_file),
+            '--root_dir', str(self.root_dir),
+            '--gpt_model', str(gpt_model),
+            '--target_segments', 'refined',
+            #'--open_ai_key', str(open_ai_key),
+        ]
+        self.process_manager.start_process(cmd, str(segmentation_scripts_dir))
+        self.process_manager.completed.connect(self.segmentsAttributesCompleted)
         self.runningStatusChanged.emit()

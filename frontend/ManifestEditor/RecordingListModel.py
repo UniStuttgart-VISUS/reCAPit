@@ -8,7 +8,10 @@ class RecordingListModel(QAbstractListModel):
     RecIdRole = Qt.ItemDataRole.UserRole + 1
     RoleRole = Qt.ItemDataRole.UserRole + 2
     SourceGazeRole = Qt.ItemDataRole.UserRole + 3
-    ArtifactsRole = Qt.ItemDataRole.UserRole + 4
+    SourceGazeOffsetRole = Qt.ItemDataRole.UserRole + 4
+    SourceGazeHardwareRole = Qt.ItemDataRole.UserRole + 5
+    SurfaceFixPathRole = Qt.ItemDataRole.UserRole + 6
+    MappedFixPathRole = Qt.ItemDataRole.UserRole + 7
 
     def __init__(self, parent: object = None) -> None:
         super().__init__(parent)
@@ -41,14 +44,24 @@ class RecordingListModel(QAbstractListModel):
             return False
 
         row = index.row()
-        print(role)
 
         if role == self.RecIdRole:
             self.recordings[row]['id'] = value
         elif role == self.RoleRole:
             self.recordings[row]['role'] = value
         elif role == self.SourceGazeRole:
-            self.recordings[row]['sources']['surface_fixations']['path'] = value
+            if 'gaze' not in self.recordings[row]['sources']:
+                self.recordings[row]['sources']['gaze'] = {'path': value, 'hardware': '', 'offset_sec': 0.0}
+            else:
+                self.recordings[row]['sources']['gaze']['path'] = value
+        elif role == self.SourceGazeOffsetRole and 'gaze' in self.recordings[row]['sources']:
+            self.recordings[row]['sources']['gaze']['offset_sec'] = value
+        elif role == self.SourceGazeHardwareRole and 'gaze' in self.recordings[row]['sources']:
+            self.recordings[row]['sources']['gaze']['hardware'] = value
+        elif role == self.SurfaceFixPathRole and 'surface_fixations' in self.recordings[row]['artifacts']:
+            self.recordings[row]['artifacts']['surface_fixations']['path'] = value
+        elif role == self.MappedFixPathRole and 'mapped_fixations' in self.recordings[row]['artifacts']:
+            self.recordings[row]['artifacts']['mapped_fixations']['path'] = value
         else:
             return False
 
@@ -63,12 +76,7 @@ class RecordingListModel(QAbstractListModel):
         self.recordings.append({
             'id': rec_id,
             'role': rec_role,
-            'sources': {
-                'surface_fixations': {
-                    'path': '',
-                    'offset_sec': '',
-                },
-            },
+            'sources': {},
             'artifacts': {},
         })
         self.endInsertRows()
@@ -81,6 +89,14 @@ class RecordingListModel(QAbstractListModel):
             return self.RoleRole
         if role_str == 'sourceGaze':
             return self.SourceGazeRole
+        if role_str == 'sourceGazeOffset':
+            return self.SourceGazeOffsetRole
+        if role_str == 'sourceGazeHardware':
+            return self.SourceGazeHardwareRole
+        if role_str == 'surfaceFixPath':
+            return self.SurfaceFixPathRole
+        if role_str == 'mappedFixPath':
+            return self.MappedFixPathRole
         return -1
 
     def roleNames(self) -> dict[int, str]:  # noqa: N802
@@ -88,6 +104,10 @@ class RecordingListModel(QAbstractListModel):
             self.RecIdRole: b'recId',
             self.RoleRole: b'role',
             self.SourceGazeRole: b'sourceGaze',
+            self.SourceGazeOffsetRole: b'sourceGazeOffset',
+            self.SourceGazeHardwareRole: b'sourceGazeHardware',
+            self.SurfaceFixPathRole: b'surfaceFixPath',
+            self.MappedFixPathRole: b'mappedFixPath',
         }
 
     def data(self, index: QModelIndex, role: int):  # noqa: PLR0911
@@ -101,7 +121,23 @@ class RecordingListModel(QAbstractListModel):
         if role == self.RoleRole:
             return self.recordings[row]['role']
         if role == self.SourceGazeRole:
-            if 'surface_fixations' in self.recordings[row]['sources']:
-                return self.recordings[row]['sources']['surface_fixations']['path']
+            if 'gaze' in self.recordings[row]['sources']:
+                return self.recordings[row]['sources']['gaze']['path']
+            return ''
+        if role == self.SourceGazeOffsetRole:
+            if 'gaze' in self.recordings[row]['sources']:
+                return self.recordings[row]['sources']['gaze']['offset_sec']
+            return 0
+        if role == self.SourceGazeHardwareRole:
+            if 'gaze' in self.recordings[row]['sources']:
+                return self.recordings[row]['sources']['gaze']['hardware']
+            return ''
+        if role == self.SurfaceFixPathRole:
+            if 'surface_fixations' in self.recordings[row]['artifacts']:
+                return self.recordings[row]['artifacts']['surface_fixations']['path']
+            return ''
+        if role == self.MappedFixPathRole:
+            if 'mapped_fixations' in self.recordings[row]['artifacts']:
+                return self.recordings[row]['artifacts']['mapped_fixations']['path']
             return ''
         return None
