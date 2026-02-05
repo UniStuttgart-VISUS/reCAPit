@@ -91,6 +91,33 @@ class ManifestManager:
             msg = 'No roles specified in manifest'
             raise ManifestError(msg) from e
 
+
+    def has_global_artifact(self, name: str) -> bool:
+        return name in self._artifacts()
+
+    def has_recording_artifact(self, name: str, rec_id: str) -> bool:
+        recordings = self.get_recordings()
+        target_rec_idx = [rec['id'] for rec in recordings].index(rec_id)
+
+        if target_rec_idx == -1:
+            return False
+
+        return name in recordings[target_rec_idx]['artifacts']
+
+
+    def has_global_source(self, name: str) -> bool:
+        return name in self._sources()
+
+
+    def has_recording_source(self, name: str, rec_id: str) -> bool:
+        recordings = self.get_recordings()
+        target_rec_idx = [rec['id'] for rec in recordings].index(rec_id)
+
+        if target_rec_idx == -1:
+            return False
+
+        return name in recordings[target_rec_idx]['sources']
+
     def get_artifact(self, name: str) -> Any:
         try:
             artifacts = self._artifacts()
@@ -227,6 +254,23 @@ class ManifestManager:
 
         self.manifest_json['recordings'].append(recording)
 
+    def get_recording(self, rec_id: str) -> None:
+        for rec in self.get_recordings():
+            if rec['id'] == rec_id:
+                return rec
+        raise ValueError
+
+    def update_recording(self, rec_id: str, data: dict) -> None:
+        recordings = self.get_recordings()
+        for idx, rec in enumerate(recordings):
+            if rec['id'] == rec_id:
+                recordings[idx] = data
+                break
+        else:
+            return False
+        return True
+
+
     def set_recordings(self, recordings: list[Any]) -> None:
         if not isinstance(recordings, list):
             msg = 'Recordings must be a list'
@@ -270,33 +314,14 @@ class ManifestManager:
             'duration_sec': 0.,
             'roles': [],
             'recordings': [],
-            'sources': {
-                'notes_snapshots': {
-                    'path': '',
-                    'offset_sec': 0.,
-                },
-                'areas_of_interests': {
-                    'path': '',
-                    'offset_sec': 0.,
-                },
-                'audio': {
-                    'path': '',
-                    'offset_sec': 0.,
-                },
-                'videos': {
-                    'workspace': {
-                        'path': '',
-                        'offset_sec': 0.,
-                    },
-                    'side': {
-                        'path': '',
-                        'offset_sec': 0.,
-                    },
-                },
-            },
+            'sources': {},
             'artifacts': {},
         }
 
     @staticmethod
     def supported_languages() -> list[str]:
         return ['auto', 'english', 'german', 'french', 'spanish', 'italian']
+
+    @staticmethod
+    def supported_eye_tracking_devices() -> list[str]:
+        return ['pupil-labs-invisible', 'pupil-labs-neon']
