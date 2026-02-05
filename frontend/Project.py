@@ -62,10 +62,9 @@ class Project(QObject):
         self.preprocessing_pipeline = PreprocessingPipeline.PreprocessingPipeline(self.manifest_path, root_dir, self)
 
         self.manifest = Manifest.Manifest(self.manifest_path)
-
         self.manifest.manifestChanged.connect(self.preprocessing_pipeline.reevaluate_pipeline_status)
-        self.preprocessing_pipeline.reevaluate_pipeline_status(True, True)
         self.preprocessing_pipeline.runningStatusChanged.connect(self.manifest.load_from_json)
+        self.manifest.load_from_json()
 
         self.engine.rootContext().setContextProperty('manifest', self.manifest)
         self.engine.rootContext().setContextProperty('preprocessingPipeline', self.preprocessing_pipeline)
@@ -176,6 +175,6 @@ if __name__ == '__main__':
     engine = QQmlApplicationEngine()
 
     pro = Project(engine)
-    pro.open_project_manifest(app, Path('C:\\Users\\kochme\\.recapit\\test'))
+    pro.open_project_manifest(app, Path('C:\\Users\\kochme\\.recapit\\Test2'))
 
     sys.exit(app.exec())
