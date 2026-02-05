@@ -14,97 +14,66 @@ import "."
 ColumnLayout {
     id: transcriptTab
 
-    property string currStdOut: "file:///D:/Projects/reCAPit/frontend/windows/ManifestWindow.qml:528: TypeError: Cannot read property 'video_workspace' of null\nfile:///D:/Projects/reCAPit/frontend/windows/ManifestWindow.qml:528: TypeError: Cannot read property 'video_workspace' of null\nfile:///D:/Projects/reCAPit/frontend/windows/ManifestWindow.qml:528: TypeError: Cannot read property 'video_workspace' of nullfile:///D:/Projects/reCAPit/frontend/windows/ManifestWindow.qml:528: TypeError: Cannot read property 'video_workspace' of null\n";
-    property alias statusGlobalTranscript: transcriptRunningIndicator.indeterminate
-    property alias statusRecordingTranscript: transcriptRunningIndicator2.indeterminate
+    property alias statusGlobalTranscript: transcriptGlobalRunner.isRunning
+    property alias statusRecordingTranscript: transcriptRecordingRunner.isRunning
 
-    GroupBox {
-        Layout.fillWidth: true
+    property real speechPauseSec: 0.5
+    property bool audioExists: manifest.is_valid_file(manifest.audio)
+    property bool transcriptExists: manifest.is_valid_file(manifest.transcript)
 
-        title: "Transcript"
+    spacing: 15
 
-        GridLayout {
-            anchors.fill: parent
-            columns: 3
-            rowSpacing: 15
-            columnSpacing: 15
-
-            Text {
-                text: "Generate Transcript"
-                font.bold: true
-            }
-
-            ProgressBar {
-                Layout.fillWidth: true
-                id: transcriptRunningIndicator
-                indeterminate: false
-                value: 1.0
-            }
-
-
-            Button {
-                Layout.preferredHeight: 25
-                text: "Run"
-                enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.global_transcript_ready
-                onClicked: {
-                    transcriptRunningIndicator.indeterminate = true;
-                    transcriptTab.currStdOut = "";
-                    preprocessingPipeline.run_transcript_global()
-                }
-            }
-
-            Text {
-                text: "Split Transcript"
-                font.bold: true
-            }
-
-            ProgressBar {
-                Layout.fillWidth: true
-                id: transcriptRunningIndicator2
-                indeterminate: false
-                value: 1.0
-            }
-
-            Button {
-                Layout.preferredHeight: 25
-                text: "Run"
-                enabled: !preprocessingPipeline.pipeline_running && preprocessingPipeline.recording_transcript_ready
-                onClicked: {
-                    transcriptRunningIndicator2.indeterminate = true;
-                    transcriptTab.currStdOut = "";
-                    preprocessingPipeline.run_transcript_recording()
-                }
-            }
-
+    Connections {
+        target: preprocessingPipeline
+        function onTranscriptGlobalCompleted(returnCode) { 
+            transcriptTab.statusGlobalTranscript = false;
+        }
+        function onTranscriptRecordingCompleted(returnCode) { 
+            transcriptTab.statusRecordingTranscript = false;
         }
     }
-    Rectangle {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        Layout.maximumHeight: 300
-        Layout.bottomMargin: 25
-        Layout.topMargin: 5
-        
-        color: "#e8e8e8"
-        radius: 5
 
-        Connections {
-            target: preprocessingPipeline
-            function onStdOutLine(line) { 
-                transcriptTab.currStdOut += "\n" + line;
-            }
+    ProcessRunner {
+        id: transcriptGlobalRunner
+        Layout.fillWidth: true
+
+        title: "Generate Transcript"
+        description: "Generate a transcript using OpenAI's Whisper speech-to-text model."
+        requirements: ([{name: "Audio", 'satisfies': audioExists}])
+        enabled: !preprocessingPipeline.pipeline_running && audioExists
+        pathInfo: ({path: manifest.transcript, is_valid: transcriptExists, is_dir: false, file_extensions: ["CSV files (*.csv)"]})
+
+        realParams: ([{name: "Speech Pause", from: 0, to: 5, stepSize: 0.1, unit: "sec."}])
+        selectionParams: ([{name: "Speaker Identification", options: ["Yes", "No"]}])
+
+        onUserPathChanged: (newPath) => {
+            manifest.transcript = newPath;
         }
 
-        ScrollView {
-            anchors.fill: parent
-            anchors.margins: 10
-            Text {
-                width: parent.width
-                id: stdoutText
-                color: "#666"
-                text: transcriptTab.currStdOut;
-                wrapMode: Text.WordWrap
+        onRunTriggered: {
+            statusGlobalTranscript = true;
+            preprocessingPipeline.run_transcript_global(transcriptTab.speechPauseSec)
+        }
+
+        onParamChanged: (name, value) => {
+            if (name === "Speech Pause") {
+                transcriptTab.speechPauseSec = value;
+                print(transcriptTab.speechPauseSec);
             }
+        }
+    }
+
+    ProcessRunner {
+        id: transcriptRecordingRunner
+        Layout.fillWidth: true
+        title: "Split Transcript"
+        description: "Split the previously generated transcript using speaker id"
+        requirements: ([{name: "Transcript", 'satisfies': transcriptExists}])
+        enabled: !preprocessingPipeline.pipeline_running && transcriptExists
+        onRunTriggered: {
+            statusRecordingTranscript = true;
+            transcriptTab.currStdOut = "";
+            preprocessingPipeline.run_transcript_recording()
         }
     }
 }

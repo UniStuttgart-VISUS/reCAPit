@@ -1,16 +1,37 @@
 import QtQuick 2.15
 import QtQuick.Layouts
 import QtQuick.Shapes 1.2
+import QtQuick.Dialogs
 import QtQuick.Controls.Basic
 import QtQml
 
 RowLayout {
-    property var dialog
     property alias name: nameText.text
     property alias path: pathText.text
     property alias valid: indicator.success
+    property bool isDir: false
+    property list<string> fileExtensions: [""]
 
     spacing: 10
+
+    signal userPathChanged(string newPath)
+
+    FileDialog {
+        id: dialogFile
+        onAccepted: {
+            const path = new URL(selectedFile).pathname.slice(1);
+            userPathChanged(path);
+        }
+        nameFilters: fileExtensions
+    }
+
+    FolderDialog {
+        id: dialogFolder
+        onAccepted: {
+            const path = new URL(selectedFolder).pathname.slice(1);
+            userPathChanged(path);
+        }
+    }
 
     Rectangle {
         id: indicator
@@ -36,7 +57,7 @@ RowLayout {
     }
     Button {
         text: "..."
-        onClicked: dialog.open()
+        onClicked: isDir ? dialogFolder.open() : dialogFile.open()
         Layout.preferredWidth: 30
         Layout.preferredHeight: 30
 

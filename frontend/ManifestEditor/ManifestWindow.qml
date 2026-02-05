@@ -86,6 +86,10 @@ ApplicationWindow {
                 width: implicitWidth
             }
             CustomTabButton {
+                text: qsTr("Gaze")
+                width: implicitWidth
+            }
+            CustomTabButton {
                 text: qsTr("Notes")
                 width: implicitWidth
             }
@@ -103,37 +107,6 @@ ApplicationWindow {
 
             currentIndex: bar.currentIndex
 
-            Connections {
-                target: preprocessingPipeline
-                function onTranscriptGlobalCompleted(returnCode) { 
-                    audioTab.statusGlobalTranscript = false;
-                }
-                function onTranscriptRecordingCompleted(returnCode) { 
-                    audioTab.statusRecordingTranscript = false;
-                }
-                function onVideoMovementCompleted(returnCode) {
-                    videoTab.movementIndicator.indeterminate = false;
-                }
-                function onVideoHeatmapGazeCompleted(returnCode) {
-                    videoTab.heatmapGazeIndicator.indeterminate = false;
-                }
-                function onVideoHeatmapMoveCompleted(returnCode) {
-                    videoTab.heatmapMoveIndicator.indeterminate = false;
-                }
-                function onGazeAttentionCompleted(returnCode) {
-                    videoTab.gazeAttentionIndicator.indeterminate = false;
-                }
-                function onNotesCompleted(returnCode) {
-                    notesTab.notesIndicator.indeterminate = false;
-                }
-                function onSegmentInitialCompleted(returnCode) {
-                    segmentsTab.segmentInitialIndicator.indeterminate = false;
-                }
-                function onSegmentRefineCompleted(returnCode) {
-                    segmentsTab.segmentRefineIndicator.indeterminate = false;
-                }
-            }
-
             GeneralTab {
                 id: generalTab
                 Layout.fillWidth: true
@@ -148,6 +121,12 @@ ApplicationWindow {
 
             VideoTab {
                 id: videoTab
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
+            GazeTab {
+                id: gazeTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }

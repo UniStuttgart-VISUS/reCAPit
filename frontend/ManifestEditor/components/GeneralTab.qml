@@ -116,6 +116,33 @@ ColumnLayout {
             }
         }
 
+        Text {
+            text: "Duration"
+            font.bold: true
+        }
+
+        SpinBox {
+            id: durationSpin
+
+            value: manifest.duration_sec
+            from: 0
+            to: 9999
+            editable: true
+
+            textFromValue: function(value) {
+                return "%1 sec.".arg(value);
+            }
+            valueFromText: function(text) {
+                return Number(text.slice(0, -5))
+            }
+
+            Binding {
+                target: manifest
+                property: "duration_sec"
+                value: durationSpin.value
+            }
+        }
+
         Text { 
             text: "Roles"
             font.bold: true
@@ -195,7 +222,6 @@ ColumnLayout {
             GroupBox {
                 id: groupGeneral
                 Layout.fillWidth: true
-                Layout.fillHeight: true
 
                 label: Text {
                     text: "💾 General"
@@ -209,26 +235,38 @@ ColumnLayout {
 
                     UserFileInput {
                         width: parent.width
-                        dialog: dialogSpeech
                         name: "Speech (.wav)"
                         path: manifest.audio
+                        isDir: false
+                        fileExtensions: ["WAV files (*.wav)"]
                         valid: manifest.is_valid_file(manifest.audio)
+
+                        onUserPathChanged: (newPath) => {
+                            manifest.audio = newPath;
+                        }
                     }
 
                     UserFileInput {
                         width: parent.width
-                        dialog: dialogAoi
                         name: "Areas of Interest (.json)"
                         path: manifest.aoi
                         valid: manifest.is_valid_file(manifest.aoi)
+                        isDir: false
+                        fileExtensions: ["JSON files (*.json)"]
+                        onUserPathChanged: (newPath) => {
+                            manifest.aoi = newPath;
+                        }
                     }
 
                     UserFileInput {
                         width: parent.width
-                        dialog: dialogNotes
                         name: "Notes"
                         path: manifest.notes
-                        valid: manifest.is_valid_notes_dir(manifest.notes)
+                        valid: manifest.is_valid_dir(manifest.notes, '.docm')
+                        isDir: true
+                        onUserPathChanged: (newPath) => {
+                            manifest.notes = newPath;
+                        }
                     }
                 }
             }
@@ -250,18 +288,26 @@ ColumnLayout {
 
                     UserFileInput {
                         width: parent.width
-                        dialog: dialogVideoWorkspace
                         name: "Workspace Video (.mp4)"
                         path: manifest.video_workspace
                         valid: manifest.is_valid_file(manifest.video_workspace)
+                        isDir: false
+                        fileExtensions: ["MP4 files (*.mp4)"]
+                        onUserPathChanged: (newPath) => {
+                            manifest.video_workspace = newPath;
+                        }
                     }
 
                     UserFileInput {
                         width: parent.width
-                        dialog: dialogVideoSide
                         name: "Side Video (.mp4)"
                         path: manifest.video_side
                         valid: manifest.is_valid_file(manifest.video_side)
+                        isDir: false
+                        fileExtensions: ["MP4 files (*.mp4)"]
+                        onUserPathChanged: (newPath) => {
+                            manifest.video_side = newPath;
+                        }
                     }
                 }
             }
@@ -304,11 +350,13 @@ ColumnLayout {
                             required property string recId
                             required property string role
                             required property string sourceGaze
+                            required property real sourceGazeOffset
+                            required property string sourceGazeHardware
                             required property int index
                             required property var model
 
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 150
+                            Layout.preferredHeight: recContainer.implicitHeight + 25
 
                             Layout.horizontalStretchFactor: 1
 
@@ -352,11 +400,13 @@ ColumnLayout {
                             */
 
                             ColumnLayout {
+                                id: recContainer
+
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
                                 anchors.rightMargin: 10
                                 anchors.topMargin: 10
-                                anchors.bottomMargin: 25
+                                anchors.bottomMargin: 45
 
                                 RowLayout {
                                     Layout.fillWidth: true
@@ -394,45 +444,111 @@ ColumnLayout {
                                     }
                                 }
 
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-
-                                    id: recContainer
-                                    columns: 4
-
-                                    FileDialog {
-                                        id: dialogFixations
-                                        onAccepted: {
-                                            const path = new URL(selectedFile).pathname.slice(1);
-                                            model.sourceGaze = path;
-                                        }
-                                        nameFilters: ["CSV files (*.csv)"]
+                                FileDialog {
+                                    id: dialogFixations
+                                    onAccepted: {
+                                        const path = new URL(selectedFile).pathname.slice(1);
+                                        model.sourceGaze = path;
                                     }
+                                    nameFilters: ["CSV files (*.csv)"]
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 30
 
                                     Text { 
                                         text: "Role"
                                         font.bold: true
                                     }
                                     CustomComboBox {
+                                        Layout.preferredHeight: 30
+                                        Layout.fillWidth: true
+
                                         id: role2recCombo
                                         model: manifest.participant_roles
                                         textRole: "display"
-                                        Layout.preferredHeight: 30
-                                        Layout.fillWidth: true
-                                        Layout.columnSpan: 3
                                         Component.onCompleted: currentIndex = find(role)
                                         onActivated: {
                                             groupRec.model.role = currentText;
                                         }
                                     }
+                                }
 
-                                    UserFileInput {
-                                        Layout.columnSpan: 4
-                                        dialog: dialogFixations
-                                        name: "Fixations"
-                                        path: sourceGaze
-                                        valid: manifest.is_valid_file(manifest.video_workspace)
+                                GroupBox {
+                                    Layout.fillWidth: true
+                                    title: "Sources"
+                                    ColumnLayout {
+                                        anchors.fill: parent
+                                        spacing: 10
+
+                                        UserFileInput {
+                                            Layout.fillWidth: true
+                                            name: "Gaze"
+                                            path: sourceGaze
+                                            valid: manifest.is_valid_dir(sourceGaze, "*")
+                                            isDir: true
+                                            onUserPathChanged: (newPath) => {
+                                                groupRec.model.sourceGaze = newPath;
+                                            }
+                                        }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 10
+
+                                            Text {
+                                                text: "Device)"
+                                                font.bold: true
+                                            }
+                                            CustomComboBox {
+                                                Layout.fillWidth: true
+                                                id: hardwareSelection
+                                                model: manifest.supported_eye_tracking_devices()
+                                                currentIndex: manifest.supported_eye_tracking_devices().indexOf(groupRec.sourceGazeHardware)
+                                                onActivated: (index) => {
+                                                    groupRec.model.sourceGazeHardware = model[index];
+                                                }
+                                            }
+                                        }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 10
+                                            Text {
+                                                text: "Offset (sec.)"
+                                                font.bold: true
+                                            }
+                                            SpinBox {
+                                                id: offsetSpin
+                                                Layout.fillWidth: true
+                                                editable: true
+
+                                                property int decimals: 1
+                                                readonly property int decimalFactor: Math.pow(10, decimals)
+                                                property real realValue: value / decimalFactor
+
+                                                stepSize: 1
+
+                                                function decimalToInt(decimal) {
+                                                    return decimal * decimalFactor
+                                                }
+
+                                                from: 0
+                                                value: decimalToInt(sourceGazeOffset)
+                                                to: decimalToInt(999)
+
+                                                textFromValue: function(value, locale) {
+                                                    return Number(value / decimalFactor).toLocaleString(locale, 'f', offsetSpin.decimals)
+                                                }
+
+                                                valueFromText: function(text, locale) {
+                                                    return Math.round(Number.fromLocaleString(locale, text) * decimalFactor)
+                                                }
+
+                                                onValueModified: {
+                                                    groupRec.model.sourceGazeOffset = realValue;
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -11,13 +11,14 @@ Button {
         text: control.text
         font: control.font
         opacity: enabled ? 1.0 : 0.3
-        color: hovered ? "white" : "black"
+        color: hovered && enabled ? "white" : "black"
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
     background: Rectangle {
-        color: hovered ? "#0066cc" : "white"
+        color: hovered && enabled ? "#0066cc" : "white"
+        opacity: enabled ? 1.0 : 0.3
         border.color: "#0066cc"
         border.width: 1.5
         radius: 25
