@@ -1,10 +1,11 @@
-import argparse
 import pandas as pd
+import argparse
+import sys
 import json
 import shapely
 
 from pathlib import Path
-
+from helper.manifest_manager import ManifestManager
 
 def read_aois_from_file(aoi_path: Path) -> dict[str, shapely.Polygon]:
     with open(aoi_path) as f:
@@ -15,18 +16,19 @@ def read_aois_from_file(aoi_path: Path) -> dict[str, shapely.Polygon]:
         return shapes_geom
 
 
-def map_fixations_on_aois(surface_fixations: pd.DataFrame, aoi_path: Path) -> pd.DataFrame:
+def map_fixations_to_aois(surface_fixations: pd.DataFrame, 
+                          aoi_geometries: dict[str, shapely.Polygon]) -> pd.DataFrame:
+
     surface_fixations['mapped x [px]'] = surface_fixations['mapped x [px]'].astype(int)
     surface_fixations['mapped y [px]'] = surface_fixations['mapped y [px]'].astype(int)
 
     surface_fixations = surface_fixations[surface_fixations['within_surface']].copy()
 
-    aois = read_aois_from_file(aoi_path)
     labels = []
 
     for _, row in surface_fixations.iterrows():
         point = shapely.Point(row[['mapped x [px]', 'mapped y [px]']])
-        for label, poly in aois.items():
+        for label, poly in aoi_geometries.items():
             if poly.contains(point):
                 labels.append(label)
                 break
@@ -44,5 +46,27 @@ def map_fixations_on_aois(surface_fixations: pd.DataFrame, aoi_path: Path) -> pd
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--out_dir', type=Path, required=True)
+    parser.add_argument('--root_dir', type=Path, required=True)
+    parser.add_argument('--rec_id', type=str, required=True)
     args = parser.parse_args()
+
+    with ManifestManager(args.manifest, args.root_dir) as man:
+        rec = man.get_recording(args.rec_id)
+        workspace_video = man.get_video('workspace')
+        gaze_info = rec['sources']['gaze']
+
+        rec_dir = args.root_dir / rec['id']
+        rec_dir.mkdir(exist_ok=True, parents=False)
+
+        aoi_path = man.get_areas_of_interests()['path']
+        aoi_geometries = read_aois_from_file(aoi_path)
+
+        if 'surface_fixations' not in rec['artifacts']:
+            sys.exit()
+
+        surface_fix = pd.read_csv(rec['artifacts']['surface_fixations']['path'])
+        mapped_fix = map_fixations_to_aois(surface_fix, aoi_geometries)
+        out_path = rec_dir / 'mapped_fixations.csv'
+
+        rec['artifacts']['mapped_fixations'] = {'path': str(out_path), 'categories': 'areas_of_interests'}
+        mapped_fix.to_csv(out_path, index=None)

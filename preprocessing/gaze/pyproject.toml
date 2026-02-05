@@ -9,6 +9,9 @@ dependencies = [
     "shapely>=2.1.1",
     "tqdm>=4.67.1",
     "helper",
+    "matplotlib>=3.10.8",
+    "pupil-apriltags>=1.0.4.post11",
+    "opencv-python>=4.13.0.90",
 ]
 
 [tool.uv.sources]
