@@ -22,6 +22,7 @@ GroupBox {
 
     property var realParams: []
     property var selectionParams: []
+    property var textInputParams: []
 
     signal runTriggered()
     signal userPathChanged(string path)
@@ -31,11 +32,13 @@ GroupBox {
         required property var paramData
 
         Text {
+            Layout.preferredWidth: 200
             font.bold: true
             text: paramData.name
         }
 
         Slider {
+            Layout.fillWidth: true
             id: paramSlider
             from: paramData.from
             to: paramData.to
@@ -51,16 +54,39 @@ GroupBox {
 
     }
 
+    component TextInputParamComponent: RowLayout {
+        required property var paramData
+
+        Text {
+            Layout.preferredWidth: 200
+            font.bold: true
+            text: paramData.name
+        }
+
+        TextField {
+            id: paramTextField
+            inputMask: paramData.inputMask
+            Layout.fillWidth: true
+
+            onEditingFinished: {
+                paramChanged(paramData.name, text)
+            }
+        }
+    }
+
     component SelectionParamComponent: RowLayout {
         required property var paramData
 
         Text {
+            Layout.preferredWidth: 200
+            font.bold: true
             text: paramData.name
         }
 
         CustomComboBox {
             id: paramSlider
             model: paramData.options
+            Layout.fillWidth: true
 
             onActivated: {
                 paramChanged(paramData.name, currentText)
@@ -190,6 +216,15 @@ GroupBox {
                     model: root.realParams
 
                     delegate: RealParamComponent {
+                        required property var modelData
+                        paramData: modelData
+                    }
+                }
+                Repeater {
+                    Layout.fillWidth: true
+                    model: root.textInputParams
+
+                    delegate: TextInputParamComponent {
                         required property var modelData
                         paramData: modelData
                     }

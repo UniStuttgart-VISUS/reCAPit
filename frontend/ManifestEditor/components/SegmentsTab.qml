@@ -48,7 +48,7 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Initial Segmentation"
         description: "Generate a transcript using OpenAI's Whisper speech-to-text model."
-        requirements: ([{name: "Needs either attention or movement signal", 'satisfies': manifest.multi_time_signals.length > 0}])
+        requirements: ([{name: "Any time series", 'satisfies': manifest.multi_time_signals.length > 0}])
         enabled: !preprocessingPipeline.pipeline_running && manifest.multi_time_signals.length > 0
         onRunTriggered: {
             statusInitial = true;
@@ -60,7 +60,7 @@ ColumnLayout {
             {name: "Signal Downsampling Factor", from: 1, to: 16, stepSize: 1, unit: ""},
             {name: "Minimum Segment Duration", from: 1, to: 120, stepSize: 1, unit: "sec."},
         ])
-        selectionParams: ([{name: "Available target signals", options: manifest.multi_time_signals}])
+        selectionParams: ([{name: "Available time series", options: manifest.multi_time_signals}])
 
         pathInfo: ({path: manifest.segments_initial, is_valid: initialExists, is_dir: false, file_extensions: ["CSV files (*.csv)"]})
 

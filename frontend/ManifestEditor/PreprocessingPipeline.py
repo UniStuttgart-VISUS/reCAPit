@@ -27,7 +27,7 @@ class ProcessManager(QObject):
 
         self.process = QProcess(self)
         self.process.setWorkingDirectory(cwd)
-        self.process.readyReadStandardOutput.connect(self._on_stdout)
+        #self.process.readyReadStandardOutput.connect(self._on_stdout)
         self.process.finished.connect(self.completed)
         self.process.start(cmd[0], cmd[1:])
 
@@ -117,15 +117,30 @@ class PreprocessingPipeline(QObject):
     def video_movement_ready(self) -> bool:
         return self._video_movement_ready
 
-    @pyqtSlot(float)
-    def run_transcript_global(self, max_speech_pause: float) -> None:
+    @pyqtSlot(int, str, str, bool)
+    def run_transcript_global(self, num_speakers: int, 
+                              hf_token: str, device: str,
+                              speaker_identification_enabled: bool) -> None:
+
+        if not speaker_identification_enabled:
+            num_speakers = 0
+            hf_token = ''
+
+        if device == 'GPU':
+            device = 'cuda'
+        elif device == 'CPU':
+            device = 'cpu'
+
         cmd = [
             'uv', 'run', 'python', 'register_transcript_global.py',
             '--manifest', str(self.meta_file),
             '--root_dir', str(self.root_dir),
-            '--max_speech_pause', str(max_speech_pause),
+            '--num_speakers', str(num_speakers),
+            '--hf_token', str(hf_token),
+            '--device', str(device),
         ]
-        cmd.append('--debug')
+        cmd.append('--show_output')
+
         self.process_manager.start_process(cmd, str(transcript_scripts_dir))
         self.process_manager.completed.connect(self.transcriptGlobalCompleted)
         self.runningStatusChanged.emit()
@@ -166,11 +181,12 @@ class PreprocessingPipeline(QObject):
             '--april_tag_family', str(april_tag_family),
         ]
         cmd.append('--show_output')
+        print(' '.join(cmd).replace('\\', '\\\\'))
         self.process_manager.start_process(cmd, str(gaze_scripts_dir))
         self.process_manager.completed.connect(self.gazeSurfaceMappingCompleted)
         self.runningStatusChanged.emit()
 
-    @pyqtSlot(str, int, str)
+    @pyqtSlot(str)
     def run_gaze_aoi_mapping(self, rec_id: str) -> None:
         cmd = [
             'uv', 'run', 'python', 'register_mapped_fixations.py',

@@ -17,7 +17,11 @@ ColumnLayout {
     property alias statusGlobalTranscript: transcriptGlobalRunner.isRunning
     property alias statusRecordingTranscript: transcriptRecordingRunner.isRunning
 
-    property real speechPauseSec: 0.5
+    property int numberSpeakers: 0
+    property string hfToken: ""
+    property string device: "cpu"
+    property bool speakerIdentificationEnabled: true
+
     property bool audioExists: manifest.is_valid_file(manifest.audio)
     property bool transcriptExists: manifest.is_valid_file(manifest.transcript)
 
@@ -43,8 +47,9 @@ ColumnLayout {
         enabled: !preprocessingPipeline.pipeline_running && audioExists
         pathInfo: ({path: manifest.transcript, is_valid: transcriptExists, is_dir: false, file_extensions: ["CSV files (*.csv)"]})
 
-        realParams: ([{name: "Speech Pause", from: 0, to: 5, stepSize: 0.1, unit: "sec."}])
-        selectionParams: ([{name: "Speaker Identification", options: ["Yes", "No"]}])
+        realParams: ([{name: "Number of Speakers", from: 0, to: 10, stepSize: 1, unit: ""}])
+        selectionParams: ([{name: "Speaker Identification", options: ["Yes", "No"]}, {name: "Device", options: ["CPU", "GPU"]}])
+        textInputParams: ([{name: "Hugging Face Token", inputMask: ""}])
 
         onUserPathChanged: (newPath) => {
             manifest.transcript = newPath;
@@ -52,13 +57,23 @@ ColumnLayout {
 
         onRunTriggered: {
             statusGlobalTranscript = true;
-            preprocessingPipeline.run_transcript_global(transcriptTab.speechPauseSec)
+            preprocessingPipeline.run_transcript_global(transcriptTab.numberSpeakers, transcriptTab.hfToken, 
+                                                        transcriptTab.device, transcriptTab.speakerIdentificationEnabled);
         }
 
         onParamChanged: (name, value) => {
-            if (name === "Speech Pause") {
-                transcriptTab.speechPauseSec = value;
-                print(transcriptTab.speechPauseSec);
+            if (name === "Number of Speakers") {
+                transcriptTab.numberSpeakers = value;
+            }
+            else if (name === "Device") {
+                transcriptTab.device = value;
+            }
+            else if (name === "Hugging Face Token") {
+                transcriptTab.hfToken = value;
+            }
+            else if (name === "Speaker Identification") {
+                print(value === "Yes")
+                transcriptTab.speakerIdentificationEnabled = value === "Yes";
             }
         }
     }

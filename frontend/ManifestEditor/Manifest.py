@@ -154,7 +154,9 @@ class Manifest(QObject):
 
     @pyqtProperty(str, notify=audioChanged)
     def audio(self) -> str:
-        return self._manifest_manager.get_source('audio')['path']
+        if self._manifest_manager.has_global_source('audio'):
+            return self._manifest_manager.get_source('audio')['path']
+        return ''
 
     @pyqtProperty(str, notify=artifactsChanged)
     def segments_initial(self) -> str:
@@ -258,33 +260,43 @@ class Manifest(QObject):
 
     @audio.setter
     def audio(self, val: str) -> None:
-        if self._manifest_manager.get_source('audio')['path'] != val:
+        if self.audio != val:
             self._manifest_manager.register_source('audio', {'path': val , 'offset_sec': 0})
             self.audioChanged.emit()
 
     @pyqtProperty(str, notify=videoWorkspaceChanged)
     def video_workspace(self) -> str:
-        return self._manifest_manager.get_video('workspace')['path']
+        if self._manifest_manager.has_global_source('videos'):
+            videos = self._manifest_manager.get_source('videos')
+            if 'workspace' in videos:
+                return videos['workspace']['path']
+        return ''
 
     @video_workspace.setter
     def video_workspace(self, val: str) -> None:
-        if self._manifest_manager.get_video('workspace')['path'] != val:
+        if self.video_workspace != val:
             self._manifest_manager.register_video('workspace', {'path': val , 'offset_sec': 0})
             self.videoWorkspaceChanged.emit()
 
     @pyqtProperty(str, notify=videoSideChanged)
     def video_side(self) -> str:
-        return self._manifest_manager.get_video('side')['path']
+        if self._manifest_manager.has_global_source('videos'):
+            videos = self._manifest_manager.get_source('videos')
+            if 'side' in videos:
+                return videos['side']['path']
+        return ''
 
     @video_side.setter
     def video_side(self, val: str) -> None:
-        if self._manifest_manager.get_video('side')['path'] != val:
+        if self.video_side != val:
             self._manifest_manager.register_video('side', {'path': val , 'offset_sec': 0})
             self.videoSideChanged.emit()
 
     @pyqtProperty(str, notify=notesChanged)
     def notes(self) -> str:
-        return self._manifest_manager.get_source('notes_snapshots')['path']
+        if self._manifest_manager.has_global_source('notes_snapshots'):
+            return self._manifest_manager.get_source('notes_snapshots')['path']
+        return ''
 
     @notes.setter
     def notes(self, val: str) -> None:
@@ -294,11 +306,13 @@ class Manifest(QObject):
 
     @pyqtProperty(str, notify=aoiChanged)
     def aoi(self) -> str:
-        return self._manifest_manager.get_areas_of_interests()['path']
+        if self._manifest_manager.has_global_source('areas_of_interests'):
+            return self._manifest_manager.get_areas_of_interests()['path']
+        return ''
 
     @aoi.setter
     def aoi(self, val: str) -> None:
-        if self._manifest_manager.get_areas_of_interests()['path'] != val:
+        if self.aoi != val:
             self._manifest_manager.register_source('areas_of_interests', {'path': val, 'offset_sec': 0})
             self.aoiChanged.emit()
 
