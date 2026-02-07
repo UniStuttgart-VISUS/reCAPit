@@ -1,255 +1,214 @@
-import sys
-import torch
-import argparse
-import pandas as pd
-import logging
-import gc
-import tkinter as tk
-from tkinter import ttk
+import os
+from typing import Any
+os.environ['TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD'] = '1'
 
-from tqdm import tqdm
+import sys
+import argparse
+import whisperx
+import gc
+import torch
+import pandas as pd
+import queue
+
 from pathlib import Path
 from helper.manifest_manager import ManifestManager
-from collections.abc import Callable
-from faster_whisper import WhisperModel
-#from pyannote.audio import Pipeline
-#from pyannote.audio.pipelines.utils.hook import ProgressHook
+from whisperx.diarize import DiarizationPipeline
+from whisperx.utils import TO_LANGUAGE_CODE
+from threading import Thread
+from typing_extensions import Self
 
-LANGUAGES = {
-    "en": "english",
-    "zh": "chinese",
-    "de": 'german',
-    "es": "spanish",
-    "ru": "russian",
-    "ko": "korean",
-    "fr": "french",
-    "ja": "japanese",
-    "pt": "portuguese",
-    "tr": "turkish",
-    "pl": "polish",
-    "ca": "catalan",
-    "nl": "dutch",
-    "ar": "arabic",
-    "sv": "swedish",
-    "it": "italian",
-    "id": "indonesian",
-    "hi": "hindi",
-    "fi": "finnish",
-    "vi": "vietnamese",
-    "he": "hebrew",
-    "uk": "ukrainian",
-    "el": "greek",
-    "ms": "malay",
-    "cs": "czech",
-    "ro": "romanian",
-    "da": "danish",
-    "hu": "hungarian",
-    "ta": "tamil",
-    "no": "norwegian",
-    "th": "thai",
-    "ur": "urdu",
-    "hr": "croatian",
-    "bg": "bulgarian",
-    "lt": "lithuanian",
-    "la": "latin",
-    "mi": "maori",
-    "ml": "malayalam",
-    "cy": "welsh",
-    "sk": "slovak",
-    "te": "telugu",
-    "fa": "persian",
-    "lv": "latvian",
-    "bn": "bengali",
-    "sr": "serbian",
-    "az": "azerbaijani",
-    "sl": "slovenian",
-    "kn": "kannada",
-    "et": "estonian",
-    "mk": "macedonian",
-    "br": "breton",
-    "eu": "basque",
-    "is": "icelandic",
-    "hy": "armenian",
-    "ne": "nepali",
-    "mn": "mongolian",
-    "bs": "bosnian",
-    "kk": "kazakh",
-    "sq": "albanian",
-    "sw": "swahili",
-    "gl": "galician",
-    "mr": "marathi",
-    "pa": "punjabi",
-    "si": "sinhala",
-    "km": "khmer",
-    "sn": "shona",
-    "yo": "yoruba",
-    "so": "somali",
-    "af": "afrikaans",
-    "oc": "occitan",
-    "ka": "georgian",
-    "be": "belarusian",
-    "tg": "tajik",
-    "sd": "sindhi",
-    "gu": "gujarati",
-    "am": "amharic",
-    "yi": "yiddish",
-    "lo": "lao",
-    "uz": "uzbek",
-    "fo": "faroese",
-    "ht": "haitian creole",
-    "ps": "pashto",
-    "tk": "turkmen",
-    "nn": "nynorsk",
-    "mt": "maltese",
-    "sa": "sanskrit",
-    "lb": "luxembourgish",
-    "my": "myanmar",
-    "bo": "tibetan",
-    "tl": "tagalog",
-    "mg": "malagasy",
-    "as": "assamese",
-    "tt": "tatar",
-    "haw": "hawaiian",
-    "ln": "lingala",
-    "ha": "hausa",
-    "ba": "bashkir",
-    "jw": "javanese",
-    "su": "sundanese",
-    "yue": "cantonese",
-}
-
-"""
-def diarization(audio_path:Path, hf_token:str) -> None:
-    # Community-1 open-source speaker diarization pipeline
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-community-1",
-        token=hf_token)
-
-    # send pipeline to GPU (when available)
-    pipeline.to(torch.device("cuda"))
-
-    # apply pretrained pipeline (with optional progress hook)
-    with ProgressHook() as hook:
-        output = pipeline(audio_path, hook=hook)  # runs locally
-
-    # print the result
-    for turn, speaker in output.speaker_diarization:
-        print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+def delete_model(model: Any) -> None:
+    gc.collect()
+    torch.cuda.empty_cache()
+    del model
 
 
-
-"""
-
-class DebugVisualizer:
-    """Simple visual debug display for transcription progress using tkinter."""
+class DebugOutputWindow:
+    """A tkinter window for visual debugging that displays stdout output."""
     
-    def __init__(self):
-        self.count = 0
+    def __init__(self, title: str = "Debug Output") -> None:
+        import tkinter as tk
+        from tkinter import scrolledtext
+        
+        self._tk = tk
+        self._text_queue: queue.Queue[str] = queue.Queue()
+        
         self.root = tk.Tk()
-        self.root.title("Transcription")
-        self.root.geometry("450x100")
-        self.root.resizable(False, False)
+        self.root.title(title)
+        self.root.geometry("400x300")
+        self.root.resizable(True, True)
         
-        # Progress label
-        self.progress_label = tk.Label(self.root, text="Segments: 0 | Time: 0.0s", 
-                                       font=("Arial", 10, "bold"), padx=5, pady=2)
-        self.progress_label.pack()
+        self.text_widget = scrolledtext.ScrolledText(
+            self.root,
+            wrap=tk.WORD,
+            font=("Consolas", 9),
+            bg="#1e1e1e",
+            fg="#d4d4d4"
+        )
+        self.text_widget.pack(fill=tk.BOTH, expand=True)
         
-        # Latest segment text
-        self.text_label = tk.Label(self.root, text="", font=("Arial", 9), 
-                                   wraplength=430, justify="left", padx=5, pady=2)
-        self.text_label.pack()
+        self._original_stdout = sys.stdout
         
+    def write(self, text: str) -> None:
+        """Write text to the queue (thread-safe) and original stdout."""
+        self._original_stdout.write(text)
+        self._text_queue.put(text)
+        
+    def flush(self) -> None:
+        """Flush the original stdout."""
+        self._original_stdout.flush()
+        
+    def _process_queue(self) -> None:
+        """Process all pending text from the queue (called from main thread)."""
+        while True:
+            try:
+                text = self._text_queue.get_nowait()
+                self.text_widget.insert(self._tk.END, text)
+                self.text_widget.see(self._tk.END)
+            except queue.Empty:
+                break
+        
+    def update(self) -> None:
+        """Update the tkinter window and process queued text."""
+        self._process_queue()
         self.root.update()
-    
-    def update(self, text: str, start: float, end: float):
-        self.count += 1
-        self.progress_label.config(text=f"Segments: {self.count} | Time: {end:.1f}s")
-        self.text_label.config(text=f"Latest: {text.strip()}")
-        self.root.update()
-    
-    def close(self):
+        
+    def close(self) -> None:
+        """Close the debug window."""
         self.root.destroy()
+        
+    def __enter__(self) -> Self:
+        sys.stdout = self
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        sys.stdout = self._original_stdout
+
+class SpeechToTextPipeline(Thread):
+    def __init__(self, audio_path: Path,
+                 language: str,
+                 model_name: str,
+                 num_speakers: int,
+                 hf_token: str,
+                 device: str) -> None:
+        super().__init__()
+
+        self.audio = whisperx.load_audio(audio_path)
+        self.model_name = model_name
+        self.num_speakers = num_speakers
+        self.hf_token = hf_token
+        self.language = TO_LANGUAGE_CODE[language]
+        self.device = device
+        self.compute_type = 'float16' if device == 'cuda' else 'int8'
+        self.result = None
+
+    def run(self) -> None:
+        print('******************************* START TRANSCRIBE *******************************')
+        self.transcribe()
+        print('******************************** END TRANSCRIBE ********************************')
+        print('******************************* START ALIGNMENT ********************************')
+        self.align()
+        print('********************************* END ALIGNMENT ********************************')
+        if self.hf_token != '' and self.num_speakers > 0:
+            print('**************************** START DIARIZATION *****************************')
+            self.diarize()
+            print('***************************** END DIARIZATION ******************************')
+
+    def transcribe(self) -> None:
+        model = whisperx.load_model(self.model_name, device=self.device, language=self.language, compute_type=self.compute_type)
+        self.result = model.transcribe(self.audio, batch_size=8, verbose=True)
+        delete_model(model)
+
+    def align(self) -> None:
+        model_a, metadata = whisperx.load_align_model(language_code=self.result['language'], device=self.device)
+        self.result = whisperx.align(self.result['segments'], model_a, metadata, self.audio, self.device, return_char_alignments=False)
+        delete_model(model_a)
+
+    def diarize(self) -> None:
+        diarize_model = DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+        diarize_segments = diarize_model(self.audio, num_speakers=self.num_speakers)
+        self.result = whisperx.assign_word_speakers(diarize_segments, self.result)
 
 
-def stt(audio_path: Path, language: str,
-        max_speech_pause: float,
-        consumer_callback: Callable[[str, float, float], None],
-        model_size: str ='large-v3',
-        debug_visual: bool = False) -> None:
+def segments_to_dataframe(segments: list[dict]) -> pd.DataFrame:
+    out = []
+    for seg in segments:
+        """
+        speakers = [w['speaker'] if w['score'] >= min_score else '' for w in seg['words']]
+        res = np.unique_counts(speakers)
+        assigned_speaker = res.values[res.counts.argmax()]  # noqa: PD011
+        """
+        formatted_text = seg['text'].strip('"').strip()
+        #formatted_text = f'"{formatted_text}"'
 
-    model = WhisperModel(model_size, device='cuda', compute_type='float16')
+        out.append((seg['start'], seg['end'], formatted_text, seg.get('speaker', '')))
 
-    segments, info = model.transcribe(audio_path, beam_size=5,
-                                      language=language if language in LANGUAGES else None,
-                                      word_timestamps=True, vad_filter=True)
-    last_segment = None
-    
-    viz = DebugVisualizer() if debug_visual else None
+    return pd.DataFrame.from_records(out, columns=['start timestamp [sec]',
+                                                'end timestamp [sec]',
+                                                'text', 'speaker'])
 
-    for curr_segment in segments:
-        for curr_word in curr_segment.words:
-            if last_segment is not None:
-                last_text, last_start, last_end = last_segment
-                if curr_word.start - last_end <= max_speech_pause:
-                    last_segment = (last_text + curr_word.word, last_start, curr_word.end)
-                else:
-                    print(last_segment)
-                    consumer_callback(last_segment)
-                    if viz:
-                        viz.update(last_text, last_start, last_end)
-                    last_segment = (curr_word.word, curr_word.start, curr_word.end)
-            else:
-                last_segment = (curr_word.word, curr_word.start, curr_word.end)
+def run_pipeline_with_debug(stt_pipeline: SpeechToTextPipeline) -> None:
+    """Run the pipeline with a debug output window."""
+    with DebugOutputWindow('Transcript Pipeline Debug') as debug_window:
+        stt_pipeline.start()
 
-    if last_segment is not None:
-        consumer_callback(last_segment)
-        if viz:
-            viz.update(last_segment[0], last_segment[1], last_segment[2])
-    
-    if viz:
-        viz.close()
-    
-    return model
+        # Keep the window responsive while the pipeline is running
+        while stt_pipeline.is_alive():
+            debug_window.update()
+            stt_pipeline.join(timeout=0.1)
+
+
+def run_pipeline_standard(stt_pipeline: SpeechToTextPipeline) -> None:
+    """Run the pipeline without debug output."""
+    stt_pipeline.start()
+    stt_pipeline.join()
+
+def remove_time_offset(transcript: pd.DataFrame, offset_sec: float) -> None:
+    transcript['start timestamp [sec]'] = transcript['start timestamp [sec]'] - offset_sec
+    transcript['end timestamp [sec]'] = transcript['end timestamp [sec]'] - offset_sec
+
+
+def trim(transcript: pd.DataFrame, duration_sec: float) -> pd.DataFrame:
+    mask = (transcript['start timestamp [sec]'] >= 0) & (transcript['end timestamp [sec]'] <= duration_sec)
+    return transcript[mask]
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--max_speech_pause', type=float, default=0.5)
     parser.add_argument('--root_dir', type=Path, required=True)
-    parser.add_argument('--debug', action='store_true', help='Enable visual debug display')
+    parser.add_argument('--num_speakers', type=int, default=0)
+    parser.add_argument('--device', choices=('cpu', 'cuda'), default='cpu')
+    parser.add_argument('--hf_token', type=str, default='')
+    parser.add_argument('--show_output', action='store_true', help='Enable visual debug display')
     args = parser.parse_args()
-
-    logging.getLogger().setLevel(logging.INFO)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
         out_path = args.root_dir / 'transcript.csv'
-        audio_path = man.get_source('audio')['path']
+        audio_src = man.get_source('audio')
         rec_root = args.root_dir
+        duration_sec = man.get_duration_sec()
 
-        transcript_segments = []
-        model = stt(audio_path, man.get_language(), args.max_speech_pause, 
-                   transcript_segments.append, debug_visual=args.debug)
-        transcript = pd.DataFrame.from_records(transcript_segments,
-                                               columns=('text',
-                                                        'start timestamp [sec]',
-                                                        'end timestamp [sec]'))
+        stt_pipeline = SpeechToTextPipeline(audio_src['path'],
+                                            man.get_language(),
+                                            'large-v2',
+                                            args.num_speakers,
+                                            args.hf_token,
+                                            args.device)
 
-        transcript['speaker'] = ''
-        transcript.to_csv(out_path, index=False, encoding='utf-8-sig')
+        if args.show_output:
+            run_pipeline_with_debug(stt_pipeline)
+        else:
+            run_pipeline_standard(stt_pipeline)
+
+        transcript = segments_to_dataframe(stt_pipeline.result['segments'])
+        remove_time_offset(transcript, audio_src['offset_sec'])
+        transcript = trim(transcript, duration_sec)
+
+        transcript.to_csv(out_path, index=False, encoding='utf-8-sig',
+                          float_format='%.2f')
+
         man.register_artifact('transcript', {'path': str(out_path), 'offset_sec': 0.0})
-        logging.info('Registered "transcript" as an global artifact')
 
-    """
-    # Cleanup model after everything is done
-    if 'model' in locals():
-        del model
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-        del model
-        """
-    print('-------------------DONE-------------------')
     gc.collect()
     sys.exit(0)

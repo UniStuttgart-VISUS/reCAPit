@@ -1,0 +1,50 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "preLaunchTask": "uv_sync",
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "Debug: register_transcript_global.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/preprocessing/transcript/register_transcript_global.py",
+            "console": "integratedTerminal",
+            "preLaunchTask": "uv_sync",
+            "args": [
+                "--manifest",
+                "${input:manifestPath}",
+                "--root_dir",
+                "${input:rootDir}",
+                "--max_speech_pause",
+                "${input:maxSpeechPause}"
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "manifestPath",
+            "type": "promptString",
+            "description": "Path to manifest.json file",
+            "default": ""
+        },
+        {
+            "id": "rootDir",
+            "type": "promptString",
+            "description": "Root directory for the recording",
+            "default": ""
+        },
+        {
+            "id": "maxSpeechPause",
+            "type": "promptString",
+            "description": "Maximum speech pause in seconds",
+            "default": "0.5"
+        }
+    ]
+}

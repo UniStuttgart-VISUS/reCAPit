@@ -5,14 +5,28 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "faster-whisper>=1.2.1",
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "torchaudio==2.8.0",
     "pandas>=2.3.1",
-    "pyannote-audio>=4.0.3",
-    "pyqt6>=6.10.2",
-    "subtitle-parser>=2.0.1",
     "tqdm>=4.67.1",
     "helper",
+    "whisperx"
 ]
 
 [tool.uv.sources]
 helper = { path = "../../helper" }
+torch = [
+    { index = "pytorch-cu128" },
+]
+torchvision = [
+    { index = "pytorch-cu128" },
+]
+torchaudio = [
+    { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
