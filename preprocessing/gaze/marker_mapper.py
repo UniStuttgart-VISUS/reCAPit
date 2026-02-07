@@ -28,7 +28,7 @@ class MarkerMapper:
     def get_curr_transform(self) -> np.ndarray:
         return self.curr_transform
 
-    def update_transform(self, src_tags: list) -> tuple[bool, np.ndarray, int]:
+    def update_transform(self, src_tags: list) -> tuple[bool, int]:
         src_coord_list = []
         dst_coord_list = []
 
@@ -55,14 +55,22 @@ class MarkerMapper:
         return True, detected_marker_count
 
     @staticmethod
-    def find_reference_tags(video_path: str, at_detector: Detector, min_tags: int, show_output=False) -> list:
+    def find_reference_tags(video_path: str, at_detector: Detector,
+                            min_tags: int, max_trials: int,
+                            show_output=False) -> list:
+
+        if max_trials <= 0:
+            msg = 'max_trials must be strictly greater than zero'
+            raise ValueError(msg)
+
         tags = []
         cap = cv2.VideoCapture(video_path)
 
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        trials = 0
 
-        while cap.isOpened():
+        while cap.isOpened() and trials < max_trials:
             ret, img = cap.read()
             if not ret:
                 break
@@ -77,8 +85,15 @@ class MarkerMapper:
                     break
             if len(tags) >= min_tags:
                 break
+            trials += 1
         else:
-            raise RuntimeError
+            if trials >= max_trials:
+                msg = f'Failed to find at least {min_tags} tag(s) in the first {max_trials} frame(s) of the reference video'
+            else:
+                msg = f'Video ended after {trials} frame(s) without finding at least {min_tags} tag(s)'
+
+            raise RuntimeError(msg)
 
         cv2.destroyAllWindows()
+        cap.release()
         return tags, (frame_width, frame_height)
