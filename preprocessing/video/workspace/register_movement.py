@@ -1,13 +1,13 @@
 import cv2 as cv
-import pandas as pd
 import numpy as np
 import argparse
 import hand_detection
 import logging
+import zarr
+import shutil
 
 from pathlib import Path
 from tqdm import tqdm
-from utils import get_aois, get_masks
 from helper.manifest_manager import ManifestManager
 
 
@@ -18,18 +18,25 @@ if __name__ == '__main__':
     parser.add_argument('--detect_shadows', action='store_true')
     parser.add_argument('--show_output', action='store_true')
     parser.add_argument('--store_video', action='store_true')
-    parser.add_argument('--downsampling_factor', type=float, default=1)
+    parser.add_argument('--downsampling_spatial', type=int, default=1)
+    parser.add_argument('--downsampling_temporal', type=int, default=1)
     args = parser.parse_args()
 
     logging.getLogger().setLevel(logging.INFO)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
-        cap = cv.VideoCapture(man.get_video('workspace')['path'])
+        video_info = man.get_video('workspace')
+        cap = cv.VideoCapture(video_info['path'])
 
         fps = cap.get(cv.CAP_PROP_FPS)
         frame_count = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+
+        out_fps = fps / args.downsampling_temporal
+        out_frame_count = int(frame_count * out_fps / fps)
+        out_frame_width = int(frame_width / args.downsampling_spatial)
+        out_frame_height = int(frame_height / args.downsampling_spatial)
 
         logging.info(f'Video Info: {frame_width}x{frame_height}, {fps} FPS, {frame_count} total frames')
 
@@ -40,23 +47,49 @@ if __name__ == '__main__':
             fourcc = cv.VideoWriter_fourcc(*'avc1')
             writer = cv.VideoWriter(str(args.root_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
-        aois = get_aois(man.get_areas_of_interests()['path'])
-        masks = get_masks(aois, frame_width, frame_height)
-        masks = {label: cv.resize(mask, fx=args.downsampling_factor, fy=args.downsampling_factor, dsize=None) for label, mask in masks.items()}
+        out_path = args.root_dir / 'movement_store.zarr'
 
-        out = []
-        out_path = args.root_dir / 'movement.csv'
+        if out_path.is_dir():
+            shutil.rmtree(out_path)
 
-        with tqdm(total=frame_count, unit='frames', disable=False) as t:
+        z = zarr.create_array(
+            store=out_path,
+            shape=(out_frame_count+1, out_frame_height, out_frame_width),
+            chunks=(16, out_frame_height, out_frame_width),
+            dtype='uint8',
+            compressors=zarr.codecs.BloscCodec(
+                cname='zstd',
+                clevel=1,
+                shuffle=zarr.codecs.BloscShuffle.bitshuffle,
+            ),
+        )
+
+        z.attrs['source_path'] = str(video_info['path'])
+        z.attrs['source_fps'] = fps
+        z.attrs['source_width'] = frame_width
+        z.attrs['source_height'] = frame_height
+        z.attrs['width'] = out_frame_width
+        z.attrs['height'] = out_frame_height
+        z.attrs['fps'] = out_fps
+
+        logging.info(z.info)
+
+        with tqdm(total=out_frame_count, unit='frames', unit_scale=args.downsampling_temporal, disable=False) as t:
             while True:
                 ret, img = cap.read()
                 if not ret:
-                    print('EOF')
                     break
 
-                img = cv.resize(img, dsize=None, fx=args.downsampling_factor, fy=args.downsampling_factor, interpolation=cv.INTER_AREA)
                 pos_frame = int(cap.get(cv.CAP_PROP_POS_FRAMES))
                 pos_msec = int(cap.get(cv.CAP_PROP_POS_MSEC))
+
+                if pos_frame % args.downsampling_temporal != 0:
+                    continue
+
+                pos_out_frame = pos_frame // args.downsampling_temporal
+
+                img = cv.resize(img, dsize=None, fx=1./args.downsampling_spatial,
+                                fy=1./args.downsampling_spatial, interpolation=cv.INTER_AREA)
 
                 detection_result = hand_detector.detect(img, pos_msec)
                 hand_mask = hand_detection.mask_from_hand_landmarks(detection_result, img.shape[:2])
@@ -65,38 +98,26 @@ if __name__ == '__main__':
                 frame_mask = (fg_mask == 255) & hand_mask
                 out_mask = (255*frame_mask).astype(np.uint8)
 
+                z[pos_out_frame] = out_mask
+
                 if args.store_video:
                     out_frame = np.stack([out_mask, out_mask, out_mask], axis=2)
                     out_frame = cv.resize(out_frame, dsize=(frame_width, frame_height), interpolation=cv.INTER_AREA)
                     writer.write(out_frame)
-
-                total_foreground = frame_mask.sum() / (img.shape[0]*img.shape[1])
 
                 if args.show_output:
                     cv.imshow('Hand Landmarks', hand_detection.draw_landmarks_on_image(img, detection_result))
                     cv.imshow('Mask', out_mask)
                     cv.imshow('frame', img)
 
-                out_row = [pos_frame, pos_msec*1e-3, total_foreground]
-
-                for label, aoi_mask in masks.items():
-                    fg_mask_aoi = frame_mask * aoi_mask
-                    aoi_foreground = fg_mask_aoi.sum() / aoi_mask.sum()
-                    out_row.append(aoi_foreground)
-
-                out.append(out_row)
-
                 if args.show_output and (0xff & cv.waitKey(1)) == ord('q'):
                     break
 
                 t.update()
 
-            columns = ['frame', 'timestamp [sec]', 'full'] + list(aois.keys())
-            df = pd.DataFrame(out, columns=columns)
-            df.to_csv(out_path, index=False)
-
-            man.register_multi_time('movement', {'path': str(out_path), 'categories': 'areas_of_interests'})
-            logging.info('Registered "multi_time/movement" as an global artifact')
+            man.register_source('movement_store', {'path': str(out_path),
+                                                   'offset_sec': video_info['offset_sec']})
+            logging.info('Registered "movement_store" as a source')
 
             cap.release()
             if args.store_video:
