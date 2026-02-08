@@ -2,17 +2,17 @@ import pandas as pd
 import numpy as np
 import cv2
 
-def draw_tags(frame, tags):
+def draw_tags(frame: np.ndarray, tags: list) -> None:
     for tag in tags:
         for i in range(4):
             pt1 = tuple(tag.corners[i].astype(int))
             pt2 = tuple(tag.corners[(i+1) % 4].astype(int))
             cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
 
-        cX, cY = int(tag.center[0]), int(tag.center[1])
+        cx, cy = int(tag.center[0]), int(tag.center[1])
 
-        cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
-        cv2.putText(frame, str(tag.tag_id), (cX - 10, cY - 10),
+        cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
+        cv2.putText(frame, str(tag.tag_id), (cx - 10, cy - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
 def draw_gaze(frame: np.ndarray, pos_x: float, pos_y:float) -> None:

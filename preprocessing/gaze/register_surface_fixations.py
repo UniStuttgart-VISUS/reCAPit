@@ -55,7 +55,7 @@ def calc_surface_fixations(recording: EyeTrackingRecording,
             fx, fy = curr_fix[['fixation x [px]', 'fixation y [px]']]
             progress = frame_pos / frame_count
 
-            if found_mapping:
+            if found_mapping and False:
                 sx, sy = sm.map_coord(fx, fy)
                 warped = sm.map_frame(undistorted)
                 draw_gaze(warped, sx, sy)
