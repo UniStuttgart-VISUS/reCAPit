@@ -58,7 +58,7 @@ class StackedSeries(QObject):
         out = pd.DataFrame()
         signals['timestamp [sec]'] = np.linspace(min_ts, max_ts, len(signals.index))
 
-        downsampled = [signals[label].values for label in labels] 
+        downsampled = [signals[label].values for label in labels]
 
         if log_transform:
             downsampled = [np.log(1 + log_factor*s) for s in downsampled] 
@@ -90,12 +90,13 @@ class StackedSeries(QObject):
             out[label + '_pre'] = pre
 
         out['timestamp [sec]'] = np.linspace(min_ts, max_ts, len(out.index))
-
         return cls(stacks=out, signals=signals, labels=labels)
 
     @pyqtSlot(result='QVariantMap')
     def LabelDistribution(self):
-        return {l: float(self.signals[l].mean()) for l in self.labels_active}
+        values = [float(self.signals[label].mean()) for label in self.labels_active]
+        relative = values / np.sum(values)
+        return {label: relative[idx].item() for idx, label in enumerate(self.labels_active)}
 
 
     @pyqtSlot(float, float, result=StackedSeries)
@@ -108,7 +109,7 @@ class StackedSeries(QObject):
             mask_stacks[start_index] = True
 
         return StackedSeries(self.stacks[mask_stacks], self.signals[mask_signals], self.labels_active, parent=self)
-            
+
     @pyqtSlot(int, int, int, result=str)
     def StackAsSvgPath(self, index, width, height):
         index = len(self.labels_active) - index - 1

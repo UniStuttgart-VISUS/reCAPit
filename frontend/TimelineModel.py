@@ -46,22 +46,23 @@ class SubjectMultimodalData(QObject):
         self.multimodal_data = multimodal_data
 
     @classmethod
-    def from_recordings(cls, meta, min_timestamp, max_timestamp):
+    def from_recordings(cls, recording_info, min_timestamp, max_timestamp):
         multimodal_rec = {}
         unique_subtypes = defaultdict(set)
 
-        for rec in meta['recordings']:
+        for rec in recording_info:
             multimodal_data = {}
 
             for data_type in rec['artifacts']:
                 data_table = pd.read_csv(rec['artifacts'][data_type]['path'])
-                data_table = merge_entries(data_table)
-                data_table = data_table[(data_table['start timestamp [sec]'] >= min_timestamp) & (data_table['end timestamp [sec]'] <= max_timestamp)]
 
                 if not set(cls.REQUIRED_COLUMNS).issubset(data_table.columns):
                     logging.error(f'Artifact "{data_type}" of recording "{rec["id"]}" has missing columns. Required columns are: {cls.REQUIRED_COLUMNS}')
                     continue
                 
+                data_table = merge_entries(data_table)
+                data_table = data_table[(data_table['start timestamp [sec]'] >= min_timestamp) & (data_table['end timestamp [sec]'] <= max_timestamp)]
+
                 subject_data = SubjectData(data_table, rec['id'])
                 subject_data.max_timestamp = max_timestamp
                 subject_data.min_timestamp = min_timestamp
@@ -78,7 +79,7 @@ class SubjectMultimodalData(QObject):
         all_datatypes = [md.AvailableDataTypes() for md in multimodal_rec.values()]
         available_datatypes = set(chain.from_iterable(all_datatypes))
 
-        for rec_id in multimodal_rec.keys():
+        for rec_id in multimodal_rec:
             for dt in available_datatypes:
                 if dt not in multimodal_rec[rec_id].multimodal_data:
                     multimodal_rec[rec_id].multimodal_data[dt] = SubjectData(pd.DataFrame.from_records(data=[], columns=cls.REQUIRED_COLUMNS), rec_id)
