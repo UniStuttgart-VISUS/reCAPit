@@ -4,11 +4,14 @@ import argparse
 import hand_detection
 import logging
 import zarr
+import sys
 import shutil
 
 from pathlib import Path
 from tqdm import tqdm
 from helper.manifest_manager import ManifestManager
+
+logger = logging.getLogger(__name__)
 
 
 if __name__ == '__main__':
@@ -22,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--downsampling_temporal', type=int, default=1)
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
         video_info = man.get_video('workspace')
@@ -38,7 +41,7 @@ if __name__ == '__main__':
         out_frame_width = int(frame_width / args.downsampling_spatial)
         out_frame_height = int(frame_height / args.downsampling_spatial)
 
-        logging.info(f'Video Info: {frame_width}x{frame_height}, {fps} FPS, {frame_count} total frames')
+        logger.info(f'Video Info: {frame_width}x{frame_height}, {fps} FPS, {frame_count} total frames')
 
         back_sub = cv.createBackgroundSubtractorKNN(history=3000, dist2Threshold=1000, detectShadows=False)
         hand_detector = hand_detection.HandDetector(num_hands=10, model_asset_path='hand_landmarker_latest.task')
@@ -72,7 +75,7 @@ if __name__ == '__main__':
         z.attrs['height'] = out_frame_height
         z.attrs['fps'] = out_fps
 
-        logging.info(z.info)
+        logger.info(z.info)
 
         with tqdm(total=out_frame_count, unit='frames', unit_scale=args.downsampling_temporal, disable=False) as t:
             while True:
@@ -117,7 +120,7 @@ if __name__ == '__main__':
 
             man.register_source('movement_store', {'path': str(out_path),
                                                    'offset_sec': video_info['offset_sec']})
-            logging.info('Registered "movement_store" as a source')
+            logger.info('Registered "movement_store" as a source')
 
             cap.release()
             if args.store_video:

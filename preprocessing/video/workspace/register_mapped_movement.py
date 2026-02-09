@@ -3,12 +3,14 @@ import pandas as pd
 import argparse
 import logging
 import zarr
+import sys
 
 from pathlib import Path
 from tqdm import tqdm
 from utils import get_aois, get_masks
 from helper.manifest_manager import ManifestManager
 
+logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -16,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--root_dir', type=Path, required=True)
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
         cap = cv.VideoCapture(man.get_video('workspace')['path'])
@@ -59,4 +61,4 @@ if __name__ == '__main__':
         df.to_csv(out_path, index=False)
 
         man.register_multi_time('movement', {'path': str(out_path), 'categories': 'areas_of_interests'})
-        logging.info('Registered "multi_time/movement" as an global artifact')
+        logger.info('Registered "multi_time/movement" as an global artifact')

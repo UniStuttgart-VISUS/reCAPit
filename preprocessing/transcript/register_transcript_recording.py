@@ -2,11 +2,12 @@ import argparse
 import pandas as pd
 import logging
 import sys
-import os
 
 from tqdm import tqdm
 from pathlib import Path
 from helper.manifest_manager import ManifestManager
+
+logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -14,7 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('--root_dir', type=Path, required=True)
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
         rec_root = args.root_dir
@@ -30,13 +31,13 @@ if __name__ == '__main__':
             transcript_rec['event subtype'] = rec['role']
 
             if transcript_rec.empty:
-                logging.error(f'Speaker with id "{rec['id']}" does not exist in transcript!')
+                logger.error(f'Speaker with id "{rec['id']}" does not exist in transcript!')
                 sys.exit(1)
 
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
             transcript_rec.to_csv(out_path, index=None, encoding='utf-8-sig')
 
             rec['artifacts']['transcript'] = {'path': str(out_path), 'categories': 'roles'}
+            logger.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
 
-            logging.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
     sys.exit(0)
