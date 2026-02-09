@@ -9,13 +9,16 @@ import logging
 from pathlib import Path
 from helper.manifest_manager import ManifestManager
 
+logger = logging.getLogger(__name__)
 
-def mvt_segmentation(mvt, duration_sec, downsampling_factor=5, min_dur_sec=30, show_plot=True):
+def mvt_segmentation(mvt: np.ndarray, duration_sec: float, penalization:int,
+                     downsampling_factor:int=5, min_dur_sec:float=30,
+                     show_plot=True) -> np.ndarray:
 
     if 'timestamp [sec]' not in mvt.columns:
-        logging.warning("Missing timestamp column. Adding timestamp column")
+        logger.warning('Missing timestamp column. Adding timestamp column')
         mvt['timestamp [sec]'] = np.linspace(0, duration_sec, mvt.shape[0])
-    
+
     preprocessed = pd.DataFrame.copy(mvt)
 
     if 'timestamp [sec]' in mvt.columns:
@@ -30,19 +33,14 @@ def mvt_segmentation(mvt, duration_sec, downsampling_factor=5, min_dur_sec=30, s
     if downsampling_factor > 1:
         preprocessed = scipy.signal.decimate(preprocessed.values, downsampling_factor, axis=0)
     else:
-        preprocessed = preprocessed.values
+        preprocessed = preprocessed.to_numpy()
 
-    print(f'Original signal shape: {mvt.shape}, downsampled signal shape: {preprocessed.shape}')
+    logger.info(f'Original signal shape: {mvt.shape}, downsampled signal shape: {preprocessed.shape}')
 
-    #min_size = (manifest['duration_s'] / mtv.shape[0]) * min_dur_sec / downsampling_factor
     min_size = int(preprocessed.shape[0] * min_dur_sec / duration_sec)
 
-    print(f"Minimum segment size: {min_size}")
-
-    algo = rpt.Pelt(model="rbf", min_size=min_size, jump=5).fit(preprocessed)
-    #algo = rpt.Pelt(model="rbf", min_size=1, jump=1).fit(preprocessed)
-    #result = algo.predict(pen=20)
-    result = algo.predict(pen=10)
+    algo = rpt.Pelt(model='rbf', min_size=min_size, jump=5).fit(preprocessed)
+    result = algo.predict(pen=penalization)
 
     if show_plot:
         rpt.display(preprocessed, result)
@@ -54,20 +52,22 @@ def mvt_segmentation(mvt, duration_sec, downsampling_factor=5, min_dur_sec=30, s
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
-    parser.add_argument('--out_dir', type=Path, required=True)
+    parser.add_argument('--root_dir', type=Path, required=True)
     parser.add_argument('--input_signal', default='attention', required=False)
     parser.add_argument('--downsampling_factor', default=5, required=False, type=int)
+    parser.add_argument('--penalization', default=10, required=False, type=int)
     parser.add_argument('--min_dur_sec', default=15, required=False, type=float)
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
 
-    root_dir = args.manifest.parent
-    out_path = args.out_dir / 'initial.csv'
+    out_path = args.root_dir / 'initial.csv'
 
-    with ManifestManager(args.manifest) as man:
+    with ManifestManager(args.manifest, args.root_dir) as man:
         mtv = pd.read_csv(man.get_multi_time(args.input_signal)['path'], encoding='utf-8-sig')
-        result = mvt_segmentation(mtv, man.get_duration_sec(), downsampling_factor=args.downsampling_factor, min_dur_sec=2*args.min_dur_sec, show_plot=True)
+        result = mvt_segmentation(mtv, man.get_duration_sec(), args.penalization,
+                                  downsampling_factor=args.downsampling_factor,
+                                  min_dur_sec=2*args.min_dur_sec, show_plot=True)
         records = []
 
         for segment_start, segment_end in zip(result[:-1], result[1:]):
@@ -80,4 +80,4 @@ if __name__ == '__main__':
         out = pd.DataFrame.from_records(data=records, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out.to_csv(out_path, index=None, encoding='utf-8-sig')
         man.register_segments('initial', {'path': str(out_path)})
-        logging.info('Registered "segments/initial" as an global artifact')
+        logger.info('Registered "segments/initial" as an global artifact')

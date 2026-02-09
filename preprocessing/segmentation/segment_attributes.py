@@ -3,43 +3,46 @@ import pandas as pd
 import openai
 import os
 import logging
+import sys
 
 from pathlib import Path
 from helper.manifest_manager import ManifestManager
 
+logger = logging.getLogger(__name__)
+
 def generate_prompt_summary(text, language):
     return [
           {
-              "role": "system",
-              "content": f"You are a linguist who provides concise and accurate summaries from {language} dialogues and utterances. Your output should be in {language}."
+              'role': 'system',
+              'content': f'You are a linguist who provides concise and accurate summaries from {language} dialogues and utterances. Your output should be in {language}.'
           },
           {
-              "role": "user", 
-              "content": f'Summarize the following {language} dialogue in one sentence, focusing only on the content and omitting speaker details: """{text}"""'
+              'role': 'user', 
+              'content': f'Summarize the following {language} dialogue in one sentence, focusing only on the content and omitting speaker details: """{text}"""'
           }
     ]
 
 def generate_prompt_keywords(text, language):
     return [
           {
-              "role": "system",
-              "content": f"You are a linguist who extracts topics from {language} dialogue transcripts. Your output should be in {language}."
+              'role': 'system',
+              'content': f'You are a linguist who extracts topics from {language} dialogue transcripts. Your output should be in {language}.'
           },
           {
-              "role": "user", 
-              "content": f'Provide a maximum of comma-separated topics in {language} that best describe the following text: """{text}"""'
+              'role': 'user', 
+              'content': f'Provide a maximum of comma-separated topics in {language} that best describe the following text: """{text}"""'
           }
     ]
 
 def generate_prompt_title(text, language):
     return [
           {
-              "role": "system",
-              "content": f"You are a linguist who creates {language} titles for dialogue transcripts. Your output should be in {language}"
+              'role': 'system',
+              'content': f'You are a linguist who creates {language} titles for dialogue transcripts. Your output should be in {language}'
           },
           {
-              "role": "user", 
-              "content": f'Give the following text a concise and short title in {language}. Output only the title without any prefix or parentheses. : """{text}"""'
+              'role': 'user', 
+              'content': f'Give the following text a concise and short title in {language}. Output only the title without any prefix or parentheses. : """{text}"""'
           }
     ]
 
@@ -82,13 +85,13 @@ def segment_attributes(transcript_segment, language):
 
     joined_text = '.'.join(transcript_segment['text'].tolist())
 
-    title = "Title not generated"
-    summary = "Summary not generated"
+    title = 'Title not generated'
+    summary = 'Summary not generated'
 
     title = execute_prompt(client, generate_prompt_title(joined_text, language), args.gpt_model)
     summary = execute_prompt(client, generate_prompt_summary(joined_text, language), args.gpt_model)
 
-    logging.info(f'GPT response - {title}: {summary}')
+    logger.info(f'GPT response - {title}: {summary}')
     return {'summary': summary, 'title': title, 'overlap': overlapping_speech_sec, 'num_turns': num_turns}
 
 
@@ -101,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('--openai_api_key', required=False, type=str)
     args = parser.parse_args()
 
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     root_dir = args.manifest.parent
 
     with ManifestManager(args.manifest, args.root_dir) as man:
@@ -111,8 +114,8 @@ if __name__ == '__main__':
         if openai_api_key is None:
             openai_api_key = os.environ.get('OPENAI_API_KEY')
             if not openai_api_key:
-                logging.error('Either pass your OpenAI API key as an argument or store it in the environment variable "OPENAI_API_KEY".')
-                exit(1)
+                logger.error('Either pass your OpenAI API key as an argument or store it in the environment variable "OPENAI_API_KEY".')
+                sys.exit(1)
 
         client = openai.OpenAI(api_key=openai_api_key)
 
@@ -130,7 +133,7 @@ if __name__ == '__main__':
             transcript_segment = transcript[(transcript['start timestamp [sec]'] >= start_ts) & (transcript['end timestamp [sec]'] <= end_ts)]
 
             if transcript_segment.empty:
-                logging.warning(f"Time span {start_ts:.2f}s - {end_ts:.2f}s has no speech")
+                logger.warning(f'Time span {start_ts:.2f}s - {end_ts:.2f}s has no speech')
                 continue
 
             seg_attr = segment_attributes(transcript_segment, man.get_language())
@@ -138,4 +141,4 @@ if __name__ == '__main__':
 
         out_table = pd.DataFrame(out_table, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary'])
         out_table.to_csv(man.get_segments(args.target_segments)['path'], index=None, encoding='utf-8-sig')
-        logging.info(f'Successfully modified "{args.target_segments}" segments')
+        logger.info(f'Successfully modified "{args.target_segments}" segments')
