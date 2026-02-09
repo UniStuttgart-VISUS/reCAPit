@@ -11,7 +11,7 @@ import QtQuick.Controls.Basic
 Window {
     id: window
     visible: true
-    width: 500
+    width: 600
     height: 800
     color: "white"
 
@@ -195,7 +195,8 @@ Window {
                         spacing: 10
                         Layout.preferredWidth: 200
                         Button {
-                            icon.source: "../icons/gear.png"
+                            icon.source: "../icons/app.png"
+                            icon.color: "transparent"
                             width: 50
                             flat: true
                             onClicked: {
