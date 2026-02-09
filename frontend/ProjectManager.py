@@ -81,13 +81,14 @@ class ProjectManager(QAbstractListModel):
             self.curr_project.deleteLater()
 
         self.curr_project = Project(self.engine, self)
+        self.curr_project.quit.connect(self.open_manager)
         name = self._projects[row]['name']
         root_dir = self.app_dir / name
 
         if action == 'viewer':
-            self.curr_project.open_project_viewer(self.app, self.qf, root_dir, name)
+            self.curr_project.open_project_viewer(self.qf, root_dir, name)
         elif action == 'manifest':
-            self.curr_project.open_project_manifest(self.app, root_dir)
+            self.curr_project.open_project_manifest(root_dir, name)
         else:
             logger.error(f'Unknown action "{action}" on project "{name}"')
 
@@ -125,6 +126,7 @@ class ProjectManager(QAbstractListModel):
                                'last_opened': date_now_str})
         self.endInsertRows()
         return True
+
 
     @pyqtSlot()
     def open_manager(self) -> None:

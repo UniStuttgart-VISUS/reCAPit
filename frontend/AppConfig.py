@@ -43,35 +43,39 @@ def default_config() -> dict:
         },
     }
 
-class AppConfig(QObject):
-    def __init__(self, manifest: dict[str, dict], user_config: dict[str, dict],
-                 export_dir: Path,
-                 event_subtypes: dict[str, set], parent=None):
-        super().__init__(parent)
-        self.export_dir = export_dir
+def load_aoi_shapes(path: str) -> dict[str, dict]:
+    with open(path) as f:
+        aoi_data = json.load(f)
+        width = aoi_data['imageWidth']
+        height = aoi_data['imageHeight']
+        shapes = {}
 
-        aois = json.load(open(manifest['sources']['areas_of_interests']['path'], 'r'))
-
-        width = aois['imageWidth']
-        height = aois['imageHeight']
-
-        self.shapes = {}
-
-        for s in aois['shapes']:
+        for s in aoi_data['shapes']:
             points = np.array(s['points'])
             norm_x = points[:, 0] / width
             norm_y = points[:, 1] / height
             norm_points = np.stack((norm_x, norm_y), axis=1)
+            shapes[s['label']] = {'points': norm_points, 'shape_type': s['shape_type']}
+        return shapes
 
-            self.shapes[s['label']] = {'points': norm_points, 'shape_type': s['shape_type']}
+
+class AppConfig(QObject):
+    def __init__(self, recording_info: dict[str, dict],
+                 roles: list[str],
+                 aoi_path: str,
+                 user_config: dict[str, dict],
+                 export_dir: Path,
+                 event_subtypes: dict[str, set], parent=None):
+        super().__init__(parent)
+
+        self.export_dir = export_dir
+        self.shapes = load_aoi_shapes(aoi_path)
 
         self.user_config = user_config
-        self.manifest = manifest
         self.event_subtypes = event_subtypes
-        self.roles = manifest['roles']
-        self.ids = [r['id'] for r in manifest['recordings']]
-        self.id2roles = {r['id']: r['role'] for r in manifest['recordings']}
-        self.audio_src = manifest['sources']['audio']['path']
+        self.roles = roles
+        self.ids = [r['id'] for r in recording_info]
+        self.id2roles = {r['id']: r['role'] for r in recording_info}
 
     def export_user_config(self, path: Path) -> bool:
         try:
@@ -82,7 +86,7 @@ class AppConfig(QObject):
             return False
 
     def speaker_role(self, speaker_id: str) -> str:
-        return self.id2roles[speaker_id]
+        return self.id2roles.get(speaker_id, 'na')
 
     @pyqtSlot(result=list)
     def GetMultiTimeLabels(self) -> list:
@@ -117,22 +121,6 @@ class AppConfig(QObject):
     def ExportDir(self):
         return QUrl.fromLocalFile(self.export_dir.as_posix())
 
-    @pyqtSlot(result=str)
-    def AudioSource(self):
-        return self.audio_src
-
-    @pyqtSlot(int, str, result=str)
-    def GetRecCategories(self, rec_index, data_type):
-        art = self.manifest['recordings'][rec_index]['artifacts']
-        if data_type not in art:
-            return ""
-        x = art[data_type]['categories']
-        return x
-
-    @pyqtSlot(str, result=str)
-    def CategoryOfTimeSeries(self, key):
-        return self.manifest['artifacts']['multi_time'][key]['categories']
-
     @pyqtSlot(str, result=str)
     def ColormapOfOverlay(self, name):
         return self.user_config['video_overlay'][name]["colormap"]
@@ -146,12 +134,12 @@ class AppConfig(QObject):
 
     @pyqtSlot(result=str)
     def ColormapAOI(self):
-        self.user_config['colormaps']['areas_of_interests']
+        return self.user_config['colormaps']['areas_of_interests']
 
     @pyqtSlot(result=str)
     def ColormapRole(self):
         #return ["#dadaeb","#bcbddc","#9e9ac8","#807dba","#6a51a3","#4a1486"]
-        self.user_config['colormaps']['roles']
+        return self.user_config['colormaps']['roles']
 
     @pyqtSlot(result=list)
     def Identifiers(self):
