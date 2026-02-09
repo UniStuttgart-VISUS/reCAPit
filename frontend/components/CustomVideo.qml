@@ -68,7 +68,7 @@ Rectangle {
         property int savedPlaybackState: -1
 
         source: videoRoot.topDownSource
-        videoOutput: videoRoot.videoInFullscreen ? winRoot.videoFullOutput : videoOutput
+        videoOutput: videoRoot.videoInFullscreen ? videoFullOutput : videoOutput
         audioOutput: AudioOutput {
             volume: 1.0
         }
@@ -104,15 +104,16 @@ Rectangle {
             anchors.fill: parent
         }
 
+        Shortcut {
+            sequence: "Escape"
+            onActivated: videoRoot.videoInFullscreen = false
+        }
+
         MouseArea {
             anchors.fill: parent
             onClicked: {
                 video.playbackState == MediaPlayer.PlayingState ? video.pause() : video.play()
             }
-        }
-
-        Keys.onEscapePressed: {
-            videoRoot.videoInFullscreen = false;
         }
 
         onClosing: {
@@ -169,16 +170,17 @@ Rectangle {
             VideoOutput {
                 id: videoOutput
                 anchors.fill: parent
+                fillMode: VideoOutput.PreserveAspectFit
             }
 
             Item {
                 id: aoiFills
                 anchors.fill: parent
 
-                function scalePoints(norm_points, width, height) {
+                function scalePoints(norm_points, contentRect) {
                     return norm_points.map(p => {
-                        p.x *= width;
-                        p.y *= height;
+                        p.x = p.x*contentRect.width + contentRect.x;
+                        p.y = p.y*contentRect.height + contentRect.y;
                         return p;
                     });
                 }
@@ -199,7 +201,7 @@ Rectangle {
                             strokeWidth: 1
 
                             PathPolyline {
-                                path: aoiFills.scalePoints(aoiModel.AoiPolygonPoints(modelData), aoiFills.width, aoiFills.height);
+                                path: aoiFills.scalePoints(aoiModel.AoiPolygonPoints(modelData), videoOutput.contentRect);
                             }
                         }
                     }
