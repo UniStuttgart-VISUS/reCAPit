@@ -50,3 +50,15 @@ function createColorscheme(domain, colorscheme) {
     }
     return map;
 }
+
+function createCombinedColormaps(namedColormaps) {
+    var cmapGlobal = new Object()
+
+    for (const data of Object.values(namedColormaps)) {
+        const mappedColors = createColorscheme(data.labels, data.colormap);
+        for (const [val, color] of mappedColors) {
+            cmapGlobal[val] = color;
+        }
+    }
+    return cmapGlobal;
+}
