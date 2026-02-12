@@ -17,6 +17,7 @@ from TimelineModel import SubjectMultimodalData
 from helper.manifest_manager import ManifestManager
 from ManifestEditor import PreprocessingPipeline, Manifest
 
+from LayoutManager import CardListModel, LayoutManager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -124,6 +125,7 @@ class Project(QObject):
             self.segment_model.AdjustFilter(self.manifest_model.SegmentMinDurSec(), self.manifest_model.SegmentDisplayDurSec())
 
             self.register_multi_time(man.get_artifact('multi_time'))
+            self.layout_manager = LayoutManager(self)
 
             if man.has_global_artifact('video_overlay'):
                 self.register_video_overlay()
@@ -148,10 +150,17 @@ class Project(QObject):
 
             qf.setSamples(self.user_config['multisampling'])
 
+            self.segment_model.done()
+            self.card_list_model = CardListModel(self.segment_model.timeline_segment_model,
+                                                 self.layout_manager)
+
             self.engine.addImageProvider('thumbnails', self.segment_model.thumbnail_provider)
+            self.engine.rootContext().setContextProperty('cardList', self.card_list_model)
+            self.engine.rootContext().setContextProperty('layoutManager', self.layout_manager)
             self.engine.rootContext().setContextProperty('aoiModel', self.manifest_model)
             self.engine.rootContext().setContextProperty('topicSegments', self.segment_model)
             self.engine.load('App.qml')
+
 
             self.window = self.engine.rootObjects()[-1]
             self.window.setProperty('title', name)

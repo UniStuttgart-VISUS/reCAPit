@@ -21,6 +21,16 @@ class TopicCardData(QObject):
         self.heatmap_gaze_src = ""
         self.heatmap_move_src = ""
         self.summary = ""
+        self.notesHTML = ""
+        self.dialogue = []
+
+    @pyqtSlot(result=list)
+    def Dialogue(self) -> list:
+        return self.dialogue
+
+    @pyqtSlot(result=str)
+    def NotesHTML(self) -> str:
+        return self.notesHTML
 
     @pyqtSlot(result=str)
     def HeatmapGazeSource(self):

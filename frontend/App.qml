@@ -5,6 +5,7 @@ import QtQuick.Layouts 1.0
 import QtQuick.Dialogs
 import QtQuick.Shapes 1.2
 import QtQml
+import QtQuick.Controls.Basic
 
 import "components"
 import "windows"
@@ -12,38 +13,27 @@ import "js/utils.js" as Utils
 import "js/colorschemes.js" as Colorschemes
 import "."
 
-import QtQuick.Controls.Basic
-
 ApplicationWindow {
     id: appwin
     visible: true
     width: 1920
     height: 1080
-    color: "white"
-    title: ""
 
-    readonly property var timelineHeight: 15
+    readonly property var timelineHeight: 25
     readonly property var placeholderWidth: 30
     readonly property var timelineVSpace: 7
     readonly property var timelineTopMargin: 50
     readonly property var rootTopMargin: 25
-
-    property var cmapGlobal: {}
-
-    property int selectedSnippetIndex : -1
-
     readonly property int timelineSegmentHeight: 90 + 175 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
 
-    property var segmentIndicesOfCards: []
-    property var segmentIndicesWithCards : []
-
-    property int currentEditCardIndex: 0
-    property bool drawerVisible: false
-
-    property list<string> segmentIndicesMarkers : []
-    property list<real> segmentIndicesScores : []
+    property var cmapGlobal: {}
+    property var currCardData
 
     signal reset()
+
+    function compressSegments() {
+        // TODO : Implement
+    }
 
     PreferenceWindow {
         id: preferencePane
@@ -55,196 +45,14 @@ ApplicationWindow {
         id: aboutWindow
     }
 
-    MessageDialog {
-        id: successDialog
-        buttons: MessageDialog.Ok
-    }
-
-    FolderDialog {
-        id: exportBookmarkedDialog
-        onAccepted: {
-            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
-            const success = topicSegments.export_bookmarked(dir_path)
-
-            successDialog.title = "Export bookmarked segments";
-
-            if (success) {
-                successDialog.text = "Successfully exported bookmarked segments!";
-            }
-            else {
-                successDialog.text = "Failed to export bookmarked segments to %1".arg(dir_path);
-            }
-            successDialog.open();
+    menuBar: CustomMenuBar {
+        onOpenAboutWindow: {
+            aboutWindow.show();
+        }
+        onOpenPreferenceWindow: {
+            preferencePane.show();
         }
     }
-
-    FolderDialog {
-        id: saveDialog
-        onAccepted: {
-            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
-            const success = topicSegments.export_state(dir_path)
-
-            successDialog.title = "Save state";
-
-            if (success) {
-                successDialog.text = "Successfully saved state!";
-            }
-            else {
-                successDialog.text = "Failed to save state to %1".arg(dir_path);
-            }
-            successDialog.open();
-        }
-    }
-
-    FolderDialog {
-        id: loadDialog
-        currentFolder: aoiModel.ExportDir()
-        onAccepted: {
-            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
-            const success = topicSegments.import_state(dir_path)
-
-            successDialog.title = "Restore State";
-
-            if (success) {
-                successDialog.text = "Successfully loaded state!";
-            }
-            else {
-                successDialog.text = "Failed to load state from %1".arg(dir_path);
-            }
-
-            appwin.resetNow();
-            successDialog.open();
-        }
-    }
-
-    menuBar: MenuBar {
-        Menu {
-            title: qsTr("&File")
-
-            Action { 
-                text: qsTr("&Restore state...") 
-                shortcut: StandardKey.Open
-                onTriggered: {
-                    loadDialog.open();
-                }
-            }
-
-            Action { 
-                text: qsTr("&Save state") 
-                shortcut: StandardKey.Save
-                onTriggered: {
-                    saveDialog.open();
-                }
-            }
-
-            Action { 
-                text: qsTr("&Export bookmarked") 
-                onTriggered: {
-                    exportBookmarkedDialog.open();
-                }
-            }
-
-            Action { 
-                text: qsTr("&Open Project") 
-                onTriggered: {
-                    projectManager.open_manager();
-                    appwin.close();
-                }
-            }
-
-            MenuSeparator { }
-            Action { 
-                text: qsTr("&Restore state...") 
-                shortcut: StandardKey.Open
-                onTriggered: {
-                    loadDialog.open();
-                }
-            }
-
-            Action { 
-                text: qsTr("&Save state") 
-                shortcut: StandardKey.Save
-                onTriggered: {
-                    saveDialog.open();
-                }
-            }
-
-            MenuSeparator { }
-
-            Action { 
-                text: qsTr("&Preferences") 
-                shortcut: StandardKey.Preferences
-                onTriggered: {
-                    preferencePane.show();
-                }
-            
-            }
-            MenuSeparator { }
-            Action { 
-                text: qsTr("&Quit") 
-                shortcut: StandardKey.Quit
-                onTriggered: {
-                    appwin.close();
-                }
-            }
-        }
-        Menu {
-            title: qsTr("&Edit")
-            Action { 
-                text: qsTr("Find")
-                shortcut: StandardKey.Find
-                onTriggered: {
-                    keywordDialog.open();
-                }
-            }
-        }
-        Menu {
-            title: qsTr("&View")
-            Action { 
-                text: qsTr("Scale up") 
-                shortcut: StandardKey.ZoomIn
-                onTriggered: {
-                    scroll.contentWidth *= 1.5;
-                    appwin.reset();
-                }
-            }
-            Action { 
-                text: qsTr("Scale down") 
-                shortcut: StandardKey.ZoomOut
-                onTriggered: {
-                    scroll.contentWidth /= 1.5;
-                    appwin.reset();
-                }
-            }
-            Action { 
-                text: qsTr("Reset") 
-                shortcut: StandardKey.Refresh
-                onTriggered: {
-                    for (var i = 0; i < cardsRoot.children.length; ++i) {
-                        const idx = cardsRoot.children[i].cardData.SegmentIndex();
-                        cardsRoot.children[i].opacity = 1.0;
-                        appwin.segmentIndicesScores[idx] = 0.0;
-                    }
-                }
-            }
-        }
-        Menu {
-            title: qsTr("&Help")
-            Action { 
-                text: qsTr("&About") 
-                onTriggered: {
-                    aboutWindow.show();
-                }
-            }
-        }
-
-        background: Rectangle {
-            implicitWidth: 40
-            implicitHeight: 30
-            color: "#f8f8f8"
-        }
-    }
-
 
     TopicCardDrawer {
         id: drawer
@@ -257,24 +65,14 @@ ApplicationWindow {
         contentWidth: 600
         contentHeight: appwin.height
 
-        cardIndex: appwin.segmentIndicesOfCards[appwin.currentEditCardIndex]
+        cardData: appwin.currCardData
         colormap: appwin.cmapGlobal
 
         onSaveChanges: (user_title, user_text, user_notes) => {
-            const cardIndex = appwin.segmentIndicesOfCards[appwin.currentEditCardIndex];
-            var targetCard = cardsRoot.children[appwin.currentEditCardIndex];
-
-            for (var idx = 0; idx < tsRoot.children.length; ++idx) {
-                if (tsRoot.children[idx].topicIndex === cardIndex) {
-                    tsRoot.children[idx].title = user_title;
-                }
-            }
-            topicSegments.SetLabel(cardIndex, user_title);
-            topicSegments.SetQuoteNote(cardIndex, user_notes);
-            topicSegments.SetQuoteText(cardIndex, user_text);
-
-            tsRoot.children[cardIndex].tickInfos = topicSegments.ThumbnailInfo(cardIndex);
-            targetCard.cardData = topicSegments.GetTopicCardData(cardIndex)
+            const modelRow = appwin.currCardData.SegmentIndex();
+            topicSegments.timeline_segment_model.setTitle(modelRow, user_title);
+            topicSegments.timeline_segment_model.setQuotesNote(modelRow, user_notes);
+            topicSegments.timeline_segment_model.setQuotesText(modelRow, user_text);
         }
     }
 
@@ -292,29 +90,13 @@ ApplicationWindow {
             for (var i = 0; i < cardsRoot.children.length; ++i) {
                 const idx = cardsRoot.children[i].cardData.SegmentIndex();
                 cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
-                appwin.segmentIndicesScores[idx] = targetIndices.includes(idx) ? 1.0 : 0.0;
             }
         }
-    }
-
-    function init_colorscheme() {
-        const cc = aoiModel.ColormapCategories()
-        var cmapGlobal = new Object()
-
-        for (const data of Object.values(cc)) {
-            const mappedColors = Colorschemes.createColorscheme(data.labels, data.colormap);
-            for (const [val, color] of mappedColors) {
-                cmapGlobal[val] = color;
-            }
-        }
-        appwin.cmapGlobal = cmapGlobal;
     }
 
     Component.onCompleted: {
-        init_colorscheme();
+        appwin.cmapGlobal = Colorschemes.createCombinedColormaps(aoiModel.ColormapCategories());
         preferencePane.userConfig = aoiModel.UserConfig();
-        appwin.reset.connect(resetNow);
-        resetNow();
     }
 
     Connections {
@@ -322,277 +104,12 @@ ApplicationWindow {
         function onSaveCurrentUserConfig(user_config) {
             aoiModel.SetUserConfig(user_config);
 
-            init_colorscheme();
-
             for (const name of Object.keys(user_config["video_overlay"])) {
                 topicSegments.UpdateOverlayColormap(name, user_config["video_overlay"][name]["colormap"]);
             }
-
             topicSegments.AdjustFilter(aoiModel.SegmentMinDurSec(), aoiModel.SegmentDisplayDurSec());
-            resetNow();
         }
     }
-
-    Connections{
-        target: topicSegments
-        function onQueryResultsAvailable (snippet_index, output_scores, output_indices) {
-
-            const selectedIndices = highlightHistoryEntries.get(snippet_index).selected;
-
-            for (var i = 0; i < segmentIndicesMarkers.length; ++i) {
-                appwin.segmentIndicesMarkers[i] = "";
-                appwin.segmentIndicesScores[i] = 0.0;
-            }
-
-            for (var i = 0; i < selectedIndices.length; ++i) {
-                appwin.segmentIndicesMarkers[selectedIndices[i]] = "⭐";
-            }
-
-            for (var i = 0; i < cardsRoot.children.length; ++i) {
-                const target_index = cardsRoot.children[i].segmentIndex;
-
-                if (output_indices.includes(target_index)) {
-                    const j = output_indices.indexOf(target_index);
-                    cardsRoot.children[i].color = Utils.interpolateColor(output_scores[j], "PuBuGn")
-                    cardsRoot.children[i].score = output_scores[j];
-                }
-                else {
-                    cardsRoot.children[i].color = Utils.interpolateColor(0.0, "PuBuGn")
-                    cardsRoot.children[i].score = -1;
-                }
-
-                if (selectedIndices.includes(target_index)) {
-                    cardsRoot.children[i].marked = true;
-                }
-                else {
-                    cardsRoot.children[i].marked = false;
-                }
-            }
-
-            for (var i = 0; i < output_indices.length; ++i) {
-                console.log("%1 - %2 : %3".arg(highlightHistoryEntries.get(snippet_index).text).arg(topicSegments.GetLabel(output_indices[i])).arg(output_scores[i]));
-                appwin.segmentIndicesScores[output_indices[i]] = output_scores[i];
-                if (output_scores[i] >= 0.5) {
-                    //appwin.segmentIndicesMarkers[output_indices[i]] = "💡";
-                }
-            }
-            highlightHistoryEntries.setSuggestedTopicIndices(snippet_index, output_indices);
-        }
-    }
-
-    function createNote(timestamp, topicIndex) {
-        annotationDialog.timestamp = timestamp;
-        annotationDialog.topicIndex = topicIndex;
-        annotationDialog.open();
-    }
-
-    function deleteAllCards() {
-        for (var i = 0; i < cardsRoot.children.length; ++i) {
-            cardsConnectorRoot.children[i].destroy()
-        }
-        cardsRoot.children = [];
-        cardsConnectorRoot.children = [];
-    }
-
-    function deleteAllSegments() {
-        for (var i = 0; i < tsRoot.children.length; ++i) {
-            tsRoot.children[i].destroy()
-        }
-        tsRoot.children = [];
-    }
-
-    function mergeWithLeft(index) {
-        topicSegments.MergeWithLeft(index);
-        resetNow();
-    }
-
-    function mergeWithRight(index) {
-        topicSegments.MergeWithRight(index);
-        resetNow();
-    }
-
-    function changeCardVisibility(index, visible) {
-        topicSegments.SetHasCard(index, visible);
-
-        if (visible)
-            segmentIndicesWithCards = [index, ...segmentIndicesWithCards]
-        else
-            segmentIndicesWithCards = segmentIndicesWithCards.filter(x => x !== index)
-
-        deleteAllCards();
-        findCardLayout();
-    }
-
-    function resetNow() {
-        deleteAllSegments();
-        deleteAllCards();
-
-        const allTopicIndices = [...Array(topicSegments.rowCount()).keys()];
-        var markers = [];
-        var scores = [];
-
-        createSegments(allTopicIndices);
-        findCardLayout();
-
-        for (var i = 0; i < topicSegments.rowCount(); ++i) {
-            const marker = topicSegments.IsMarked(i) ? "⭐" : "";
-
-            markers.push(marker);
-            scores.push(0.0);
-        }
-
-        var indicesWithCards = topicSegments.IndicesOfCards();
-
-        appwin.segmentIndicesWithCards = indicesWithCards;
-        appwin.segmentIndicesMarkers = markers;
-        appwin.segmentIndicesScores = scores;
-    }
-
-    function compressSegments() {
-        var targetIndices = topicSegments.MarkedIndices();
-
-        if (targetIndices.length > 0) {
-            deleteAllSegments();
-            deleteAllCards();
-
-            createSegments(targetIndices);
-            findCardLayout();
-        }
-        else {
-            console.log("WARNING: Build nothing to compress!")
-        }
-    }
- 
-
-    function createSegments(targetTopicIndices) {
-        const start = topicSegments.MinTimestamp();
-        const end = topicSegments.MaxTimestamp();
-
-        var currX = 0;
-        var lastSegmentVisible = true;
-        var indicesWithCards = []
-
-        for (var i = 0; i < topicSegments.rowCount(); ++i) {
-            const start_ts = topicSegments.GetPosStart(i);
-            const end_ts = topicSegments.GetPosEnd(i);
-            const segmentVisible = targetTopicIndices.indexOf(i) !== -1;
-
-            if (segmentVisible) {
-                const width = Math.floor(tsRoot.width * (end_ts - start_ts) / (end - start));
-                var ccComponent = Qt.createComponent("components/TimelineSegment.qml");
-                if (ccComponent.status === Component.Error) {
-                    console.log("Error loading component:", ccComponent.errorString());
-                }
-                const has_hard = topicSegments.HasCard(i);
-
-                var ccObject = ccComponent.createObject(tsRoot, 
-                    {title: topicSegments.GetLabel(i), 
-                    dia: topicSegments.GetMultiRecData(i), 
-                    tan: topicSegments.GetNotes(i),
-                    stacks: topicSegments.GetRegisteredTimeSeries(i),
-                    min_ts: start_ts,
-                    max_ts: end_ts,
-                    tickInfos: topicSegments.ThumbnailInfo(i),
-                    color: has_hard ? "#f8f8f8" : "#fff",
-                    meta: aoiModel,
-                    cmap: appwin.cmapGlobal,
-                    x: currX,
-                    width: width,
-                    height: appwin.timelineSegmentHeight,
-                    topicIndex: i,
-                    hasCard: has_hard
-                });
-                ccObject.noteRequested.connect(appwin.createNote);
-                ccObject.cardVisibilityChanged.connect(appwin.changeCardVisibility);
-                ccObject.mergeWithLeft.connect(appwin.mergeWithLeft);
-                ccObject.mergeWithRight.connect(appwin.mergeWithRight);
-                currX += width;
-            }
-            else if (lastSegmentVisible) {
-                var ccComponent = Qt.createComponent("components/PlaceHolder.qml");
-                var ccObject = ccComponent.createObject(tsRoot, {x: currX, width: appwin.placeholderWidth, height: appwin.timelineSegmentHeight})
-                currX += appwin.placeholderWidth;
-            }
-
-            lastSegmentVisible = segmentVisible;
-
-            if (ccObject == null) {
-                console.log("Error creating TimelineSegment / Placeholder");
-            }
-        }
-    }
-
-    function findCardLayout() {
-        var indices = [];
-        var target_loc = [];
-        var target_pos_x = [];
-        var target_pos_y = [];
-        var target_width = [];
-        var target_card_width = [];
-
-        for (var i = 0; i < tsRoot.children.length; ++i) {
-            if (tsRoot.children[i].hasCard) {
-                tsRoot.children[i].cardIndex = indices.length;
-                target_loc.push(tsRoot.children[i].x + tsRoot.children[i].width * 0.5)
-                target_card_width.push(topicSegments.GetCardSize(tsRoot.children[i].topicIndex));
-                target_pos_x.push(tsRoot.children[i].x);
-                target_pos_y.push(tsRoot.children[i].y);
-                target_width.push(tsRoot.children[i].width);
-                indices.push(tsRoot.children[i].topicIndex);
-            }
-        }
-
-        if (target_loc.length === 0) {
-            console.log("Warning: No cards to layout!")
-            return
-        }
-
-        const cards_loc = topicSegments.GetCardLayout(target_loc, target_card_width, scroll.contentWidth * 1.5);
-        
-        for (var i = 0; i < target_loc.length; ++i) {
-            const cardData = topicSegments.GetTopicCardData(indices[i]);
-            var tcComponent = Qt.createComponent("components/TopicCard.qml");
-            var tcObject = tcComponent.createObject(cardsRoot, 
-                                                    {
-                                                        x: cards_loc[i] - (target_card_width[i] - 50) / 2, 
-                                                        y: 0,
-                                                        width: target_card_width[i] - 50,
-                                                        cardData: cardData, 
-                                                        segmentIndex: indices[i],
-                                                        cardIndex: i,
-                                                        cmap: appwin.cmapGlobal
-                                                    });
-
-            if (tcObject == null) {
-                console.log("Error creating TopicCard");
-            }
-
-            tcObject.onClicked.connect(function(index) {
-                appwin.currentEditCardIndex = index;
-                drawer.open()
-            });
-
-            tcObject.onMarkToggled.connect(function(index) {
-                const mark = topicSegments.ToggleMark(index);
-
-                if (mark) {
-                    appwin.segmentIndicesMarkers[index] = "⭐";
-                }
-                else {
-                    appwin.segmentIndicesMarkers[index] = "";
-                }
-            });
-
-            var ccComponent = Qt.createComponent("components/CardConnector.qml");
-            var ccObject = ccComponent.createObject(cardsConnectorRoot, {fromX: cards_loc[i], fromY: 40, toLeftX: target_pos_x[i], toRightX: target_pos_x[i] + target_width[i], toY: 0});
-
-            if (ccObject == null) {
-                console.log("Error creating CardConnector");
-            }
-        }
-        appwin.segmentIndicesOfCards = indices;
-    }
-
 
     Row {
         anchors.bottom: parent.bottom
@@ -714,7 +231,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            contentWidth: 14000
+            contentWidth: 15000
             contentHeight: 1000
 
             flickableDirection: Flickable.HorizontalFlick
@@ -727,73 +244,142 @@ ApplicationWindow {
             }
 
             ColumnLayout {
+                id: tsRootx
                 spacing: 0
+                width: scroll.contentWidth
 
-                Item {
+                ListView {
                     id: tsRoot
                     z: 5
-                    width: scroll.contentWidth
+                    Layout.fillWidth: true
                     height: appwin.timelineSegmentHeight
+                    orientation: ListView.Horizontal
+
+                    property real start: topicSegments.MinTimestamp()
+                    property real end: topicSegments.MaxTimestamp()
+
+                    model: topicSegments.timeline_segment_model
+                    delegate: TimelineSegment {
+                        id: ts
+
+                        required property string title
+                        required property int segmentIdx
+                        required property real startSec
+                        required property real endSec
+                        required property var timeEvents
+                        required property var stackedData
+                        required property var seqData
+                        required property var thumbnailInfo
+                        required property bool hasCard
+                        required property int index
+
+                        Component.onCompleted: {
+                            // Not so nice solution to get the child's position in parent coordinates
+                            let pos_x = scroll.contentWidth * (ts.startSec - tsRoot.start) / (tsRoot.end - tsRoot.start);
+                            layoutManager.register_item(ts.segmentIdx, 
+                                                        pos_x,
+                                                        0.0,
+                                                        ts.width, 
+                                                        ts.hasCard);
+
+                        }
+
+                        Component.onDestruction: {
+                            layoutManager.unregister_item(ts.segmentIdx);
+                        }
+
+                        onCardVisibilityChanged: (visible) => {
+                            //topicSegments.timeline_segment_model.setHasCard(ts.index, visible);
+                            layoutManager.set_active(ts.segmentIdx, visible);
+                        }
+
+                        width: Math.floor(15000 * (endSec - startSec) / (tsRoot.end - tsRoot.start));
+                        height: parent.height
+
+                        segmentTitle: ts.title
+                        dia: ts.seqData
+                        tan: ts.timeEvents
+                        stacks: ts.stackedData
+                        cmap: appwin.cmapGlobal
+                        topicIndex: ts.segmentIdx
+                        cardVisible: ts.hasCard
+                        min_ts: ts.startSec
+                        max_ts: ts.endSec
+                        tickInfos: ts.thumbnailInfo
+                    }
                 }
 
                 Item {
-                    z: 1
+                    z: 100
                     id: cardsConnectorRoot
-                    width: scroll.contentWidth
-                    height: 50
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+
+                    Repeater {
+                        anchors.fill: parent
+                        model: layoutManager.card_layout()
+
+                        delegate: CardConnector {
+                            id: cardConn
+
+                            required property real srcPosX
+                            required property real dstPosX
+                            required property real segmentWidth
+
+                            fromX: cardConn.srcPosX
+                            fromY: 40 
+                            toLeftX: cardConn.dstPosX
+                            toRightX: cardConn.dstPosX + cardConn.segmentWidth
+                            toY: 0
+                        }
+                    }
                 }
 
                 Item {
                     id: cardsRoot
-                    width: scroll.contentWidth
-                    height: 400
-                }
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 400
 
-                Item { Layout.fillHeight: true }    // <-- filler here
+                    Repeater {
+                        anchors.fill: parent
+                        model: cardList 
+
+                        delegate: TopicCard {
+                            id: topicCard
+
+                            required property var cardDataX
+                            required property var layoutData
+                            required property bool isVisible
+                            required property int index
+
+                            visible: topicCard.isVisible
+
+                            onClicked: {
+                                appwin.currCardData = cardDataX;
+                                drawer.open()
+                            }
+
+                            onMarkedChanged: {
+                                const segmentIdx = topicCard.cardDataX.SegmentIndex();
+                                topicSegments.timeline_segment_model.toggleMarked(segmentIdx);
+                            }
+
+                            x: topicCard.layoutData.x - (topicCard.layoutData.width - 50) / 2 
+                            y: 0
+                            width: topicCard.layoutData.width - 50
+                            cardData: topicCard.cardDataX
+                            cmap: appwin.cmapGlobal
+                        }
+                    }
+                }
+                Item { Layout.fillHeight: true }
             }
         }
 
-        ListView {
-            id: repB
-
+        NavigationList {
             Layout.preferredWidth: boxW
             Layout.fillHeight: true
-
-            spacing: 0
-            model: appwin.segmentIndicesMarkers
-
-            property real boxW: 35 
-            property real boxH: 20 
-
-            clip: true
-            
-            delegate: Rectangle {
-                required property int index
-                required property string modelData
-
-                width: repB.boxW
-                height: repB.boxH
-                color: (index < appwin.segmentIndicesScores.length) ? Utils.interpolateColor(appwin.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
-                border.color: '#d9d9d9'
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
-                    }
-                }
-
-                Label {
-                    anchors.fill: parent
-                    font.pixelSize: 16
-
-                    text: "%1".arg(modelData)
-                    opacity: 0.5
-
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
+            model: topicSegments.timeline_segment_model
         }
     }
 }

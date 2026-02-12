@@ -95,7 +95,8 @@ class StackedSeries(QObject):
     @pyqtSlot(result='QVariantMap')
     def LabelDistribution(self):
         values = [float(self.signals[label].mean()) for label in self.labels_active]
-        relative = values / np.sum(values)
+        normalizer = np.sum(values)
+        relative = values / normalizer if normalizer > 1e-12 else np.zeros_like(values)
         return {label: relative[idx].item() for idx, label in enumerate(self.labels_active)}
 
 
