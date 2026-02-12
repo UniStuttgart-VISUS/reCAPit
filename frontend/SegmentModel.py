@@ -5,7 +5,7 @@ import base64
 from ThumbnailModel import ThumbnailModel
 from HeatmapProvider import HeatmapOverlayProvider
 from NotesModel import NotesModel
-from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QSize, pyqtSignal, pyqtSlot, pyqtProperty
 from PyQt6.QtGui import QImage
 from PyQt6.QtMultimedia import QVideoSink
 from StackedSeries import StackedSeries
@@ -15,6 +15,7 @@ from pathlib import Path
 from json.decoder import JSONDecodeError
 from TimelineModel import SubjectMultimodalData
 from AppConfig import AppConfig
+from TimelineSegmentModel import TimelineSegmentModel
 
 
 from utils import (
@@ -22,8 +23,6 @@ from utils import (
     fill_between,
     fill_gaps,
     filter_segments,
-    linear_layout,
-    longest_common_substring,
     merge_transcript,
 )
 
@@ -35,7 +34,7 @@ import shapely
 
 
 class SegmentModel(QObject):
-    queryResultsAvailable = pyqtSignal(int, list, list)
+    timelineSegmentModelChanged = pyqtSignal()
 
     def __init__(
         self, segments: pd.DataFrame, multimodal_recordings: dict[str, SubjectMultimodalData], 
@@ -56,27 +55,16 @@ class SegmentModel(QObject):
 
         self.video_src = video_src
         self.has_attention = False
-        self.has_activity = False
         self.has_gaze_heatmaps = False
         self.has_move_heatmaps = False
         self.heatmap_overlay_providers = {}
+        self.timeline_segments = None
 
         for multimodal_data in multimodal_recordings.values():
             multimodal_data.setParent(self)
 
         self.init_segments(self.original_segments)
-
         self.set_notes(NotesModel.empty())
-        self.set_attention(
-            StackedSeries.empty(
-                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels(),
-            ),
-        )
-        self.set_activity(
-            StackedSeries.empty(
-                self.start_ts[0], self.end_ts[-1], self.meta_model.Labels(),
-            ),
-        )
 
     def init_segments(self, segments: pd.DataFrame) -> None:
         self.segments = fill_between(fill_gaps(segments, threshold_sec=5), max_ts=self.MaxTimestamp())
@@ -110,24 +98,33 @@ class SegmentModel(QObject):
             - self.transcript['start timestamp [sec]']
         )
 
+    def done(self):
+        self.timeline_segments = TimelineSegmentModel(titles=self.titles,
+                                                      has_card=self.has_card,
+                                                      start_ts=self.start_ts,
+                                                      end_ts=self.end_ts,
+                                                      transcript=self.transcript,
+                                                      stacked_data=self.multi_time,
+                                                      subject_data=self.multimodal_recordings,
+                                                      notes_data=self.notes_model,
+                                                      roles=self.meta_model.Roles(),
+                                                      quotes_text=self.quotes_text,
+                                                      quotes_note=self.quotes_note,
+                                                      thumbnail_info=self.thumbnail_info,
+                                                      marked=self.marked,
+                                                      summaries=self.summaries,
+                                                      labels=self.labels,
+                                                      parent=self)
+        self.timelineSegmentModelChanged.emit()
+
+
     def set_notes(self, notes: NotesModel) -> None:
         self.notes_model = notes
         self.notes_model.setParent(self)
         self.has_notes = True
 
-    def set_activity(self, activity: StackedSeries) -> None:
-        self.activity = activity
-        self.activity.setParent(self)
-        self.has_activity = True
-
     def register_multi_time(self, name: str, ts: StackedSeries) -> None:
-        ts.setParent(self)
         self.multi_time[name] = ts
-
-    def set_attention(self, attention: StackedSeries) -> None:
-        self.attention = attention
-        self.attention.setParent(self)
-        self.has_attention = True
 
     def add_video_overlay_provider(
         self, name: str, heatmap_provider: HeatmapOverlayProvider,
@@ -137,16 +134,13 @@ class SegmentModel(QObject):
         self.heatmap_overlay_providers[name].segments_end = self.end_ts
         return f'heatmaps_{name}'
 
+    @pyqtProperty(TimelineSegmentModel, notify=timelineSegmentModelChanged)
+    def timeline_segment_model(self) -> TimelineSegmentModel:
+        return self.timeline_segments
+
     @pyqtSlot(str, str)
     def UpdateOverlayColormap(self, name: str, cmap_str: str) -> None:
         self.heatmap_overlay_providers[name].set_colormap(cmap_str)
-
-    """
-    @pyqtSlot(int, result=list)
-    def FindSimilarSegments(self, segment_idx):
-        self.service.exec_query(self.titles[segment_idx], top_k=5, meta={'target_index': segment_idx})
-        return list()
-    """
 
     @pyqtSlot(str, result=bool)
     def import_state(self, in_dir: str | Path) -> None:
@@ -381,12 +375,6 @@ class SegmentModel(QObject):
         }
 
 
-    def process_query_results(self, res: dict[str, Any]) -> None:
-        self.queryResultsAvailable.emit(
-            res['meta']['snippet_index'],
-            res['result']['scores'],
-            res['result']['indices'],
-        )
 
     @pyqtSlot(int, result='QVariantMap')
     def VideoOverlaySources(self, segment_idx: int) -> dict[str, str]:
@@ -468,130 +456,17 @@ class SegmentModel(QObject):
         segments = filter_segments(segments, min_dur_sec, display_dur_sec)
         self.init_segments(segments)
 
-
-    @pyqtSlot(int, result=ThumbnailModel)
-    def ThumbnailInfo(self, segment_idx: int) -> list:
-        return self.thumbnail_info[segment_idx]
-
-    @pyqtSlot(int, result=list)
-    def ThumbnailIndicatorPositions(self, segment_idx: int) -> list[float]:
-        return [
-            (info['pos_sec'] - self.GetPosStart(segment_idx))
-            / (self.GetPosEnd(segment_idx) - self.GetPosStart(segment_idx))
-            for info in self.thumbnail_info[segment_idx]
-        ]
-
-    @pyqtSlot(int, result=list)
-    def ThumbnailIndicatorLabels(self, segment_idx: int) -> list[str]:
-        return [info['label'] for info in self.thumbnail_info[segment_idx]]
-
-    @pyqtSlot(int, result=list)
-    def VideoCropLabels(self, segment_idx: int) -> list[str]:
-        return [info['label'] for info in self.thumbnail_info[segment_idx]]
-
-    def delete_segment(self, target_idx: int) -> None:
-        del self.start_ts[target_idx]
-        del self.end_ts[target_idx]
-        del self.titles[target_idx]
-        del self.has_card[target_idx]
-        del self.labels[target_idx]
-
-    @pyqtSlot(int)
-    def MergeWithLeft(self, target_idx):
-        neighbor_idx = target_idx - 1
-
-        if not (0 <= neighbor_idx < len(self.start_ts)):
-            return
-
-        self.end_ts[neighbor_idx] = self.end_ts[target_idx]
-        self.titles[neighbor_idx] = self.titles[target_idx]
-        self.has_card[neighbor_idx] = self.has_card[target_idx]
-        self.labels[neighbor_idx] = self.labels[neighbor_idx] + self.labels[target_idx]
-
-        self.delete_segment(target_idx)
-        # TODO Merge heatmaps
-
-    @pyqtSlot(int)
-    def MergeWithRight(self, target_idx):
-        neighbor_idx = target_idx + 1
-
-        if not (0 <= neighbor_idx < len(self.start_ts)):
-            return
-
-        self.start_ts[neighbor_idx] = self.start_ts[target_idx]
-        self.titles[neighbor_idx] = self.titles[target_idx]
-        self.has_card[neighbor_idx] = self.has_card[target_idx]
-        self.labels[neighbor_idx] = self.labels[neighbor_idx] + self.labels[target_idx]
-
-        self.delete_segment(target_idx)
-
-        # TODO Merge heatmaps
-
     @pyqtSlot(result=str)
     def VideoSourceTopDown(self):
         return 'file:///' + self.video_src['workspace']['path']
 
     @pyqtSlot(result=list)
     def VideoSourcesPeripheral(self):
-        return ['file:///' + str(self.video_src['room']['path'])]
+        return ['file:///' + str(self.video_src['side']['path'])]
 
     @pyqtSlot(result=int)
     def SpeechLineCount(self):
         return len(self.multimodal_recordings.keys())
-
-    @pyqtSlot(result=bool)
-    def HasAttention(self):
-        return 'bottom' in self.multi_time
-
-    @pyqtSlot(result=bool)
-    def HasActivity(self):
-        return 'top' in self.multi_time
-
-    @pyqtSlot(result=bool)
-    def HasGazeHeatmap(self):
-        return self.has_gaze_heatmaps
-
-    @pyqtSlot(result=bool)
-    def HasMoveHeatmap(self):
-        return self.has_move_heatmaps
-
-    @pyqtSlot(str)
-    def ToggleLabel(self, label: str):
-        if label in self.active_labels:
-            self.active_labels.remove(label)
-        else:
-            self.active_labels.append(label)
-
-    @pyqtSlot(int, result=list)
-    def GetUtteranceSpeakerPairs(self, index: int):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-
-        part = self.transcript[
-            (self.transcript['start timestamp [sec]'] >= start_ts)
-            & (self.transcript['end timestamp [sec]'] <= end_ts)
-        ]
-
-        utterances = part['text'].tolist()
-        speakers = part['speaker'].tolist()
-        start_times = part['start timestamp [sec]'].tolist()
-        end_times = part['end timestamp [sec]'].tolist()
-
-        return [{'text': u, 'speaker': s, 'start_time': st, 'end_time': et} for s, u, st, et in zip(speakers, utterances, start_times, end_times)]
-
-    def speaker_time_by_role(self, idx: int) -> dict[str, float]:
-        start_ts = self.start_ts[idx]
-        end_ts = self.end_ts[idx]
-
-        roles = self.meta_model.Roles()
-        total_dur = end_ts - start_ts
-
-        part = self.transcript[
-            (self.transcript['start timestamp [sec]'] >= start_ts)
-            & (self.transcript['end timestamp [sec]'] <= end_ts)
-        ]
-        role_durations = part.groupby('role')['duration [sec]'].sum()
-        return {role: float(role_durations.get(role, 0)) / total_dur for role in roles}
 
     def speaker_time_by_speaker(self, idx: int) -> dict[str, float]:
         start_ts = self.start_ts[idx]
@@ -606,42 +481,6 @@ class SegmentModel(QObject):
         speaker_durations = part.groupby('speaker')['duration [sec]'].sum()
         return {speakers: float(speaker_durations.get(speakers, 0)) / total_dur for speakers in self.meta_model.Identifiers()}
 
-    @pyqtSlot(int, result=str)
-    def Title(self, index: int):
-        return self.titles[index]
-
-    @pyqtSlot(int, result=list)
-    def Labels(self, index: int):
-        return self.labels[index]
-
-    @pyqtSlot(int, result=str)
-    def Summary(self, index: int):
-        return self.summaries[index]
-
-    @pyqtSlot(int, result=str)
-    def TextDialoguesOriginal(self, index: int):
-        return self.quotes_text[index]['original']
-
-    @pyqtSlot(int, result=str)
-    def TextDialoguesFormatted(self, index: int):
-        return self.quotes_text[index]['formatted']
-
-    @pyqtSlot(int, result=str)
-    def TextNotes(self, index: int):
-        return self.quotes_note[index]
-
-    @pyqtSlot(int, result=ThumbnailModel)
-    def ThumbnailCrops(self, index: int):
-        return self.thumbnail_info[index]
-
-    @pyqtSlot(int, result=float)
-    def PosEndSec(self, index: int):
-        return self.end_ts[index]
-
-    @pyqtSlot(int, result=float)
-    def PosStartSec(self, index: int):
-        return self.start_ts[index]
-
     @pyqtSlot(int, result=bool)
     def IsMarked(self, index: int):
         return self.marked[index]
@@ -651,75 +490,8 @@ class SegmentModel(QObject):
         return [idx for idx in range(len(self.marked)) if self.marked[idx]]
 
     @pyqtSlot(result=list)
-    def AllIndices(self):
-        return range(len(self.marked))
-
-    @pyqtSlot(result=list)
     def IndicesOfCards(self):
         return [idx for idx in range(len(self.has_card)) if self.has_card[idx]]
-
-    @pyqtSlot(result=list)
-    def Indices(self):
-        return range(len(self.marked))
-
-    @pyqtSlot(int, result=TopicCardData)
-    def GetTopicCardData(self, index):
-        start_ts = self.start_ts
-        end_ts = self.end_ts
-
-        tcd = TopicCardData(self)
-        tcd.segment_index = index
-        tcd.labels = self.labels[index]
-        tcd.title = self.titles[index]
-        tcd.marked = self.marked[index]
-        tcd.summary = self.summaries[index]
-
-        tcd.dists_stats = {}
-        tcd.dists_stats['speaker'] = self.speaker_time_by_role(index)
-
-        for key in self.multi_time:
-            tcd.dists_stats[key] = self.GetTimeSeries(key, index).LabelDistribution()
-
-        tcd.text_notes = self.quotes_note[index]
-        tcd.text_dialogues = self.quotes_text[index]
-        tcd.pos_start_sec = start_ts[index]
-        tcd.pos_end_sec = end_ts[index]
-        tcd.thumbnail_crops = self.thumbnail_info[index]
-        #tcd.aoi_activity_distr = {k: 7 * v for k, v in tcd.aoi_activity_distr.items()}
-        return tcd
-
-    @pyqtSlot(int, result=bool)
-    def ToggleMark(self, segmentIdx):
-        self.marked[segmentIdx] = not self.marked[segmentIdx]
-        return self.marked[segmentIdx]
-
-    @pyqtSlot(list, list, float, result=list)
-    def GetCardLayout(self, target_loc, widths, max_xpos):
-        out = linear_layout(
-            sorted(target_loc), widths, min_xpos=widths[0] / 2, max_xpos=max_xpos
-        )
-        return out.tolist() if out is not None else list()
-
-    @pyqtSlot(int, bool)
-    def SetHasCard(self, index, flag):
-        self.has_card[index] = flag
-
-    @pyqtSlot(int, result=bool)
-    def ToggleHasCard(self, index):
-        self.has_card[index] = not self.has_card[index]
-        return self.has_card[index]
-
-    @pyqtSlot(int, result=bool)
-    def HasCard(self, index):
-        return self.has_card[index]
-
-    @pyqtSlot(float, str, str)
-    def AddNote(self, ts, text, label):
-        self.notes_model.AddNote(ts, text, label)
-
-    @pyqtSlot(int, str)
-    def SetQuoteNote(self, index, text):
-        self.quotes_note[index] = text
 
     @pyqtSlot(list, result=list)
     def KeywordMatches(self, keywords):
@@ -734,128 +506,17 @@ class SegmentModel(QObject):
                 if kw in segment_txt:
                     matched_indices.append(segment_idx)
                     break
-
         return matched_indices
-
-    @pyqtSlot(int, str)
-    def SetQuoteText(self, index, text):
-        text_units = text.split('\n\n')
-        text_units = [t.replace('\n', ' ').strip() for t in text_units if len(t) > 0]
-        formatted = []
-        speaker_quotes = []
-
-        for tu in text_units:
-            results = []
-
-            for line in self.GetUtteranceSpeakerPairs(index):
-                line_text = line['text'].replace('\n', ' ').strip()
-                match = longest_common_substring(tu, line_text)
-
-                src = line['speaker']
-                cnt = sum(other_src == src for other_src, _, _ in results)
-                results.append((src, cnt, match))
-
-            max_idx = np.argmax([res['size'] for _, _, res in results])
-            src, idx, res = results[max_idx]
-
-            if (res['size'] / len(tu)) > 0.5:
-                quote_label = f'{src.upper()[:2]}{idx + 1}'
-
-                if quote_label not in self.labels[index]:
-                    self.labels[index].append(quote_label)
-
-                formatted.append(
-                    f'{tu[0 : res["a"]]} <font color="grey"><b>{quote_label}</b></font> <font color="black"><u>{tu[res["a"] : res["a"] + res["size"]]}</u></font>{tu[res["a"] + res["size"] :]}'
-                )
-                speaker_quotes.append(
-                    {'speaker': src, 'label': quote_label ,'text': tu[res['a'] : res['a'] + res['size']]},
-                )
-            else:
-                formatted.append(tu)
-
-        formatted = '<br><br>'.join(formatted)
-        self.quotes_text[index] = {'original': text,
-                                   'formatted': formatted,
-                                   'quotes': speaker_quotes}
-
-    @pyqtSlot(int, result=NotesModel)
-    def GetNotes(self, index):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-        return self.notes_model.slice(start_ts, end_ts)
-
-    @pyqtSlot(int, result='QVariantMap')
-    def GetMultiRecData(self, index):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-        return {
-            rec_id: multimodal_data.slice(start_ts, end_ts)
-            for rec_id, multimodal_data in self.multimodal_recordings.items()
-        }
-
-    @pyqtSlot(str, int, result=StackedSeries)
-    def GetTimeSeries(self, key, index):
-        if key not in self.multi_time:
-            logging.error(
-                f'Cannot access time series "{key}". Currently registered timelines: {self.multi_time.keys()}.',  # noqa: G004
-            )
-
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-
-        self.multi_time[key].recompute(self.active_labels)
-        return self.multi_time[key].slice(start_ts, end_ts)
-
-    @pyqtSlot(int, result=list)
-    def GetRegisteredTimeSeries(self, index:int):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
-        return [mt.slice(start_ts, end_ts) for mt in self.multi_time.values()]
-
-    @pyqtSlot(int, result=str)
-    def GetNotesCard(self, index):
-        return self.notes_card[index]
-
-    @pyqtSlot(int, result=str)
-    def GetDialogueCard(self, index):
-        return self.dialogue_card[index]
-
-    @pyqtSlot(int, result=int)
-    def GetCardSize(self, index):
-        return self.card_sizes[index]
-
-    @pyqtSlot(int, str)
-    def SetLabel(self, index, label):
-        self.titles[index] = label
-        # self.service.update_corpus_at(label, index)
-
-    @pyqtSlot(int, result=str)
-    def GetLabel(self, index):
-        return self.titles[index]
-
-    @pyqtSlot(int, result=str)
-    def GetSummary(self, index):
-        return self.summaries[index]
-
-    @pyqtSlot(int, result=float)
-    def GetPosStart(self, index):
-        return self.start_ts[index]
-
-    @pyqtSlot(int, result=float)
-    def GetPosEnd(self, index):
-        return self.end_ts[index]
 
     @pyqtSlot(result=float)
     def MinTimestamp(self):
         k = list(self.multimodal_recordings.keys())
         return self.multimodal_recordings[k[0]].MinTimestamp()
-        # return self.start_ts[0]
 
     @pyqtSlot(result=float)
     def MaxTimestamp(self):
         k = list(self.multimodal_recordings.keys())
         return self.multimodal_recordings[k[0]].MaxTimestamp()
-        # return self.end_ts[-1]
 
     @pyqtSlot(result=int)
     def rowCount(self):
