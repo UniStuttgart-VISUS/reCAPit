@@ -12,14 +12,13 @@ import "../js/utils.js" as Utils
 Rectangle {
     id: root
 
-    required property var title
+    required property var segmentTitle
     required property var dia
     required property var tan
     required property var stacks
     required property var cmap
-    required property var meta
     required property int topicIndex
-    required property bool hasCard
+    required property bool cardVisible
     required property int min_ts
     required property int max_ts
     required property var tickInfos
@@ -33,9 +32,7 @@ Rectangle {
     height: 90 + 175 + Object.keys(dia).length * (appwin.timelineHeight + appwin.timelineVSpace)
     clip: false
 
-    signal cardVisibilityChanged(int topicIndex, bool visible)
-    signal noteRequested(real timestamp, int topicIndex)
-    signal collapseRequested(int topicIndex)
+    signal cardVisibilityChanged(bool visible)
     signal mergeWithLeft(int topicIndex)
     signal mergeWithRight(int topicIndex)
 
@@ -99,7 +96,6 @@ Rectangle {
 
             cmap: root.cmap
             stacks: root.stacks
-
             xScale: xScaleG
         }
 
@@ -108,11 +104,11 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             z: 20
-            title: "%1 (%2)".arg(root.title).arg(cardIndex)
-            checked: root.hasCard
+            title: "%1 (%2)".arg(root.segmentTitle).arg(cardIndex)
+            checked: root.cardVisible
             onCardVisibilityChanged: (visible) => {
-                root.hasCard = visible;
-                root.cardVisibilityChanged(root.topicIndex, visible);
+                root.cardVisible = visible;
+                root.cardVisibilityChanged(visible);
             }
         }
 
@@ -129,18 +125,6 @@ Rectangle {
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
             showLabels: true
         }
-
-
-        // Timeline
-        /*
-        Rectangle {
-            id: timelineContainer
-            z: 2
-            Layout.fillWidth: true
-            height: dia.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
-            color: root.timelineBackgroundColor
-        }
-        */
 
         Item {
             Layout.fillWidth: true
@@ -179,42 +163,6 @@ Rectangle {
                         }
                     }
                 }
-
-                /*
-                ListView {
-                    model: dia.SpeechLineCount()
-                    spacing: appwin.timelineVSpace
-                    interactive: false
-
-                    delegate: Timeline {
-                        required property int index
-
-                        width: root.width
-                        height: appwin.timelineHeight
-
-                        cmap: root.cmapRole
-                        modelData: dia.SpeechLine(index)
-                        xScale: xScaleG
-                    }
-                }
-
-                ListView {
-                    model: dia.SpeechLineCount()
-                    spacing: appwin.timelineVSpace
-                    interactive: false
-
-                    delegate: Timeline {
-                        required property int index
-
-                        width: root.width
-                        height: appwin.timelineHeight
-
-                        cmap: root.cmapAOI
-                        modelData: dia.AoiLine(index)
-                        xScale: xScaleG
-                    }
-                }
-                */
             }
 
             PageIndicator {

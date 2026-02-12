@@ -12,11 +12,12 @@ Drawer {
     modal: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    required property int cardIndex
     required property var colormap
+    required property var cardData 
 
+    property int cardIndex: cardData.SegmentIndex()
     property var drawerOpened: false
-    property var dialogue: topicSegments.GetUtteranceSpeakerPairs(drawer.cardIndex)
+    property var dialogue: cardData.Dialogue()
 
     signal saveChanges(string title, string quotes, string notes)
 
@@ -56,9 +57,9 @@ Drawer {
         video.selectionHeight = 0;
         drawer.drawerOpened = true;
 
-        dialogueTextSelection.setOutText(topicSegments.TextDialoguesOriginal(drawer.cardIndex));
-        notesTextSelection.setOutText(topicSegments.TextNotes(drawer.cardIndex));
-        notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex)
+        dialogueTextSelection.setOutText(drawer.cardData.TextDialoguesOriginal());
+        notesTextSelection.setOutText(drawer.cardData.TextNotes());
+        notesTextSelection.labels = drawer.cardData.Labels();
     }
 
     onClosed: {
@@ -74,7 +75,7 @@ Drawer {
             Layout.preferredHeight: 50
 
             id: heading
-            text: topicSegments.Title(drawer.cardIndex)
+            text: drawer.cardData.Title()
             wrapMode: Text.WordWrap
 
             font.pixelSize: 20
@@ -102,8 +103,8 @@ Drawer {
                     Layout.preferredHeight: 550
 
                     videoOverlaySources: topicSegments.VideoOverlaySources(drawer.cardIndex)
-                    startPosition: topicSegments.PosStartSec(drawer.cardIndex) * 1000
-                    endPosition: topicSegments.PosEndSec(drawer.cardIndex) * 1000
+                    startPosition: drawer.cardData.PosStartSec() * 1000
+                    endPosition: drawer.cardData.PosEndSec() * 1000
                     active: drawer.drawerOpened
                     topDownSource: topicSegments.VideoSourceTopDown()
                     peripheralSources: topicSegments.VideoSourcesPeripheral()
@@ -149,7 +150,7 @@ Drawer {
                             anchors.fill: parent
                             clip: true
 
-                            model: topicSegments.ThumbnailCrops(drawer.cardIndex)
+                            model: drawer.cardData.ThumbnailCrops()
                             delegate: 
                             Item {
                                 id: outer
@@ -236,7 +237,7 @@ Drawer {
                         id: summaryTextArea
                         anchors.fill: parent
                         
-                        text: topicSegments.GetSummary(drawer.cardIndex)
+                        text: drawer.cardData.Summary()
                         textFormat: Text.RichText
                         wrapMode: Text.WordWrap
 
@@ -264,7 +265,7 @@ Drawer {
 
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
-                    textContent: drawer.formattedDialogue(dialogue, keywordDialog.userKeywords)
+                    textContent: drawer.formattedDialogue(drawer.dialogue, keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
                 }
@@ -275,9 +276,9 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
-                    labels: topicSegments.Labels(drawer.cardIndex)
+                    labels: drawer.cardData.Labels()
                     title: String.fromCodePoint(0x1F5D2) + "  Notes  " + String.fromCodePoint(0x1F5D2)
-                    textContent: topicSegments.GetNotes(drawer.cardIndex).allHTML()
+                    textContent: drawer.cardData.NotesHTML()
                     placeHolderText: "Insert excerpts from the above notes here"
                     pastedTextColor: "purple"
                 }
@@ -295,7 +296,7 @@ Drawer {
                 text: "Save Changes"
                 onClicked: {
                     saveChanges(heading.text, dialogueTextSelection.getOutText(), notesTextSelection.getOutText());
-                    notesTextSelection.labels = topicSegments.Labels(drawer.cardIndex);
+                    notesTextSelection.labels = drawer.cardData.Labels()
                 }
             }
 

@@ -10,8 +10,6 @@ import "../js/utils.js" as Utils
 Item {
     id: topicCardRoot
     required property var cardData
-    required property int segmentIndex
-    required property int cardIndex
     required property var cmap
 
     readonly property var icon_sets: {
@@ -19,9 +17,7 @@ Item {
                            "attention": "../icons/eye.png",
                            "movement": "../icons/move.png"}
 
-    signal onClicked(targetIndex: int)
-    signal onEntered(targetIndex: int)
-    signal onMarkToggled(targetIndex: int)
+    signal clicked()
     property bool marked : cardData.IsMarked()
 
     property alias color: matchIndicator.color
@@ -57,14 +53,13 @@ Item {
                     propagateComposedEvents: true
 
                     onClicked: (mouse) => {
-                        topicCardRoot.onClicked(topicCardRoot.cardIndex);
+                        topicCardRoot.clicked();
                         if (mouse)
                             mouse.accepted = true;
                     }
                     onEntered: (mouse) => {
                         topicCard.border.width = 5;
                         topicCard.border.color = '#deb41d'
-                        topicCardRoot.onEntered(topicCardRoot.segmentIndex);
                         if (mouse)
                             mouse.accepted = true;
                     }
@@ -145,8 +140,6 @@ Item {
                                 anchors.fill: parent
                                 onClicked: {
                                     topicCardRoot.marked = topicCardRoot.cardData.ToggleMark()
-                                    //topicCardRoot.marked = !topicCardRoot.marked;
-                                    topicCardRoot.onMarkToggled(topicCardRoot.segmentIndex);
                                 }
                             }
                         }
