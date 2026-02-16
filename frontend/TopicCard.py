@@ -1,89 +1,137 @@
-from PyQt6.QtCore import QObject, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSlot, pyqtProperty, pyqtSignal, QRectF
+from PyQt6.QtMultimedia import QVideoSink
 from ThumbnailModel import ThumbnailModel
 import numpy as np
+from dataclasses import asdict
+from TranscriptRecord import TranscriptRecord
+from TimelineSegment import DisplayState
+from utils import extract_quotes
 
 class TopicCardData(QObject):
+    titleChanged = pyqtSignal()  # noqa: N815
+    markedChanged = pyqtSignal()  # noqa: N815
+    userNotesChanged = pyqtSignal()  # noqa: N815
+    userQuotesChanged = pyqtSignal()  # noqa: N815
+    labelsChanged = pyqtSignal()  # noqa: N815
+    thumbnailAdded = pyqtSignal(QVideoSink, float, QRectF, str)  # noqa: N815
+    dialogueChanged = pyqtSignal()  # noqa: N815
+    displayStateChanged = pyqtSignal()  # noqa: N815
+    indexChanged = pyqtSignal()  # noqa: N815
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.pos_start_sec = 0
         self.pos_end_sec = 0
         self.title = ""
         self.labels = []
-        self.text_dialogues = ""
         self.text_notes = ""
+        self.text_quotes = ""
+        self.text_quotes_formatted = ""
         self.thumbnail_crops = ThumbnailModel()
-        self.speaker_role_time_distr = {}
         self.dists_stats = {}
-        self.aoi_attention_distr = {}
         self.marked = False
         self.segment_index = 0
-        self.keywords_dialogue = []
-        self.heatmap_gaze_src = ""
-        self.heatmap_move_src = ""
         self.summary = ""
         self.notesHTML = ""
-        self.dialogue = []
+        self.video_overlays = []
+        self.dialogue: list[TranscriptRecord] = []
+        self.display_state: DisplayState = DisplayState.VISIBLE
 
-    @pyqtSlot(result=list)
+    @pyqtProperty(list, notify=dialogueChanged)
     def Dialogue(self) -> list:
-        return self.dialogue
+        return [asdict(d) for d in self.dialogue]
+
+    @pyqtProperty(str, notify=displayStateChanged)
+    def DisplayState(self) -> str:
+        print(self.display_state)
+        return str(self.display_state)
 
     @pyqtSlot(result=str)
     def NotesHTML(self) -> str:
         return self.notesHTML
 
-    @pyqtSlot(result=str)
-    def HeatmapGazeSource(self):
-        return self.heatmap_gaze_src
-
-    @pyqtSlot(result=str)
-    def HeatmapMoveSource(self):
-        return self.heatmap_move_src
-
-    @pyqtSlot(result=int)
-    def SegmentIndex(self):
+    @pyqtProperty(int, notify=indexChanged)
+    def SegmentIndex(self) -> int:
         return self.segment_index
 
-    @pyqtSlot(result=str)
+    @pyqtProperty(str, notify=titleChanged)
     def Title(self):
         return self.title
+
+    @Title.setter
+    def Title(self, val: str) -> str:
+        if val != self.title:
+            self.title = val
+            self.titleChanged.emit()
 
     @pyqtSlot(result=str)
     def Summary(self):
         return self.summary
 
-    @pyqtSlot(result=list)
+    @pyqtSlot(result='QVariantMap')
+    def VideoOverlays(self):
+        return self.video_overlays
+
+    @pyqtProperty(list, notify=labelsChanged)
     def Labels(self):
         return self.labels
 
+    @pyqtSlot(str)
+    def add_label(self, label: str):
+        self.extend_labels([label])
+
+    @pyqtSlot(list)
+    def extend_labels(self, labels: list[str]) -> None:
+        if len(labels) > 0:
+            self.labels.extend(labels)
+            self.labelsChanged.emit()
+
     @pyqtSlot(result=bool)
     def ToggleMark(self):
-        self.marked = not self.marked
+        self.Marked = not self.Marked
+        return self.Marked
+
+    @pyqtProperty(bool, notify=markedChanged)
+    def Marked(self):
         return self.marked
 
-    @pyqtSlot(result=bool)
-    def IsMarked(self):
-        return self.marked
+    @Marked.setter
+    def Marked(self, val: bool):
+        if val != self.marked:
+            self.marked = val
+            self.markedChanged.emit()
 
-    @pyqtSlot(result=str)
-    def TextDialoguesOriginal(self):
-        return self.text_dialogues['original']
+    @pyqtProperty(str, notify=userQuotesChanged)
+    def UserQuotesFormatted(self):
+        return self.text_quotes_formatted
 
-    @pyqtSlot(result=str)
-    def TextDialoguesFormatted(self):
-        return self.text_dialogues['formatted']
+    @pyqtProperty(str, notify=userQuotesChanged)
+    def UserQuotes(self):
+        return self.text_quotes
 
-    @pyqtSlot(result=str)
-    def TextNotes(self):
+    @UserQuotes.setter
+    def UserQuotes(self, val: str):
+        print(val)
+        if self.text_quotes != val:
+            self.text_quotes = val
+
+            out = extract_quotes(val, self.dialogue)
+            new_labels = [q['label'] for q in out.quotes if q['label'] not in self.labels]
+
+            self.text_quotes_formatted = out.formatted
+
+            self.extend_labels(new_labels)
+            self.userQuotesChanged.emit()
+
+    @pyqtProperty(str, notify=userNotesChanged)
+    def UserNotes(self):
         return self.text_notes
 
-    @pyqtSlot(result=list)
-    def KeywordsDialogue(self):
-        return self.keywords_dialogue
-
-    @pyqtSlot(result=str)
-    def KeywordsDialogueString(self):
-        return ', '.join(self.keywords_dialogue)
+    @UserNotes.setter
+    def UserNotes(self, val: str):
+        if self.text_notes != val:
+            self.text_notes = val
+            self.userNotesChanged.emit()
 
     @pyqtSlot(result=ThumbnailModel)
     def ThumbnailCrops(self):
@@ -100,25 +148,3 @@ class TopicCardData(QObject):
     @pyqtSlot(result='QVariantMap')
     def DistributionsStatistics(self):
         return self.dists_stats
-
-    @pyqtSlot(result='QVariantMap')
-    def SpeakerTimeDistribution(self):
-        return self.speaker_role_time_distr
-
-    @pyqtSlot(result=str)
-    def DominantSpeakerRoleTime(self):
-        keys = list(self.speaker_role_time_distr.keys())
-        prob = list(self.speaker_role_time_distr.values())
-
-        if len(prob) > 0:
-            idx = np.argmax(prob)
-            return keys[idx]
-        return ''
-
-    @pyqtSlot(result='QVariantMap')
-    def AoiActivityDistribution(self):
-        return self.aoi_activity_distr
-
-    @pyqtSlot(result='QVariantMap')
-    def AoiAttentionDistribution(self):
-        return self.aoi_attention_distr
