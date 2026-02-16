@@ -2,6 +2,7 @@ import numpy as np
 import json
 from pathlib import Path
 from PyQt6.QtCore import QObject, QPointF, pyqtSlot, QUrl
+from helper.manifest_manager import ManifestManager
 
 
 def default_config() -> dict:
@@ -60,20 +61,24 @@ def load_aoi_shapes(path: str) -> dict[str, dict]:
 
 
 class AppConfig(QObject):
-    def __init__(self, recording_info: dict[str, dict],
-                 roles: list[str],
-                 aoi_path: str,
+    def __init__(self,
+                 man: ManifestManager,
                  user_config: dict[str, dict],
                  export_dir: Path,
                  event_subtypes: dict[str, set], parent=None):
         super().__init__(parent)
 
+        recording_info = man.get_recordings()
+        aoi_info = man.get_areas_of_interests()
+        self.video_src = man.get_source('videos')
+
         self.export_dir = export_dir
-        self.shapes = load_aoi_shapes(aoi_path)
+        self.shapes = load_aoi_shapes(aoi_info['path'])
+        self.man = man
 
         self.user_config = user_config
         self.event_subtypes = event_subtypes
-        self.roles = roles
+        self.roles = man.get_roles()
         self.ids = [r['id'] for r in recording_info]
         self.id2roles = {r['id']: r['role'] for r in recording_info}
 
@@ -157,6 +162,23 @@ class AppConfig(QObject):
     def Labels(self):
         return list(self.shapes.keys())
 
+    @pyqtSlot(result=str)
+    def VideoSourceTopDown(self):
+        return 'file:///' + self.video_src['workspace']['path']
+
+    @pyqtSlot(result=list)
+    def VideoSourcesPeripheral(self):
+        return ['file:///' + str(self.video_src['side']['path'])]
+
     @pyqtSlot(result=int)
-    def rowCount(self):
-        return len(self.shapes)
+    def timeline_count(self) -> int:
+        return len(self.ids)
+
+    @pyqtSlot(result=float)
+    def total_duration_sec(self) -> float:
+        return self.man.get_duration_sec()
+
+    @pyqtSlot(result=float)
+    def start_offset_sec(self) -> float:
+        return 0.0
+

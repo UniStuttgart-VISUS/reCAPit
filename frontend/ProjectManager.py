@@ -44,7 +44,6 @@ class ProjectManager(QAbstractListModel):
         self.app_dir = Path(QDir.homePath()) / '.recapit'
         self.app_dir.mkdir(exist_ok=True, parents=False)
         self._projects = []
-
         self.curr_project = None
 
     def roleNames(self) -> dict[int, str]:  # noqa: N802
@@ -86,9 +85,9 @@ class ProjectManager(QAbstractListModel):
         root_dir = self.app_dir / name
 
         if action == 'viewer':
-            self.curr_project.open_project_viewer(self.qf, root_dir, name)
+            self.curr_project.open_viewer(self.qf, root_dir, name)
         elif action == 'manifest':
-            self.curr_project.open_project_manifest(root_dir, name)
+            self.curr_project.open_data_manager(root_dir, name)
         else:
             logger.error(f'Unknown action "{action}" on project "{name}"')
 
@@ -140,7 +139,7 @@ class ProjectManager(QAbstractListModel):
         with open(config_path, 'w') as f:
             json.dump(out_json, f, indent=4, cls=ComplexEncoder)
 
-    def parse_projects(self) -> None:
+    def parse_projects(self) -> list[dict]:
         config_path = self.app_dir / 'config.json'
         with open(config_path) as f:
             config = json.load(f)
@@ -184,10 +183,10 @@ class ProjectManager(QAbstractListModel):
                     continue
 
                 self._projects.append({
-                                       #'export_dir': pro['export_dir'],
                                        'name': pro['name'],
                                        'date_created': pro['date_created'],
                                        'last_opened': pro['last_opened']})
+            return self._projects
 
     def quit_manager(self) -> None:
         self.export_projects()
