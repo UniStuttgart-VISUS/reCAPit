@@ -6,7 +6,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts 2.15
 
 Window {
-    id: preferencePane
+    id: preferenceWindow
     property int currentIndex: 0
     property var userConfig
 
@@ -73,7 +73,7 @@ Window {
 
             // Tab content
             StackLayout {
-                currentIndex: preferencePane.currentIndex
+                currentIndex: preferenceWindow.currentIndex
                 width: parent.width - 150
                 height: parent.height
 
@@ -107,12 +107,12 @@ Window {
                                 snapMode: Slider.SnapAlways
                                 live: true
                                 from: 1
-                                value: preferencePane.userConfig["multisampling"]
+                                value: preferenceWindow.userConfig["multisampling"]
                                 to: 8
                                 stepSize: 1
 
                                 onMoved: {
-                                    preferencePane.userConfig["multisampling"] = sliderMSAA.value;
+                                    preferenceWindow.userConfig["multisampling"] = sliderMSAA.value;
                                 }
                             }
                             Label { 
@@ -148,7 +148,7 @@ Window {
                             title: "Categories"
                             Layout.preferredWidth: 400
 
-                            property var colormaps: preferencePane.userConfig["colormaps"]
+                            property var colormaps: preferenceWindow.userConfig["colormaps"]
 
                             GridLayout {
                                 anchors.fill: parent
@@ -163,11 +163,11 @@ Window {
                                 ComboBox  {
                                     id: cmapRoles
                                     Layout.preferredWidth: 250
-                                    model: preferencePane.categoricalColormaps
-                                    currentIndex:preferencePane.categoricalColormaps.indexOf(categoriesGroup.colormaps["roles"])
+                                    model: preferenceWindow.categoricalColormaps
+                                    currentIndex:preferenceWindow.categoricalColormaps.indexOf(categoriesGroup.colormaps["roles"])
 
                                     onActivated: (index) => {
-                                        preferencePane.userConfig["colormaps"]["roles"] =  categoricalColormaps[cmapRoles.currentIndex];
+                                        preferenceWindow.userConfig["colormaps"]["roles"] =  categoricalColormaps[cmapRoles.currentIndex];
                                     }
                                     
                                     contentItem: Row {
@@ -228,11 +228,11 @@ Window {
                                 ComboBox  {
                                     id: cmapAOIs
                                     Layout.preferredWidth: 250
-                                    model: preferencePane.categoricalColormaps
-                                    currentIndex:preferencePane.categoricalColormaps.indexOf(categoriesGroup.colormaps["areas_of_interests"])
+                                    model: preferenceWindow.categoricalColormaps
+                                    currentIndex:preferenceWindow.categoricalColormaps.indexOf(categoriesGroup.colormaps["areas_of_interests"])
 
                                     onActivated: (index) => {
-                                        preferencePane.userConfig["colormaps"]["areas_of_interests"] =  categoricalColormaps[cmapAOIs.currentIndex];
+                                        preferenceWindow.userConfig["colormaps"]["areas_of_interests"] =  categoricalColormaps[cmapAOIs.currentIndex];
                                     }
                                     
                                     contentItem: Row {
@@ -292,7 +292,7 @@ Window {
                             id: overlaysGroup
                             Layout.preferredWidth: 500
                             title: "Video Overlays"
-                            property var colormaps: preferencePane.userConfig["video_overlay"]
+                            property var colormaps: preferenceWindow.userConfig["video_overlay"]
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -311,11 +311,11 @@ Window {
                                         ComboBox  {
                                             id: comboAttention
                                             width: 250
-                                            model: preferencePane.linearContColormaps
-                                            currentIndex: preferencePane.linearContColormaps.indexOf(overlaysGroup.colormaps[modelData]["colormap"])
+                                            model: preferenceWindow.linearContColormaps
+                                            currentIndex: preferenceWindow.linearContColormaps.indexOf(overlaysGroup.colormaps[modelData]["colormap"])
 
                                             onActivated: (index) => {
-                                                preferencePane.userConfig["video_overlay"][modelData]["colormap"] = linearContColormaps[index];
+                                                preferenceWindow.userConfig["video_overlay"][modelData]["colormap"] = linearContColormaps[index];
                                             }
                                             
                                             contentItem: Row {
@@ -411,12 +411,12 @@ Window {
                                     Layout.preferredWidth: 250
                                     live: true
                                     from: 1
-                                    value: preferencePane.userConfig["segments"]["min_dur_sec"]
+                                    value: preferenceWindow.userConfig["segments"]["min_dur_sec"]
                                     to: 180
                                     stepSize: 5
 
                                     onMoved: {
-                                        preferencePane.userConfig["segments"]["min_dur_sec"] =  sliderMinDur.value;
+                                        preferenceWindow.userConfig["segments"]["min_dur_sec"] =  sliderMinDur.value;
                                     }
                                 }
                                 DataLabel {
@@ -432,11 +432,11 @@ Window {
                                     Layout.preferredWidth: 250
                                     live: true
                                     from: 1
-                                    value: preferencePane.userConfig["segments"]["display_dur_sec"]
+                                    value: preferenceWindow.userConfig["segments"]["display_dur_sec"]
                                     to: 180
                                     stepSize: 5
                                     onMoved: {
-                                        preferencePane.userConfig["segments"]["display_dur_sec"] =  sliderExp.value;
+                                        preferenceWindow.userConfig["segments"]["display_dur_sec"] =  sliderExp.value;
                                     }
                                 }
                                 DataLabel {
@@ -546,7 +546,7 @@ Window {
                 text: "Close"
                 height: 30
                 onClicked: {
-                    preferencePane.close();
+                    preferenceWindow.close();
                 }
             }
 
@@ -555,8 +555,8 @@ Window {
                 text: "Save"
                 height: 30
                 onClicked: {
-                    preferencePane.close();
-                    preferencePane.saveCurrentUserConfig(preferencePane.userConfig);
+                    preferenceWindow.close();
+                    preferenceWindow.saveCurrentUserConfig(preferenceWindow.userConfig);
                 }
             }
         }

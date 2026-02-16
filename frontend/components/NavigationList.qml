@@ -4,14 +4,15 @@ import QtQuick.Shapes 1.2
 import QtQml
 import QtQuick.Controls.Basic
 
-import "../js/colorschemes.js" as Utils
+import "../js/utils.js" as Utils
 
 ListView {
     id: repB
     spacing: 0
 
-    property real boxW: 35 
-    property real boxH: 20 
+    property real boxW: 60 
+    property real boxH: 25 
+    required property bool highlightsActive
 
     signal navigateTo(int index)
 
@@ -22,26 +23,40 @@ ListView {
 
         required property int index
         required property bool marked
+        required property string displayState
+        required property real startSec
+        required property real endSec
 
         width: repB.boxW
         height: repB.boxH
-        //color: (index < repB.segmentIndicesScores.length) ? Utils.interpolateColor(repB.segmentIndicesScores[index], "PuBuGn") : "#f8f8f8"
+
+        readonly property string stateColor: (displayState === "highlighted" && highlightsActive) ? Utils.interpolateColor(0.5, "PuBuGn") : "#f8f8f8"
+
+        color: stateColor
         border.color: '#d9d9d9'
 
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
+
             onClicked: {
-                //scroll.ScrollBar.horizontal.position = tsRoot.children[index].x / tsRoot.width;
                 repB.navigateTo(rect.index);
+            }
+            onEntered: {
+                rect.border.color = Utils.interpolateColor(0.75, "PuBuGn");
+                rect.border.width = 3;
+            }
+            onExited: {
+                rect.border.color = "#d9d9d9";
+                rect.border.width = 1;
             }
         }
 
         Label {
             anchors.fill: parent
-            font.pixelSize: 16
+            font.pixelSize: 10
 
-            text: rect.marked ? "⭐" : ""
-            opacity: 0.5
+            text: (rect.marked ? "⭐" : " ") + Utils.timeFormat(startSec)
 
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

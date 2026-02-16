@@ -25,11 +25,12 @@ Rectangle {
 
     property int cardIndex : -1
     property bool editing: false
+    property bool hideContent: false
 
     border.color: "#ffad33"
     border.width: editing ? 3 : 0
 
-    height: 90 + 175 + Object.keys(dia).length * (appwin.timelineHeight + appwin.timelineVSpace)
+    height: 90 + 175 + Object.keys(dia).length * (appWindow.timelineHeight + appWindow.timelineVSpace)
     clip: false
 
     signal cardVisibilityChanged(bool visible)
@@ -85,10 +86,17 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
+        PlaceHolder {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.hideContent
+        }
+
         AOIRiver {
             id: aoiRiver
             Layout.fillWidth: true
             Layout.preferredHeight: 175
+            visible: !root.hideContent
 
             tickIntervalMajor: xScaleG(60) - xScaleG(0)
             tickIntervalMinor: xScaleG(10) - xScaleG(0)
@@ -104,6 +112,8 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             z: 20
+            visible: !root.hideContent
+
             title: "%1 (%2)".arg(root.segmentTitle).arg(cardIndex)
             checked: root.cardVisible
             onCardVisibilityChanged: (visible) => {
@@ -116,6 +126,7 @@ Rectangle {
             id: axis1
             Layout.fillWidth: true
             Layout.preferredHeight: 30
+            visible: !root.hideContent
             z: 10
 
             //color: root.timelineBackgroundColor
@@ -128,8 +139,9 @@ Rectangle {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: Object.keys(dia).length * (appwin.timelineHeight + appwin.timelineVSpace)
+            Layout.preferredHeight: Object.keys(dia).length * (appWindow.timelineHeight + appWindow.timelineVSpace)
             clip: true
+            visible: !root.hideContent
 
             SwipeView {
                 id: view
@@ -148,14 +160,14 @@ Rectangle {
                         property var currDatatype: modelData
 
                         model: repDataTypes.recIds
-                        spacing: appwin.timelineVSpace
+                        spacing: appWindow.timelineVSpace
                         interactive: false
 
                         delegate: Timeline {
                             required property int index
 
                             width: root.width
-                            height: appwin.timelineHeight
+                            height: appWindow.timelineHeight
 
                             cmap: root.cmap
                             modelData: dia[repDataTypes.recIds[index]].SubjectData(currDatatype)
@@ -177,6 +189,7 @@ Rectangle {
         }
 
         TimelineAxisAnnotations {
+            visible: !root.hideContent
             id: axis2
             z: 10
             Layout.fillWidth: true

@@ -15,9 +15,7 @@ Drawer {
     required property var colormap
     required property var cardData 
 
-    property int cardIndex: cardData.SegmentIndex()
     property var drawerOpened: false
-    property var dialogue: cardData.Dialogue()
 
     signal saveChanges(string title, string quotes, string notes)
 
@@ -57,9 +55,8 @@ Drawer {
         video.selectionHeight = 0;
         drawer.drawerOpened = true;
 
-        dialogueTextSelection.setOutText(drawer.cardData.TextDialoguesOriginal());
-        notesTextSelection.setOutText(drawer.cardData.TextNotes());
-        notesTextSelection.labels = drawer.cardData.Labels();
+        dialogueTextSelection.setOutText(drawer.cardData.UserQuotes);
+        notesTextSelection.setOutText(drawer.cardData.UserNotes);
     }
 
     onClosed: {
@@ -75,7 +72,7 @@ Drawer {
             Layout.preferredHeight: 50
 
             id: heading
-            text: drawer.cardData.Title()
+            text: drawer.cardData.Title
             wrapMode: Text.WordWrap
 
             font.pixelSize: 20
@@ -102,16 +99,16 @@ Drawer {
                     Layout.preferredWidth: 550
                     Layout.preferredHeight: 550
 
-                    videoOverlaySources: topicSegments.VideoOverlaySources(drawer.cardIndex)
+                    videoOverlaySources: drawer.cardData.VideoOverlays()
                     startPosition: drawer.cardData.PosStartSec() * 1000
                     endPosition: drawer.cardData.PosEndSec() * 1000
                     active: drawer.drawerOpened
-                    topDownSource: topicSegments.VideoSourceTopDown()
-                    peripheralSources: topicSegments.VideoSourcesPeripheral()
+                    topDownSource: aoiModel.VideoSourceTopDown()
+                    peripheralSources: aoiModel.VideoSourcesPeripheral()
                     colormapAOIs: drawer.colormap
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
-                        topicSegments.RegisterVideoCrop(frame, pos_ms, drawer.cardIndex, xpos, ypos, width, height, overlay_src); 
+                        drawer.cardData.thumbnailAdded(frame, pos_ms, Qt.rect(xpos, ypos, width, height), overlay_src); 
                     }
                 }
 
@@ -170,7 +167,7 @@ Drawer {
                                         hoverEnabled: true
                                         anchors.fill: parent
                                         onClicked: { 
-                                            topicSegments.deregister_video_crop(drawer.cardIndex, index);
+                                            timeline_segment_model.deregister_video_crop(drawer.cardData.SegmentIndex, index);
                                         }
                                         /*
                                         onEntered: {
@@ -265,7 +262,7 @@ Drawer {
 
                     labels: []
                     title: String.fromCodePoint(0x1F5E8) + "  Dialogue  " + String.fromCodePoint(0x1F5E8)
-                    textContent: drawer.formattedDialogue(drawer.dialogue, keywordDialog.userKeywords)
+                    textContent: drawer.formattedDialogue(drawer.cardData.Dialogue, keywordDialog.userKeywords)
                     placeHolderText: "Insert excerpts from the above dialogue here"
                     pastedTextColor: "blue"
                 }
@@ -276,7 +273,7 @@ Drawer {
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
 
-                    labels: drawer.cardData.Labels()
+                    labels: drawer.cardData.Labels
                     title: String.fromCodePoint(0x1F5D2) + "  Notes  " + String.fromCodePoint(0x1F5D2)
                     textContent: drawer.cardData.NotesHTML()
                     placeHolderText: "Insert excerpts from the above notes here"
@@ -296,7 +293,6 @@ Drawer {
                 text: "Save Changes"
                 onClicked: {
                     saveChanges(heading.text, dialogueTextSelection.getOutText(), notesTextSelection.getOutText());
-                    notesTextSelection.labels = drawer.cardData.Labels()
                 }
             }
 

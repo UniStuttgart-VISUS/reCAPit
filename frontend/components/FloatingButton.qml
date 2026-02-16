@@ -10,10 +10,11 @@ import "../js/utils.js" as Utils
 
 Item {
     id: buttonContainer
-    required property var onClicked
     required property string text
     required property string source
     required property string color
+
+    signal clicked()
 
     property alias tooltipText: buildButtonToolTip.text
 
@@ -64,7 +65,7 @@ Item {
             }
         }
         onClicked: {
-            buttonContainer.onClicked();
+            buttonContainer.clicked();
         }
     }
 }

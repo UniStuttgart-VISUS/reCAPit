@@ -9,15 +9,28 @@ import "../js/utils.js" as Utils
 import "."
 
 Rectangle {
-    width: 30
-    height: 400
+    id: root
     color: "#eee"
 
-    Label {
+    Column {
+        spacing: 15
+
+        width: parent.width
         anchors.centerIn: parent
-        font.pixelSize: 30
-        font.weight: Font.Bold
-        text: "..."
-        color: "#888"
+
+        Repeater {
+            id: rects
+            model: 3
+
+            delegate: Rectangle {
+
+                width: parent.width * 0.3
+                height: parent.width * 0.3
+                radius: parent.width * 0.3
+                color: "#aaa"
+
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+        }
     }
 }

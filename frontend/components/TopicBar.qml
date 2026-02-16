@@ -4,14 +4,14 @@ import QtQuick.Controls 2.15
 import QtQuick.Shapes 1.2
 import "../js/utils.js" as Utils
 
-Rectangle {
+Item {
+    id: segments
+
     required property var title
     property var onCardVisibilityChanged
-    property var on
     property bool checked: true
 
-    id: segments
-    color: "#373735"
+    readonly property string baseColor: "#4f4f4f"
 
     MouseArea {
         anchors.fill: parent
@@ -28,10 +28,21 @@ Rectangle {
         id: brect
         width: parent.width
         height: parent.height
+        /*
         color: {
             if (segments.editing)
                 return "#8a8576"
             return segments.checked ? "#373735" : "#676764"
+        }
+        */
+        opacity: segments.checked ? 1.0 : 0.5
+
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+
+            GradientStop { position: 0.0; color: Qt.lighter(segments.baseColor, 1.5) }
+            GradientStop { position: 0.5; color: segments.baseColor }
+            GradientStop { position: 1.0; color: Qt.lighter(segments.baseColor, 1.5) }
         }
     }
     Rectangle {

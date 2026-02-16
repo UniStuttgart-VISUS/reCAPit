@@ -18,8 +18,6 @@ Item {
                            "movement": "../icons/move.png"}
 
     signal clicked()
-    property bool marked : cardData.IsMarked()
-
     property alias color: matchIndicator.color
     property real score : -1
 
@@ -134,12 +132,12 @@ Item {
                             height: 30
 
                             source: "../icons/star.png"
-                            opacity: topicCardRoot.marked ? 1 : 0.25
+                            opacity: topicCardRoot.cardData.Marked ? 1 : 0.25
 
                             MouseArea{
                                 anchors.fill: parent
                                 onClicked: {
-                                    topicCardRoot.marked = topicCardRoot.cardData.ToggleMark()
+                                    topicCardRoot.cardData.ToggleMark()
                                 }
                             }
                         }
@@ -151,7 +149,7 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                             font.bold: true
                             font.pixelSize: 18
-                            text: topicCardRoot.cardData.Title()
+                            text: topicCardRoot.cardData.Title
                             wrapMode: Text.Wrap
                             elide: Text.ElideRight
                         }
@@ -183,7 +181,6 @@ Item {
                         }
                     }
                     */
-
 
                     /*
                     Item {
@@ -280,7 +277,7 @@ Item {
                         implicitHeight: txt.implicitHeight + 10
                         implicitWidth: txt.implicitWidth
 
-                        visible: topicCardRoot.cardData.TextDialoguesFormatted() !== ""
+                        visible: topicCardRoot.cardData.UserQuotes !== ""
 
                         Text {
                             id: txt
@@ -292,7 +289,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                             color: "#000"
                             font.pixelSize: 14
-                            text: String.fromCodePoint(0x1F5E8) + " " + topicCardRoot.cardData.TextDialoguesFormatted()
+                            text: String.fromCodePoint(0x1F5E8) + " " + topicCardRoot.cardData.UserQuotes
                             wrapMode: Text.Wrap
                         }
                     }
@@ -307,7 +304,7 @@ Item {
                         implicitHeight: txt2.implicitHeight + 10
                         implicitWidth: txt2.implicitWidth
 
-                        visible: topicCardRoot.cardData.TextNotes() !== ""
+                        visible: topicCardRoot.cardData.UserNotes !== ""
 
                         Text {
                             id: txt2
@@ -319,7 +316,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                             color: "#000"
                             font.pixelSize: 14
-                            text: String.fromCodePoint(0x1F5D2) + " " + topicCardRoot.cardData.TextNotes()
+                            text: String.fromCodePoint(0x1F5D2) + " " + topicCardRoot.cardData.UserNotes
                             wrapMode: Text.Wrap
                         }
                     }

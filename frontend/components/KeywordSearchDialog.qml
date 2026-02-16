@@ -128,9 +128,11 @@ Dialog {
                     keywordDialog.userKeywords = [...keywordDialog.userKeywords, keywordInput.text.toLowerCase()];
                     keywordInput.text = "";
                 }
+                else {
+                    keywordDialog.accept();
+                }
             }
         }
-
     }
 
     onOpened: {

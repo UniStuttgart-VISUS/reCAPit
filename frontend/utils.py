@@ -3,6 +3,16 @@ import logging
 import cvxpy as cp
 import pandas as pd
 
+from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QImage
+from PyQt6.QtMultimedia import QVideoSink
+
+import logging
+import pandas as pd
+import shapely
+
+from TranscriptRecord import TranscriptRecord
+from TimelineSegment import QuotesText
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPainter
 
@@ -153,3 +163,121 @@ def fill_between(topics, max_ts):
     new_rows = pd.DataFrame(data=new_rows, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]', 'speech overlap [sec]', 'turn count', 'title', 'summary', 'Displayed'])
     return pd.concat([new_rows, topics]).sort_values(by='start timestamp [sec]')
 
+
+def speaker_time_by_role(records: list[TranscriptRecord], roles: list[str], total_dur: float) -> dict[str, float]:
+    role_durations = dict.fromkeys(roles, 0)
+
+    for row in records:
+        dur = row.end_ts - row.start_ts
+        role = row.role
+        if role not in roles:
+            continue
+
+        role_durations[role] += dur
+    return {role: float(role_durations[role]) / total_dur for role in roles}
+
+def speaker_time_by_speaker(records: list[TranscriptRecord], speakers: list[str], total_dur: float) -> dict[str, float]:
+    speaker_durations = dict.fromkeys(speakers, 0)
+
+    for row in records:
+        dur = row.end_ts - row.start_ts
+        if row.speaker not in speakers:
+            continue
+        speaker_durations[row.speaker] += dur
+
+    return {speaker: float(speaker_durations[speaker]) / total_dur for speaker in speakers}
+
+
+def extract_quotes(text: str, records: list[TranscriptRecord]) -> QuotesText:
+    text_units = text.split('\n\n')
+    text_units = [t.replace('\n', ' ').strip() for t in text_units if len(t) > 0]
+    formatted = []
+    speaker_quotes = []
+
+    for tu in text_units:
+        results = []
+
+        for rec in records:
+            line_text = rec.text.replace('\n', ' ').strip()
+            match = longest_common_substring(tu, line_text)
+
+            src = rec.speaker
+            cnt = sum(other_src == src for other_src, _, _ in results)
+            results.append((src, cnt, match))
+
+        max_idx = np.argmax([res['size'] for _, _, res in results])
+        src, idx, res = results[max_idx]
+
+        if (res['size'] / len(tu)) > 0.5:
+            quote_label = f'{src.upper()[:2]}{idx + 1}'
+
+            formatted.append(
+                f'{tu[0 : res["a"]]} <font color="grey"><b>{quote_label}</b></font> <font color="black"><u>{tu[res["a"] : res["a"] + res["size"]]}</u></font>{tu[res["a"] + res["size"] :]}'
+            )
+            speaker_quotes.append(
+                {'speaker': src, 'label': quote_label ,'text': tu[res['a'] : res['a'] + res['size']]},
+            )
+        else:
+            formatted.append(tu)
+
+    formatted = '<br><br>'.join(formatted)
+    return QuotesText(original=text,
+                      formatted=formatted,
+                      quotes=speaker_quotes)
+
+
+"""
+@pyqtSlot(QVideoSink, float, int, float, float, float, float, str)
+def register_video_crop(
+    self,
+    video_sink: QVideoSink,
+    pos_ms: float,
+    segment_idx: int,
+    norm_x: float,
+    norm_y: float,
+    norm_width: float,
+    norm_height: float,
+    overlay_src: str,
+) -> None:
+    img = video_sink.videoFrame().toImage()
+    size = img.size()
+
+    x = int(norm_x * size.width())
+    y = int(norm_y * size.height())
+
+    width = int(norm_width * size.width())
+    height = int(norm_height * size.height())
+
+    selection_shape = shapely.box(norm_x, norm_y, norm_x + norm_width, norm_y + norm_height)
+    aoi_scores = {}
+
+    for label, aoi_data in self.meta_model.shapes.items():
+        aoi_shape = shapely.Polygon(aoi_data['points'])
+        inter_shape = shapely.intersection(aoi_shape, selection_shape)
+        aoi_scores[label] = shapely.area(inter_shape) / shapely.area(aoi_shape)
+
+    crop = img.copy(x, y, width, height)
+
+    if overlay_src in self.heatmap_overlay_providers:
+        target_provider = self.heatmap_overlay_providers[overlay_src]
+        overlay = target_provider.compute_overlay(
+            self.start_ts[segment_idx], self.end_ts[segment_idx],
+        )
+        overlay_img, _ = target_provider.requestImage(
+            target_provider.img_id(segment_idx), QSize(),
+        )
+        crop_overlay_gaze_img = overlay_img.copy(x, y, width, height)
+
+        score = overlay[y : y + height, x : x + width].sum() / overlay.sum()
+        crop = blend_images(crop, crop_overlay_gaze_img)
+
+    else:
+        score = 0.0
+
+    img_id, label = self.thumbnail_provider.add_to_collection(
+        segment_idx, crop, overlay_src,
+    )
+
+    self.timeline_segments.add_label(label)
+    self.timeline_segments.add_thumbnail(img_id, aoi_scores, pos_ms*1e-3, label)
+"""

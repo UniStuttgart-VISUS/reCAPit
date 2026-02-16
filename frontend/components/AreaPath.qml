@@ -17,11 +17,11 @@ Shape {
     smooth: true
 
     ShapePath {
-        fillColor: areaColor
-        strokeColor: Qt.lighter(areaColor, 1.125)
-        strokeWidth: 1
+        //fillColor: areaColor
+        //strokeColor: Qt.lighter(areaColor, 1.25)
+        //strokeWidth: 1.5
+        strokeWidth: 0
 
-        /*
         fillGradient: LinearGradient {
             x1: parent.width / 2
             y1: 0
@@ -30,9 +30,9 @@ Shape {
             y2: parent.height
 
             GradientStop { position: 0.0; color: Qt.darker(areaColor, 1.25) }
-            GradientStop { position: 0.75; color: areaColor }
+            GradientStop { position: 1.0; color: Qt.lighter(areaColor, 1.25) }
         }
-        */
+
         startX: 0
         startY: 0
 

@@ -9,12 +9,8 @@ import "."
 
 Item {
     id: aoiRiver
-    /*
-    required property var stacksTop
-    required property var stacksBottom
-    */
-    required property list<var> stacks
 
+    required property list<var> stacks
     required property var xScale
     required property real tickIntervalMajor
     required property real tickIntervalMinor
@@ -63,69 +59,6 @@ Item {
                 z: 10
             }
         }
-
-        /*
-        Streamgraph {
-            id: streamAttention
-            cmap: aoiRiver.cmap
-            mtsModel: aoiRiver.stacks[0]
-            width: parent.width
-            height: (parent.height - 0) / 2
-            flipped: false
-            z: 10
-        }
-
-        Streamgraph {
-            id: streamActivity
-            cmap: aoiRiver.cmap
-            mtsModel: aoiRiver.stacks[1]
-            //anchors.top: streamAttention.bottom
-            width: parent.width
-            height: (parent.height - 0) / 2
-            flipped: true
-            z: 10
-        }
-        */
-    }
-
-    Repeater {
-        model: tickInfos
-        delegate: Item {
-            required property var modelData
-
-            x: modelData.pos_px 
-            y: 0
-            z: 20  // Higher z-order to be on top
-
-            width: textRectBox.implicitWidth
-            height: parent.height
-
-            Rectangle {
-                x: parent.width / 2
-                width: 2
-                height: parent.height
-                color: "#f0f0f0"
-                z: 5
-            }
-
-            Rectangle {
-                id: textRectBox
-                width: txtLabel.implicitWidth + 5
-                height: 20
-                z: 15
-
-                anchors.centerIn: parent
-                color: "#e0e0e0"
-
-                Text {
-                    id: txtLabel
-                    anchors.centerIn: parent
-                    color: "white"
-                    text: modelData.label
-                    font.weight: Font.Bold
-                }
-            }
-        }
     }
 
     Repeater {
@@ -141,7 +74,8 @@ Item {
             height: parent.height
 
             Rectangle {
-                x: parent.width / 2
+                anchors.horizontalCenter: parent.horizontalCenter
+
                 width: 2
                 height: parent.height
                 color: "#f0f0f0"
@@ -150,12 +84,13 @@ Item {
 
             Rectangle {
                 id: textRectBox
-                width: txtLabel.implicitWidth + 5
-                height: 20
+                width: txtLabel.implicitWidth + 10
+                height: txtLabel.implicitWidth + 10
+                radius: txtLabel.implicitWidth + 10
                 z: 15
 
                 anchors.centerIn: parent
-                color: "#e0e0e0"
+                color: "black"
 
                 Text {
                     id: txtLabel
@@ -163,6 +98,7 @@ Item {
                     color: "white"
                     text: modelData.label
                     font.weight: Font.Bold
+                    font.pixelSize: 10
                 }
             }
         }
