@@ -12,7 +12,7 @@ class CardLayoutModel(QAbstractListModel):
     DstPosXRole = Qt.ItemDataRole.UserRole + 2
     CardWidthRole = Qt.ItemDataRole.UserRole + 3
     SegmentWidthRole = Qt.ItemDataRole.UserRole + 4
-    SegmentIdx = Qt.ItemDataRole.UserRole + 5
+    SegmentIdxRole = Qt.ItemDataRole.UserRole + 5
 
     # Signal emitted when any data in the model changes (not just row count)
     layoutDataChanged = pyqtSignal()  # noqa: N815
@@ -30,16 +30,8 @@ class CardLayoutModel(QAbstractListModel):
             self.DstPosXRole: b'dstPosX',
             self.CardWidthRole: b'cardWidth',
             self.SegmentWidthRole: b'segmentWidth',
-            self.SegmentIdx: b'segmentIdx',
+            self.SegmentIdxRole: b'segmentIdx',
         }
-
-    def data_from_segment_idx(self, segment_index: int, role: int) -> Any:
-        indices = [self.data(self.createIndex(idx, 0), self.SegmentIdx) for idx in range(self.rowCount())]
-        if segment_index not in indices:
-            return None
-
-        row = indices.index(segment_index)
-        return self.data(self.createIndex(row, 0), role)
 
     def data(self, index: QModelIndex, role: int) -> Any:
         if not index.isValid() or index.row() >= len(self._data):
@@ -56,10 +48,15 @@ class CardLayoutModel(QAbstractListModel):
             return item.get('cardWidth', 0.0)
         if role == self.SegmentWidthRole:
             return item.get('segmentWidth', 0.0)
-        if role == self.SegmentIdx:
+        if role == self.SegmentIdxRole:
             return item.get('segmentIdx', -1)
 
         return None
+
+    @pyqtSlot(int, result=float)
+    def getDstPosX(self, row: int) -> float:
+        index = self.createIndex(row, 0)
+        return self.data(index, self.DstPosXRole)
 
     def updateData(self, new_data: list[dict]) -> None:  # noqa: N802
         """Update data, only emitting dataChanged for rows that actually changed."""
@@ -96,6 +93,7 @@ class LayoutManager(QObject):
         self._max_width = 15000
         self._card_layout_model = CardLayoutModel(self)
         self._card_layout_model.layoutDataChanged.connect(lambda: self.layoutChanged.emit(-1))
+        self.maxWidthChanged.connect(self.updateCardLayout)
 
         self.top_width = []
         self.top_center_x = []
@@ -113,36 +111,57 @@ class LayoutManager(QObject):
     def max_width(self, val: float) -> float:
         if self._max_width != val:
             self._max_width = val
+            self.maxWidthChanged.emit()
 
     @pyqtSlot(int, bool)
     def is_registered(self, item_id: int):
         return item_id in self.item_ids
 
+    @pyqtSlot()
+    def unregister_all(self) -> None:
+        self.top_width.clear()
+        self.top_center_x.clear()
+        self.top_start_x.clear()
+        self.top_y.clear()
+        self.bottom_width.clear()
+        self.item_ids.clear()
+        self.active.clear()
 
-    @pyqtSlot(int, float, float, float, bool)
-    def register_item(self, item_id: int, pos_x: float,
-                      pos_y: float, width: float, is_active:bool) -> None:  # noqa: FBT001
-
+    @pyqtSlot(int)
+    def register_item(self, item_id: int) -> None:  # noqa: FBT001
 
         if self.is_registered(item_id):
             return
 
-        self.active.append(is_active)
+        self.active.append(False)
         self.item_ids.append(item_id)
-        self.top_center_x.append(pos_x + .5*width)
-        self.top_start_x.append(pos_x)
-        self.top_y.append(pos_y)
-        self.top_width.append(width)
+        self.top_center_x.append(0)
+        self.top_start_x.append(0)
+        self.top_y.append(0)
+        self.top_width.append(0)
         self.bottom_width.append(375)
 
-        self._updateCardLayout()
+
+    @pyqtSlot(int, float, float, float, bool)
+    def update_item(self, item_id: int, pos_x: float,
+                    pos_y: float, width: float, is_active:bool) -> None:  # noqa: FBT001
+
+        if not self.is_registered(item_id):
+            return
+
+        idx = self.item_ids.index(item_id)
+
+        self.active[idx] = is_active
+        self.top_center_x[idx] = pos_x + .5*width
+        self.top_start_x[idx] = pos_x
+        self.top_y[idx] = pos_y
+        self.top_width[idx] = width
 
     @pyqtSlot(int, bool)
     def set_active(self, item_id: int, is_active:bool) -> None:  # noqa: FBT001
         if item_id in self.item_ids:
             idx = self.item_ids.index(item_id)
             self.active[idx] = is_active
-            self._updateCardLayout()
 
     @pyqtSlot(int)
     def unregister_item(self, item_id: int) -> None:
@@ -157,29 +176,33 @@ class LayoutManager(QObject):
             del self.top_width[idx]
             del self.bottom_width[idx]
 
-            self._updateCardLayout()
 
+    @pyqtSlot()
+    def updateCardLayout(self) -> None:  # noqa: N802
+        active_indices = [idx for idx, val in enumerate(self.active) if val]
 
-    def _updateCardLayout(self) -> None:  # noqa: N802
-        if len(self.item_ids) == 0:
+        if len(self.item_ids) == 0 or len(active_indices) == 0:
             self._card_layout_model.updateData([])
             return
 
+        top_center_x = [self.top_center_x[idx] for idx in active_indices]
+        bottom_width = [self.bottom_width[idx] for idx in active_indices]
+
         out = linear_layout(
-            sorted(self.top_center_x), self.bottom_width,
-            min_xpos=self.bottom_width[0] / 2,
+            sorted(top_center_x), bottom_width,
+            min_xpos=bottom_width[0] / 2,
             max_xpos=self._max_width,
         )
 
         out = out.tolist() if out is not None else []
 
         layout_data = [{
-            'segmentIdx': self.item_ids[idx],
-            'srcPosX': out[idx],
-            'dstPosX': self.top_start_x[idx],
-            'cardWidth': self.bottom_width[idx],
-            'segmentWidth': self.top_width[idx],
-        } for idx, _ in enumerate(self.top_center_x) if self.active[idx]]
+            'segmentIdx': self.item_ids[dst_idx],
+            'srcPosX': out[src_idx],
+            'dstPosX': self.top_start_x[dst_idx],
+            'cardWidth': bottom_width[src_idx],
+            'segmentWidth': self.top_width[dst_idx],
+        } for src_idx, dst_idx in enumerate(active_indices)]
 
         self._card_layout_model.updateData(layout_data)
 
@@ -192,55 +215,45 @@ class LayoutManager(QObject):
 class CardListModel(QAbstractListModel):
     CardDataRole = Qt.ItemDataRole.UserRole + 1
     LayoutRole = Qt.ItemDataRole.UserRole + 2
-    IsVisibleRole = Qt.ItemDataRole.UserRole + 3
 
     def __init__(self, timeline_model: TimelineSegmentModel,
                  layout_model: LayoutManager, parent: QObject = None) -> None:
         super().__init__(parent)
         self.timeline_model = timeline_model
         self.layout_model = layout_model
-        self.timeline_model.attributeChanged.connect(self.update_data)
+        self.timeline_model.displayStateChanged.connect(self.fetch_topic_card_data)
         self.layout_model.layoutChanged.connect(self.reset_all)
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: B008, N802
-        return self.timeline_model.rowCount()
+        return self.layout_model.card_layout().rowCount()
 
     def roleNames(self) -> dict[int, bytes]:  # noqa: N802
         return {
             self.CardDataRole: b'cardDataX',
             self.LayoutRole: b'layoutData',
-            self.IsVisibleRole: b'isVisible',
         }
 
     def reset_all(self):
         self.beginResetModel()
-        print('RESET ALL')
         self.endResetModel()
 
-    def update_data(self, row: int) -> None:
+    @pyqtSlot(int)
+    def fetch_topic_card_data(self, row: int) -> None:
         index = self.createIndex(row, 0)
         self.dataChanged.emit(index, index, [self.CardDataRole])
-        print(f"update data: {index.row()}")
 
     def data(self, index: QModelIndex, role: int) -> Any:
         if not index.isValid() or index.row() >= self.rowCount():
             return None
 
-        row = index.row()
-        has_layout = self.layout_model.is_registered(row)
+        layout = self.layout_model.card_layout()
 
         if role == self.CardDataRole:
-            return self.timeline_model.GetTopicCardData(row)
+            segment_idx = layout.data(index, CardLayoutModel.SegmentIdxRole)
+            return self.timeline_model.topic_card_data(segment_idx)
         if role == self.LayoutRole:
-            layout = self.layout_model.card_layout()
             return {
-                'x': layout.data_from_segment_idx(row, CardLayoutModel.SrcPosXRole),
-                'width': layout.data_from_segment_idx(row, CardLayoutModel.CardWidthRole),
-            } if has_layout else {
-                'x': 0,
-                'width': 0,
+                'srcPosX': layout.data(index, CardLayoutModel.SrcPosXRole),
+                'cardWidth': layout.data(index, CardLayoutModel.CardWidthRole),
             }
-        if role == self.IsVisibleRole:
-            return has_layout
-
         return None

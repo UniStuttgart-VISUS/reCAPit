@@ -1,15 +1,20 @@
 import logging
-import numpy as np
-import pandas as pd
 
 from TopicCard import TopicCardData
-from utils import longest_common_substring
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QAbstractListModel, Qt, QModelIndex, pyqtProperty
+from utils import speaker_time_by_role
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, QAbstractListModel, Qt, QModelIndex, pyqtProperty, QRectF
 from typing import Any
 from NotesModel import NotesModel
 from StackedSeries import StackedSeries
 from ThumbnailModel import ThumbnailModel
 from TimelineModel import SubjectMultimodalData
+from PyQt6.QtMultimedia import QVideoSink
+from TimelineSegment import TimelineSegment, DisplayState
+from TranscriptRecord import TranscriptRecord
+from HeatmapProvider import HeatmapOverlayProvider
+from ThumbnailProvider import ThumbnailProvider
+from dataclasses import asdict
+
 
 class TimelineSegmentModel(QAbstractListModel):
     TitleRole = Qt.ItemDataRole.UserRole + 1
@@ -26,55 +31,74 @@ class TimelineSegmentModel(QAbstractListModel):
     MarkedRole = Qt.ItemDataRole.UserRole + 12
     SummariesRole = Qt.ItemDataRole.UserRole + 13
     LabelsRole = Qt.ItemDataRole.UserRole + 14
+    TranscriptRecordsRole = Qt.ItemDataRole.UserRole + 15
+    DisplayStateRole = Qt.ItemDataRole.UserRole + 16 # highlighted; visible; hidden;
 
     countChanged = pyqtSignal()  # noqa: N815
-    cardVisibleChanged = pyqtSignal()  # noqa: N815
+    cardVisibleChanged = pyqtSignal(int, bool)  # noqa: N815
     titleChanged = pyqtSignal(int, str)  # noqa: N815 - row, new_title
     startSecChanged = pyqtSignal(int, float)  # noqa: N815 - row, new_start
     endSecChanged = pyqtSignal(int, float)  # noqa: N815 - row, new_end
     hasCardChanged = pyqtSignal(int, bool)  # noqa: N815 - row, new_value
-    quotesTextChanged = pyqtSignal(int, 'QVariantMap')  # noqa: N815 - row, new_value
+    quotesTextChanged = pyqtSignal(int, str)  # noqa: N815 - row, new_value
     quotesNoteChanged = pyqtSignal(int, str)  # noqa: N815 - row, new_value
     markedChanged = pyqtSignal(int, bool)  # noqa: N815 - row, new_value
     labelsChanged = pyqtSignal(int)  # noqa: N815 - row, new_value
-    attributeChanged = pyqtSignal(int)  # noqa: N815 - row, new_value
+    transcriptRecordsChanged = pyqtSignal(int)  # noqa: N815 - row, new_value
+    displayStateChanged = pyqtSignal(int, str)  # noqa: N815 - row, new_value
+
+    resetTopicCard = pyqtSignal(int)  # noqa: N815 - row, new_value
 
     def __init__(self,
-                 titles: list[str],
-                 has_card: list[bool],
-                 start_ts: list[float],
-                 end_ts: list[float],
-                 transcript: pd.DataFrame,
+                 segments: list[TimelineSegment],
+                 transcripts_records: list[list[TranscriptRecord]],
                  stacked_data: dict[str, StackedSeries],
                  subject_data: dict[str, SubjectMultimodalData],
+                 thumbnail_provider: ThumbnailProvider,
+                 overlay_providers: dict[str, HeatmapOverlayProvider],
                  notes_data: NotesModel,
                  roles: list[str],
-                 quotes_text: list[dict],
-                 quotes_note: list[str],
-                 thumbnail_info: list[ThumbnailModel],
-                 marked: list[bool],
-                 summaries: list[str],
-                 labels: list[str],
                  parent: object = None) -> None:
         super().__init__(parent)
+
+        num_segments = len(segments)
+
+        self.titles = [seg.title for seg in segments]
+        self.start_ts = [seg.start_ts for seg in segments]
+        self.end_ts = [seg.end_ts for seg in segments]
+        self.summaries = [seg.summary for seg in segments]
+
+        # Fields from TimelineSegment dataclass
+        self.marked = [seg.marked for seg in segments]
+        self.has_card = [seg.has_card for seg in segments]
+        self.labels = [list(seg.labels) for seg in segments]
+        self.quotes_text = [seg.quotes_text.original for seg in segments]
+        self.quotes_note = [seg.quotes_note for seg in segments]
+        self.display_state = [DisplayState.VISIBLE for _ in range(num_segments)]
+
+        # Runtime-dependent fields (not part of dataclass)
+        self.thumbnail_info = [ThumbnailModel(self) for _ in range(num_segments)]
+        self.video_overlay_info = [{} for _ in range(num_segments)]
+
+        self.indices = list(range(num_segments))
+        self.heatmap_overlay_providers = overlay_providers
+        self.thumbnail_provider = thumbnail_provider
+
+        for provider in self.heatmap_overlay_providers.values():
+            provider.segments_start = self.start_ts
+            provider.segments_end = self.end_ts
+
+        for segment_idx in range(num_segments):
+            self.video_overlay_info[segment_idx] = {
+                name: f'image://heatmaps_{name}/' + provider.img_id(segment_idx)
+                for name, provider in self.heatmap_overlay_providers.items()
+            }
+
         self.roles = roles
-        self.titles = titles
-        self.indices = list(range(len(titles)))
-        self.start_ts = start_ts
-        self.end_ts = end_ts
         self.notes_data = notes_data
         self.stacked_data = stacked_data
         self.subject_data = subject_data
-        self.has_card = has_card
-        self.labels = labels
-        self.transcript = transcript
-        self.quotes_text = quotes_text
-        self.quotes_note = quotes_note 
-        self.thumbnail_info = thumbnail_info
-        self.marked = marked
-        self._summaries = summaries
-
-        self.dataChanged.connect(lambda start, end, role: self.attributeChanged.emit(start.row()))
+        self.transcript_records = transcripts_records
 
     @pyqtProperty(int, notify=countChanged)
     def count(self) -> int:
@@ -118,6 +142,8 @@ class TimelineSegmentModel(QAbstractListModel):
             self.MarkedRole: b'marked',
             self.SummariesRole: b'summaries',
             self.LabelsRole: b'labels',
+            self.TranscriptRecordsRole: b'transcriptRecords',
+            self.DisplayStateRole: b'displayState',
         }
 
     def data(self, index: QModelIndex, role: int) -> Any:  # noqa: PLR0911
@@ -151,9 +177,13 @@ class TimelineSegmentModel(QAbstractListModel):
         if role == self.MarkedRole:
             return self.marked[row]
         if role == self.SummariesRole:
-            return self._summaries[row]
+            return self.summaries[row]
         if role == self.LabelsRole:
             return self.labels[row]
+        if role == self.TranscriptRecordsRole:
+            return [asdict(tr) for tr in self.transcript_records[index]]
+        if role == self.DisplayStateRole:
+            return str(self.display_state[row])
 
         return None
 
@@ -173,6 +203,20 @@ class TimelineSegmentModel(QAbstractListModel):
                 self.titles[row] = value
                 self.dataChanged.emit(index, index, [role])
                 self.titleChanged.emit(row, value)
+            return True
+
+        if role == self.DisplayStateRole:
+            if self.display_state[row] != DisplayState(value):
+                self.display_state[row] = DisplayState(value)
+                self.dataChanged.emit(index, index, [role])
+                self.displayStateChanged.emit(row, value)
+            return True
+
+        if role == self.TranscriptRecordsRole:
+            if self.transcript_records[row] != value:
+                self.transcript_records[row] = value
+                self.dataChanged.emit(index, index, [role])
+                self.transcriptRecordsChanged.emit(row, value)
             return True
 
         if role == self.LabelsRole:
@@ -201,7 +245,7 @@ class TimelineSegmentModel(QAbstractListModel):
                 self.has_card[row] = value
                 self.dataChanged.emit(index, index, [role])
                 self.hasCardChanged.emit(row, value)
-                self.cardVisibleChanged.emit()
+                self.cardVisibleChanged.emit(row, value)
             return True
 
         if role == self.QuotesTextRole:
@@ -226,8 +270,6 @@ class TimelineSegmentModel(QAbstractListModel):
             return True
 
         return False
-
-
 
     @pyqtSlot(int, str)
     def setTitle(self, row: int, title: str) -> bool:  # noqa: N802
@@ -257,8 +299,13 @@ class TimelineSegmentModel(QAbstractListModel):
     def setQuotesText(self, row: int, quotes_text: str) -> bool:  # noqa: N802
         """Update the quotes text at the specified row."""
         index = self.index(row, 0)
-        quotes = self.extract_quotes(row, quotes_text)
-        return self.setData(index, quotes, self.QuotesTextRole)
+        return self.setData(index, quotes_text, self.QuotesTextRole)
+
+    @pyqtSlot(int, str)
+    def setDisplayState(self, row: int, display_state: str) -> bool:  # noqa: N802
+        """Update the quotes text at the specified row."""
+        index = self.index(row, 0)
+        return self.setData(index, DisplayState(display_state), self.DisplayStateRole)
 
     @pyqtSlot(int, str)
     def setQuotesNote(self, row: int, quotes_note: str) -> bool:  # noqa: N802
@@ -271,6 +318,16 @@ class TimelineSegmentModel(QAbstractListModel):
         """Update the marked flag at the specified row."""
         index = self.index(row, 0)
         return self.setData(index, marked, self.MarkedRole)
+
+    @pyqtSlot(int, result=bool)
+    def isMarked(self, row: int) -> bool:  # noqa: N802
+        index = self.index(row, 0)
+        return self.data(index, self.MarkedRole)
+
+    @pyqtSlot(int, result=bool)
+    def hasCard(self, row: int) -> bool:  # noqa: N802
+        index = self.index(row, 0)
+        return self.data(index, self.HasCardRole)
 
     @pyqtSlot(int)
     def toggleMarked(self, row: int) -> bool:  # noqa: N802
@@ -286,83 +343,44 @@ class TimelineSegmentModel(QAbstractListModel):
             return self.thumbnail_info[row]
         return None
 
+    @pyqtSlot(int, list, int, str)
+    def add_thumbnail(self, row: int, img_id: str, aoi_scores: list,
+                      pos_sec: float, label: str) -> None:
+        index = self.index(row, 0)
+        if 0 <= row < len(self.thumbnail_info):
+            self.thumbnail_info[row].append(img_id, aoi_scores, pos_sec, label)
+            self.dataChanged.emit(index, index, [self.ThumbnailInfoRole])
+
+    @pyqtSlot(int, list, int, str)
+    def remove_thumbnail(self, row: int, crop_idx: int) -> None:
+        index = self.index(row, 0)
+        if 0 <= row < len(self.thumbnail_info) and 0 <= row < len(self.labels):
+            del self.labels[row][crop_idx]
+            self.thumbnail_info[row].removeRow(crop_idx)
+            self.dataChanged.emit(index, index, [self.ThumbnailInfoRole, self.LabelsRole])
+
+    @pyqtSlot(int, str)
+    def add_label(self, row: int, label: str) -> None:
+        index = self.index(row, 0)
+        if 0 <= row < len(self.labels):
+            self.labels[row].append(label)
+            self.dataChanged.emit(index, index, [self.LabelsRole])
+
     @pyqtSlot(int, result=str)
     def getSummary(self, row: int) -> str:  # noqa: N802
         """Get the summary at the specified row (read-only)."""
-        if 0 <= row < len(self._summaries):
-            return self._summaries[row]
+        if 0 <= row < len(self.summaries):
+            return self.summaries[row]
         return ''
 
-    @pyqtSlot(int, str, result=bool)
-    def updateField(self, row: int, field_name: str, value: Any) -> bool:  # noqa: N802
-        """Update a field by name at the specified row.
-
-        Args:
-            row: The row index to update
-            field_name: The name of the field ('title', 'startSec', 'endSec', 'hasCard',
-                        'quotesText', 'quotesNote', 'marked')
-            value: The new value for the field
-
-        Returns:
-            True if the update was successful, False otherwise
-        """
-        role_map = {
-            'title': self.TitleRole,
-            'startSec': self.StartSecRole,
-            'endSec': self.EndSecRole,
-            'hasCard': self.HasCardRole,
-            'quotesText': self.QuotesTextRole,
-            'quotesNote': self.QuotesNoteRole,
-            'marked': self.MarkedRole,
-        }
-        role = role_map.get(field_name)
-        if role is None:
-            return False
-        index = self.index(row, 0)
-        return self.setData(index, value, role)
-
-    def extract_quotes(self, index: int, text: str) -> dict:
-        text_units = text.split('\n\n')
-        text_units = [t.replace('\n', ' ').strip() for t in text_units if len(t) > 0]
-        formatted = []
-        speaker_quotes = []
-
-        for tu in text_units:
-            results = []
-
-            for line in self.GetUtteranceSpeakerPairs(index):
-                line_text = line['text'].replace('\n', ' ').strip()
-                match = longest_common_substring(tu, line_text)
-
-                src = line['speaker']
-                cnt = sum(other_src == src for other_src, _, _ in results)
-                results.append((src, cnt, match))
-
-            max_idx = np.argmax([res['size'] for _, _, res in results])
-            src, idx, res = results[max_idx]
-
-            if (res['size'] / len(tu)) > 0.5:
-                quote_label = f'{src.upper()[:2]}{idx + 1}'
-
-                if quote_label not in self.labels[index]:
-                    self.labels[index].append(quote_label)
-
-                formatted.append(
-                    f'{tu[0 : res["a"]]} <font color="grey"><b>{quote_label}</b></font> <font color="black"><u>{tu[res["a"] : res["a"] + res["size"]]}</u></font>{tu[res["a"] + res["size"] :]}'
-                )
-                speaker_quotes.append(
-                    {'speaker': src, 'label': quote_label ,'text': tu[res['a'] : res['a'] + res['size']]},
-                )
-            else:
-                formatted.append(tu)
-
-        formatted = '<br><br>'.join(formatted)
-        return {'original': text,
-                'formatted': formatted,
-                'quotes': speaker_quotes}
+    @pyqtSlot()
+    def reset_segments(self):
+        self.beginResetModel()
+        self.endResetModel()
 
     @pyqtSlot(int, result=TopicCardData)
-    def GetTopicCardData(self, index):
+    def topic_card_data(self, index: int) -> TopicCardData:
+        print(f'Generate topic card for: {index}')
         start_ts = self.start_ts
         end_ts = self.end_ts
 
@@ -371,50 +389,77 @@ class TimelineSegmentModel(QAbstractListModel):
         tcd.labels = []
         tcd.title = self.titles[index]
         tcd.marked = self.marked[index]
-        tcd.summary = self._summaries[index]
+        tcd.summary = self.summaries[index]
 
         tcd.dists_stats = {}
-        tcd.dists_stats['speaker'] = self.speaker_time_by_role(index)
+        tcd.dists_stats['speaker'] = speaker_time_by_role(self.transcript_records[index],
+                                                          self.roles,
+                                                          self.end_ts[index]-self.start_ts[index])
 
         for key in self.stacked_data:
             tcd.dists_stats[key] = self.stacked_data[key].slice(start_ts[index], end_ts[index]).LabelDistribution()
 
         tcd.text_notes = self.quotes_note[index]
-        tcd.text_dialogues = self.quotes_text[index]
+        tcd.text_quotes = self.quotes_text[index]
         tcd.pos_start_sec = start_ts[index]
         tcd.pos_end_sec = end_ts[index]
         tcd.thumbnail_crops = self.thumbnail_info[index]
         tcd.notesHTML = self.get_notes_segment(index).allHTML()
-        tcd.dialogue = self.GetUtteranceSpeakerPairs(index)
+        tcd.dialogue = self.transcript_records[index]
+        tcd.video_overlays = self.video_overlay_info[index]
+        tcd.display_state = self.display_state[index]
         return tcd
 
-    def speaker_time_by_role(self, idx: int) -> dict[str, float]:
-        start_ts = self.start_ts[idx]
-        end_ts = self.end_ts[idx]
+    @pyqtSlot(QVideoSink, float, int, QRectF, str, result=str)
+    def register_video_crop(
+        self,
+        video_sink: QVideoSink,
+        pos_ms: float,
+        segment_idx: int,
+        selection_norm: QRectF,
+        overlay_src: str,
+    ) -> str:
 
-        roles = self.roles
-        total_dur = end_ts - start_ts
+        img = video_sink.videoFrame().toImage()
+        size = img.size()
 
-        part = self.transcript[
-            (self.transcript['start timestamp [sec]'] >= start_ts)
-            & (self.transcript['end timestamp [sec]'] <= end_ts)
-        ]
-        role_durations = part.groupby('role')['duration [sec]'].sum()
-        return {role: float(role_durations.get(role, 0)) / total_dur for role in roles}
+        norm_x = selection_norm.x()
+        norm_y = selection_norm.y()
+        norm_width = selection_norm.width()
+        norm_height = selection_norm.height()
 
+        x = int(norm_x * size.width())
+        y = int(norm_y * size.height())
 
-    def GetUtteranceSpeakerPairs(self, index: int):
-        start_ts = self.start_ts[index]
-        end_ts = self.end_ts[index]
+        width = int(norm_width * size.width())
+        height = int(norm_height * size.height())
 
-        part = self.transcript[
-            (self.transcript['start timestamp [sec]'] >= start_ts)
-            & (self.transcript['end timestamp [sec]'] <= end_ts)
-        ]
+        crop = img.copy(x, y, width, height)
+        img_id, label = self.thumbnail_provider.add_to_collection(
+            segment_idx, crop, overlay_src,
+        )
 
-        utterances = part['text'].tolist()
-        speakers = part['speaker'].tolist()
-        start_times = part['start timestamp [sec]'].tolist()
-        end_times = part['end timestamp [sec]'].tolist()
+        self.add_label(segment_idx, label)
+        self.add_thumbnail(segment_idx, img_id, {}, pos_ms*1e-3, label)
+        return label
 
-        return [{'text': u, 'speaker': s, 'start_time': st, 'end_time': et} for s, u, st, et in zip(speakers, utterances, start_times, end_times)]
+    @pyqtSlot(int, int)
+    def deregister_video_crop(self, segment_idx: int, crop_idx: int) -> None:
+        self.remove_thumbnail(segment_idx, crop_idx)
+
+    @pyqtSlot(list, result=bool)
+    def keyword_match(self, keywords: list[str]) -> bool:
+        has_matched = False
+
+        for segment_idx in range(len(self.start_ts)):
+            records = self.transcript_records[segment_idx]
+            segment_txt = '.'.join([r.text.lower() for r in records])
+
+            for kw in keywords:
+                if kw.lower() in segment_txt:
+                    self.setDisplayState(segment_idx, DisplayState.HIGHLIGHTED)
+                    #self.resetTopicCard.emit(segment_idx)
+                    has_matched = True
+                    break
+
+        return has_matched
