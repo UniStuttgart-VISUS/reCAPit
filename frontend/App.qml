@@ -14,7 +14,7 @@ import "js/colorschemes.js" as Colorschemes
 import "."
 
 ApplicationWindow {
-    id: appwin
+    id: appWindow
     visible: true
     width: 1920
     height: 1080
@@ -24,19 +24,96 @@ ApplicationWindow {
     readonly property var timelineVSpace: 7
     readonly property var timelineTopMargin: 50
     readonly property var rootTopMargin: 25
-    readonly property int timelineSegmentHeight: 90 + 175 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+    readonly property int timelineSegmentHeight: 90 + 175 + aoiModel.timeline_count() * (appWindow.timelineHeight + appWindow.timelineVSpace)
 
     property var cmapGlobal: {}
     property var currCardData
-
-    signal reset()
+    property int state: Constants.AppState.Default
 
     function compressSegments() {
-        // TODO : Implement
+        appWindow.state = Constants.AppState.Compressed;
+    }
+
+    function reset() {
+        appWindow.state = Constants.AppState.Default;
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Q"
+        onActivated: {
+            close();
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+R"
+        onActivated: {
+            reset();
+        }
+    }
+
+    MessageDialog {
+        id: successDialog
+        buttons: MessageDialog.Ok
+    }
+
+    FolderDialog {
+        id: exportBookmarkedDialog
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.export_bookmarked(dir_path)
+
+            successDialog.title = "Export bookmarked segments";
+
+            if (success) {
+                successDialog.text = "Successfully exported bookmarked segments!";
+            }
+            else {
+                successDialog.text = "Failed to export bookmarked segments to %1".arg(dir_path);
+            }
+            successDialog.open();
+        }
+    }
+
+    FolderDialog {
+        id: saveDialog
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.export_state(dir_path)
+
+            successDialog.title = "Save state";
+
+            if (success) {
+                successDialog.text = "Successfully saved state!";
+            }
+            else {
+                successDialog.text = "Failed to save state to %1".arg(dir_path);
+            }
+            successDialog.open();
+        }
+    }
+
+    FolderDialog {
+        id: loadDialog
+        currentFolder: aoiModel.ExportDir()
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
+            const success = topicSegments.import_state(dir_path)
+
+            successDialog.title = "Restore State";
+
+            if (success) {
+                successDialog.text = "Successfully loaded state!";
+            }
+            else {
+                successDialog.text = "Failed to load state from %1".arg(dir_path);
+            }
+            successDialog.open();
+        }
     }
 
     PreferenceWindow {
-        id: preferencePane
+        id: preferenceWindow
         width: 640
         height: 480
     }
@@ -46,33 +123,64 @@ ApplicationWindow {
     }
 
     menuBar: CustomMenuBar {
-        onOpenAboutWindow: {
-            aboutWindow.show();
-        }
-        onOpenPreferenceWindow: {
-            preferencePane.show();
+        onActionRequested: (action) => {
+            switch (action) {
+                case Constants.AppActions.LoadState:
+                    loadDialog.open();
+                    break;
+                case Constants.AppActions.SaveState:
+                    saveDialog.open();
+                    break;
+                case Constants.AppActions.ExportBookmarked:
+                    exportBookmarkedDialog.open();
+                    break;
+                case Constants.AppActions.ScaleUp:
+                    layoutManager.max_width *= 1.5;
+                    break;
+                case Constants.AppActions.ScaleDown:
+                    layoutManager.max_width /= 1.5;
+                    break;
+                case Constants.AppActions.OpenProject:
+                    projectManager.open_manager();
+                    appWindow.close();
+                    break;
+                case Constants.AppActions.OpenPreferences:
+                    preferenceWindow.show();
+                    break;
+                case Constants.AppActions.OpenAbout:
+                    aboutWindow.show();
+                    break;
+                case Constants.AppActions.Search:
+                    keywordDialog.open();
+                    break;
+                case Constants.AppActions.Reset:
+                    appWindow.reset();
+                    break;
+                case Constants.AppActions.Quit:
+                    appWindow.close();
+                    break;
+            }
         }
     }
 
     TopicCardDrawer {
         id: drawer
 
-        height: appwin.height
+        height: appWindow.height
         interactive: true
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         contentWidth: 600
-        contentHeight: appwin.height
+        contentHeight: appWindow.height
 
-        cardData: appwin.currCardData
-        colormap: appwin.cmapGlobal
+        cardData: appWindow.currCardData
+        colormap: appWindow.cmapGlobal
 
         onSaveChanges: (user_title, user_text, user_notes) => {
-            const modelRow = appwin.currCardData.SegmentIndex();
-            topicSegments.timeline_segment_model.setTitle(modelRow, user_title);
-            topicSegments.timeline_segment_model.setQuotesNote(modelRow, user_notes);
-            topicSegments.timeline_segment_model.setQuotesText(modelRow, user_text);
+            appWindow.currCardData.Title = user_title;
+            appWindow.currCardData.UserQuotes = user_text;
+            appWindow.currCardData.UserNotes = user_notes;
         }
     }
 
@@ -86,21 +194,24 @@ ApplicationWindow {
         closePolicy: Popup.CloseOnEscape
 
         onKeywordSearch: (keywords) => {
-            var targetIndices = topicSegments.KeywordMatches(keywords);
-            for (var i = 0; i < cardsRoot.children.length; ++i) {
-                const idx = cardsRoot.children[i].cardData.SegmentIndex();
-                cardsRoot.children[i].opacity = targetIndices.includes(idx) ? 1.0 : 0.5;
+            const has_matched = timeline_segment_model.keyword_match(keywords);
+            if (has_matched) {
+                appWindow.state = Constants.AppState.Search;
+            }
+            // I also true when there are no keywords entered or search was discarded by user
+            else {
+                appWindow.state = Constants.AppState.Default;
             }
         }
     }
 
     Component.onCompleted: {
-        appwin.cmapGlobal = Colorschemes.createCombinedColormaps(aoiModel.ColormapCategories());
-        preferencePane.userConfig = aoiModel.UserConfig();
+        appWindow.cmapGlobal = Colorschemes.createCombinedColormaps(aoiModel.ColormapCategories());
+        preferenceWindow.userConfig = aoiModel.UserConfig();
     }
 
     Connections {
-        target: preferencePane
+        target: preferenceWindow
         function onSaveCurrentUserConfig(user_config) {
             aoiModel.SetUserConfig(user_config);
 
@@ -126,8 +237,8 @@ ApplicationWindow {
             source: "../icons/reset.png"
             tooltipText: "Reset the timeline to its initial state"
 
-            onClicked: function() {
-                appwin.reset();
+            onClicked: {
+                appWindow.reset();
                 scroll.ScrollBar.horizontal.position = 0.0;
             }
         }
@@ -140,8 +251,8 @@ ApplicationWindow {
             source: "../icons/compress.png"
             tooltipText: "Compress the timeline, retaining only the marked segments."
 
-            onClicked: function() {
-                appwin.compressSegments();
+            onClicked: {
+                appWindow.compressSegments();
                 scroll.ScrollBar.horizontal.position = 0.0;
             }
         }
@@ -154,7 +265,7 @@ ApplicationWindow {
             source: "../icons/search.png"
             tooltipText: "Open keyword search dialog"
 
-            onClicked: function() {
+            onClicked: {
                 keywordDialog.open();
             }
         }
@@ -191,14 +302,14 @@ ApplicationWindow {
             LegendCategories {
                 title: "Roles"
                 labels: aoiModel.Roles()
-                cmap: appwin.cmapGlobal
+                cmap: appWindow.cmapGlobal
             }
 
             LegendCategories {
                 id: aoiLegend
                 title: "AOIs"
                 labels: aoiModel.Labels()
-                cmap: appwin.cmapGlobal
+                cmap: appWindow.cmapGlobal
             }
         }
     }
@@ -222,7 +333,7 @@ ApplicationWindow {
 
             h1: 175
             h2: 30
-            h3: 60 + topicSegments.SpeechLineCount() * (appwin.timelineHeight + appwin.timelineVSpace)
+            h3: 60 + aoiModel.timeline_count() * (appWindow.timelineHeight + appWindow.timelineVSpace)
             h4: 500
         }
 
@@ -231,7 +342,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            contentWidth: 15000
+            contentWidth: layoutManager.max_width
             contentHeight: 1000
 
             flickableDirection: Flickable.HorizontalFlick
@@ -252,13 +363,33 @@ ApplicationWindow {
                     id: tsRoot
                     z: 5
                     Layout.fillWidth: true
-                    height: appwin.timelineSegmentHeight
+                    height: appWindow.timelineSegmentHeight
                     orientation: ListView.Horizontal
 
-                    property real start: topicSegments.MinTimestamp()
-                    property real end: topicSegments.MaxTimestamp()
+                    property real start: aoiModel.start_offset_sec()
+                    property real end: aoiModel.total_duration_sec()
 
-                    model: topicSegments.timeline_segment_model
+                    onContentWidthChanged: {
+                        Qt.callLater(() => {
+                            for (var idx = 0; idx < tsRoot.count; idx++) {
+                                const item = tsRoot.itemAtIndex(idx);
+
+                                const marked = timeline_segment_model.isMarked(idx);
+                                const hasCard = timeline_segment_model.hasCard(idx);
+                                const isCompressed = (appWindow.state === Constants.AppState.Compressed && !marked) 
+                                const pos_x = item.mapToItem(tsRoot, 0.0, 0.0).x;
+
+                                layoutManager.update_item(idx, 
+                                                          pos_x,
+                                                          0.0,
+                                                          item.width, 
+                                                          hasCard && !isCompressed);
+                            }
+                        });
+                        Qt.callLater(layoutManager.updateCardLayout);
+                    }
+
+                    model: timeline_segment_model
                     delegate: TimelineSegment {
                         id: ts
 
@@ -271,36 +402,39 @@ ApplicationWindow {
                         required property var seqData
                         required property var thumbnailInfo
                         required property bool hasCard
+                        required property bool marked
+                        required property string displayState
                         required property int index
 
-                        Component.onCompleted: {
-                            // Not so nice solution to get the child's position in parent coordinates
-                            let pos_x = scroll.contentWidth * (ts.startSec - tsRoot.start) / (tsRoot.end - tsRoot.start);
-                            layoutManager.register_item(ts.segmentIdx, 
-                                                        pos_x,
-                                                        0.0,
-                                                        ts.width, 
-                                                        ts.hasCard);
+                        opacity: (appWindow.state === Constants.AppState.Search) && displayState !== "highlighted" ? 0.5 : 1.0
+                        
+                        readonly property bool isCompressed: (appWindow.state === Constants.AppState.Compressed && !marked) 
+                        readonly property real baseWidth: Math.floor(layoutManager.max_width * (endSec - startSec) / (tsRoot.end - tsRoot.start));
 
+                        Component.onCompleted: {
+                            layoutManager.register_item(ts.segmentIdx);
                         }
 
                         Component.onDestruction: {
                             layoutManager.unregister_item(ts.segmentIdx);
+                            Qt.callLater(layoutManager.updateCardLayout)
                         }
 
                         onCardVisibilityChanged: (visible) => {
-                            //topicSegments.timeline_segment_model.setHasCard(ts.index, visible);
+                            //timeline_segment_model.setHasCard(ts.index, visible);
                             layoutManager.set_active(ts.segmentIdx, visible);
+                            Qt.callLater(layoutManager.updateCardLayout)
                         }
 
-                        width: Math.floor(15000 * (endSec - startSec) / (tsRoot.end - tsRoot.start));
+                        width: isCompressed ? 20 : baseWidth
                         height: parent.height
+                        hideContent: isCompressed
 
                         segmentTitle: ts.title
                         dia: ts.seqData
                         tan: ts.timeEvents
                         stacks: ts.stackedData
-                        cmap: appwin.cmapGlobal
+                        cmap: appWindow.cmapGlobal
                         topicIndex: ts.segmentIdx
                         cardVisible: ts.hasCard
                         min_ts: ts.startSec
@@ -342,33 +476,54 @@ ApplicationWindow {
 
                     Repeater {
                         anchors.fill: parent
-                        model: cardList 
+                        model: cardList
 
                         delegate: TopicCard {
                             id: topicCard
 
-                            required property var cardDataX
                             required property var layoutData
-                            required property bool isVisible
-                            required property int index
+                            required property var cardDataX
 
-                            visible: topicCard.isVisible
+                            readonly property real srcPosX: layoutData.srcPosX
+                            readonly property real cardWidth: layoutData.cardWidth
+                            readonly property int segmentIdx: cardDataX.SegmentIndex
+                            //property var cardDataX: timeline_segment_model.topic_card_data(segmentIdx)
+
+                            readonly property string displayState: cardDataX.DisplayState
+                            opacity: (appWindow.state === Constants.AppState.Search) && displayState !== "highlighted" ? 0.5 : 1.0
+
+                            Connections {
+                                target: cardDataX
+
+                                function onTitleChanged() {
+                                    timeline_segment_model.setTitle(segmentIdx, cardDataX.Title);
+                                }
+                                function onUserQuotesChanged() {
+                                    timeline_segment_model.setQuotesText(segmentIdx, cardDataX.UserQuotes);
+                                }
+                                function onUserNotesChanged() {
+                                    timeline_segment_model.setQuotesNote(segmentIdx, cardDataX.UserNotes);
+                                }
+                                function onMarkedChanged() {
+                                    timeline_segment_model.setMarked(segmentIdx, cardDataX.Marked);
+                                }
+                                function onThumbnailAdded(frame, pos_ms, selection_rect, overlay_src) {
+                                    // Not super clean way to propagate label to back to TopicCardData
+                                    const label = timeline_segment_model.register_video_crop(frame, pos_ms, segmentIdx, selection_rect, overlay_src); 
+                                    cardDataX.add_label(label);
+                                }
+                            }
 
                             onClicked: {
-                                appwin.currCardData = cardDataX;
-                                drawer.open()
+                                appWindow.currCardData = cardDataX;
+                                drawer.open();
                             }
 
-                            onMarkedChanged: {
-                                const segmentIdx = topicCard.cardDataX.SegmentIndex();
-                                topicSegments.timeline_segment_model.toggleMarked(segmentIdx);
-                            }
-
-                            x: topicCard.layoutData.x - (topicCard.layoutData.width - 50) / 2 
+                            x: topicCard.srcPosX - (topicCard.cardWidth - 50) / 2 
                             y: 0
-                            width: topicCard.layoutData.width - 50
+                            width: topicCard.cardWidth - 50
                             cardData: topicCard.cardDataX
-                            cmap: appwin.cmapGlobal
+                            cmap: appWindow.cmapGlobal
                         }
                     }
                 }
@@ -379,7 +534,13 @@ ApplicationWindow {
         NavigationList {
             Layout.preferredWidth: boxW
             Layout.fillHeight: true
-            model: topicSegments.timeline_segment_model
+            model: timeline_segment_model
+            highlightsActive: appWindow.state === Constants.AppState.Search
+
+            onNavigateTo: (index) => {
+                const pos_x = layoutManager.card_layout().getDstPosX(index);
+                scroll.ScrollBar.horizontal.position = pos_x / tsRootx.width;
+            }
         }
     }
 }
