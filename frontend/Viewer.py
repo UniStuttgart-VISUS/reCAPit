@@ -12,8 +12,8 @@ from TimelineModel import SubjectMultimodalData
 from AppConfig import AppConfig
 from TimelineSegmentModel import TimelineSegmentModel
 from helper.manifest_manager import ManifestManager
-from data_io import export_state, import_state
 
+import data_io
 import TranscriptRecord
 import TimelineSegment
 import pandas as pd
@@ -32,20 +32,20 @@ class Viewer(QObject):
     def __init__(
         self,
         man: ManifestManager,
-        user_config: dict,
-        export_dir: Path,
+        app_config: AppConfig,
         parent=None,
     ) -> None:
         super().__init__(parent)
 
         self.thumbnail_provider = ThumbnailProvider()
         self.heatmap_overlay_providers = {}
+        self.app_config = app_config
 
-        dialogue_line, event_subtypes = SubjectMultimodalData.from_recordings(man.get_recordings(), 
+        dialogue_line, _ = SubjectMultimodalData.from_recordings(man.get_recordings(), 
                                                                               0, man.get_duration_sec())
         SubjectMultimodalData.fill_missing_datatype(dialogue_line)
 
-        self.app_config = AppConfig(man, user_config, export_dir, event_subtypes)
+        user_config = self.app_config.user_config
         self.segments = self.load_segments(man, user_config)
         self.transcript_records = self.load_transcript(self.segments, man)
         self.multi_time = self.load_multi_time(man, user_config)
@@ -110,7 +110,7 @@ class Viewer(QObject):
                                                id_to_roles.get)
 
     def load_notes(self, man: ManifestManager) -> NotesModel:
-        if man.has_global_artifact('notes'):
+        if man.has_artifact('notes'):
             notes_diffs_file = Path(man.get_artifact('notes')['path'])
             logger.info('Registering notes file %s ...', notes_diffs_file)
             notes_model = NotesModel(pd.read_csv(notes_diffs_file))
@@ -136,7 +136,7 @@ class Viewer(QObject):
         return stacked
 
     def load_overlay_providers(self, man: ManifestManager, user_config: dict) -> None:
-        if not man.has_global_artifact('video_overlay'):
+        if not man.has_artifact('video_overlay'):
             return {}
 
         overlay_providers = {}
@@ -156,12 +156,26 @@ class Viewer(QObject):
         return overlay_providers
 
     @pyqtSlot(str, result=bool)
-    def import_state(self, in_dir: str | Path) ->  bool:
+    def import_cards(self, in_dir: str | Path) ->  bool:
         pass
 
-    @pyqtSlot(str, result=bool)
-    def export_state(self, out_dir: str | Path) -> bool:
-        pass
+    @pyqtSlot(str, str, bool, result=bool)
+    def export_cards(self, name: str, out_dir: str, bookmarked_only:bool) -> bool:  # noqa: FBT001
+        out_dir = Path(out_dir)
+
+        if not out_dir.is_dir():
+            return False
+
+        if bookmarked_only:
+            export_dir = out_dir / name / 'bookmarked'
+        else:
+            export_dir = out_dir / name / 'all'
+
+        export_dir.mkdir(exist_ok=True, parents=True)
+        print(export_dir)
+
+        return data_io.json_export(self.timeline_segments, export_dir,
+                                   marked_only=bookmarked_only)
 
     """
     @pyqtSlot(str, str)

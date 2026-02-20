@@ -2,6 +2,7 @@ from CustomVideoOutput import CustomVideoOutput
 
 from PyQt6.QtGui import QSurfaceFormat
 from PyQt6.QtQml import QQmlApplicationEngine, qmlRegisterType
+from PyQt6.QtCore import QSortFilterProxyModel
 from PyQt6.QtWidgets import QApplication
 
 import argparse

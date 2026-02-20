@@ -21,13 +21,24 @@ ApplicationWindow {
 
     readonly property var timelineHeight: 25
     readonly property var placeholderWidth: 30
-    readonly property var timelineVSpace: 7
+    readonly property var timelineVSpace: 10
     readonly property var timelineTopMargin: 50
     readonly property var rootTopMargin: 25
-    readonly property int timelineSegmentHeight: 90 + 175 + aoiModel.timeline_count() * (appWindow.timelineHeight + appWindow.timelineVSpace)
+
+    // Height constants for TimelineSegment internal layout
+    readonly property int aoiRiverHeight: 175
+    readonly property int topicBarHeight: 30
+    readonly property int axisHeight: 30
+    readonly property int seqItemHeight: aoiModel.timeline_count() * (appWindow.timelineHeight + appWindow.timelineVSpace)
+    readonly property int cardsConnectorHeight: 50
+    readonly property int cardsAreaHeight: 400
+
+    // Total height for each TimelineSegment
+    readonly property int timelineSegmentHeight: aoiRiverHeight + topicBarHeight + axisHeight + seqItemHeight + axisHeight
 
     property var cmapGlobal: {}
     property var currCardData
+    property bool showSplitViewHandles: true
     property int state: Constants.AppState.Default
 
     function compressSegments() {
@@ -58,36 +69,32 @@ ApplicationWindow {
     }
 
     FolderDialog {
-        id: exportBookmarkedDialog
-        onAccepted: {
-            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
-            const success = topicSegments.export_bookmarked(dir_path)
-
-            successDialog.title = "Export bookmarked segments";
-
-            if (success) {
-                successDialog.text = "Successfully exported bookmarked segments!";
-            }
-            else {
-                successDialog.text = "Failed to export bookmarked segments to %1".arg(dir_path);
-            }
-            successDialog.open();
-        }
-    }
-
-    FolderDialog {
         id: saveDialog
-        onAccepted: {
-            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "")
-            const success = topicSegments.export_state(dir_path)
+        title: "Save as \"%1\"".arg(nameTextInput.text);
+        property bool exportOnlyBookmarks
 
-            successDialog.title = "Save state";
+        onAccepted: {
+            const dir_path = selectedFolder.toString().replace(/^file:\/\/\//, "");
+            var success = false;
+
+            success = projectViewer.export_cards(nameTextInput.text, dir_path, exportOnlyBookmarks);
+            successDialog.title = "Save as \"%1\"".arg(nameTextInput.text);
 
             if (success) {
-                successDialog.text = "Successfully saved state!";
+                if (exportOnlyBookmarks) {
+                    successDialog.text = "Successfully saved bookmarked cards as \"%1\" to directory %2".arg(nameTextInput.text).arg(dir_path);
+                }
+                else {
+                    successDialog.text = "Successfully saved all cards as \"%1\" to directory %2".arg(nameTextInput.text).arg(dir_path);
+                }
             }
             else {
-                successDialog.text = "Failed to save state to %1".arg(dir_path);
+                if (exportOnlyBookmarks) {
+                    successDialog.text = "Failed to save bookmarked cards as \"%1\" to directory %2".arg(nameTextInput.text).arg(dir_path);
+                }
+                else {
+                    successDialog.text = "Failed to save all cards as \"%1\" to directory %2".arg(nameTextInput.text).arg(dir_path);
+                }
             }
             successDialog.open();
         }
@@ -129,10 +136,24 @@ ApplicationWindow {
                     loadDialog.open();
                     break;
                 case Constants.AppActions.SaveState:
-                    saveDialog.open();
-                    break;
                 case Constants.AppActions.ExportBookmarked:
-                    exportBookmarkedDialog.open();
+                    {
+                        saveDialog.exportOnlyBookmarks = (action === Constants.AppActions.ExportBookmarked);
+                        if (nameTextInput.text !== "") {
+                            saveDialog.open();
+                        }
+                        else {
+                            successDialog.title = "Failed to save";
+                            successDialog.text = "Please specify a name in the text field before saving!";
+                            successDialog.open();
+                        }
+                    }
+                    break;
+                case Constants.AppActions.EnableSplitView:
+                    appWindow.showSplitViewHandles = true;
+                    break;
+                case Constants.AppActions.DisableSplitView:
+                    appWindow.showSplitViewHandles = false;
                     break;
                 case Constants.AppActions.ScaleUp:
                     layoutManager.max_width *= 1.5;
@@ -184,6 +205,8 @@ ApplicationWindow {
         }
     }
 
+    property bool hideApp: false
+
     KeywordSearchDialog {
         id: keywordDialog
         anchors.centerIn: parent
@@ -191,14 +214,22 @@ ApplicationWindow {
         width: 500
         height: 350
 
-        closePolicy: Popup.CloseOnEscape
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        onAboutToShow: {
+            appWindow.hideApp = true;
+        }
+
+        onAboutToHide: {
+            appWindow.hideApp = false;
+        }
 
         onKeywordSearch: (keywords) => {
             const has_matched = timeline_segment_model.keyword_match(keywords);
             if (has_matched) {
                 appWindow.state = Constants.AppState.Search;
             }
-            // I also true when there are no keywords entered or search was discarded by user
+            // Also true when there are no keywords entered or search was discarded by user
             else {
                 appWindow.state = Constants.AppState.Default;
             }
@@ -215,10 +246,12 @@ ApplicationWindow {
         function onSaveCurrentUserConfig(user_config) {
             aoiModel.SetUserConfig(user_config);
 
+            /*
             for (const name of Object.keys(user_config["video_overlay"])) {
                 topicSegments.UpdateOverlayColormap(name, user_config["video_overlay"][name]["colormap"]);
             }
             topicSegments.AdjustFilter(aoiModel.SegmentMinDurSec(), aoiModel.SegmentDisplayDurSec());
+            */
         }
     }
 
@@ -272,7 +305,7 @@ ApplicationWindow {
     }
 
     header: Frame {
-        height: 50
+        height: 60
 
         background: Rectangle {
             color: "#f8f8f8"
@@ -282,12 +315,15 @@ ApplicationWindow {
             anchors.fill: parent
             spacing: 25
 
-            TextInput {
+            TextField {
+                id: nameTextInput
                 Layout.fillHeight: true
-                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: contentWidth
+                Layout.minimumWidth: 250
 
-                text: "Enter headline here ..."
-                font.pixelSize: 26
+                text: ""
+                placeholderText: "Enter name here ..."
+                font.pixelSize: 20
                 font.weight: Font.Bold
                 font.capitalization: Font.AllUppercase
                 color: "#c8c7d1"
@@ -315,8 +351,12 @@ ApplicationWindow {
     }
 
     RowLayout {
+        id: rootContainer
+
+        layer.enabled: true
         anchors.fill: parent
         spacing: 0
+        visible: !appWindow.hideApp
 
         LegendViews {
             id: legend
@@ -331,10 +371,18 @@ ApplicationWindow {
             streamLabels: aoiModel.GetMultiTimeLabels()
             identifiers: [...aoiModel.Identifiers()].sort()
 
-            h1: 175
-            h2: 30
-            h3: 60 + aoiModel.timeline_count() * (appWindow.timelineHeight + appWindow.timelineVSpace)
-            h4: 500
+            // Bind directly to the actual heights of the content items
+            // tsRoot contains TimelineSegment with internal stretch factors (AOIRiver: 5, seqItem: 3)
+            timelineAreaHeight: tsRoot.height
+            topicCardsAreaHeight: cardsConnectorRoot.height + cardsRoot.height
+
+            // Fixed heights for internal components
+            topicBarHeight: appWindow.topicBarHeight
+            axisHeight: appWindow.axisHeight
+
+            // Stretch factors matching TimelineSegment.qml layout
+            aoiRiverStretchFactor: 5
+            seqItemStretchFactor: 3
         }
 
         Flickable {
@@ -343,7 +391,7 @@ ApplicationWindow {
             Layout.fillHeight: true
 
             contentWidth: layoutManager.max_width
-            contentHeight: 1000
+            contentHeight: tsRootx.implicitHeight
 
             flickableDirection: Flickable.HorizontalFlick
             boundsBehavior: Flickable.StopAtBounds
@@ -354,16 +402,43 @@ ApplicationWindow {
                 policy: ScrollBar.AlwaysOn 
             }
 
-            ColumnLayout {
+            SplitView {
                 id: tsRootx
                 spacing: 0
                 width: scroll.contentWidth
+                implicitHeight: tsRoot.contentHeight + cardsConnectorRoot.contentHeight + cardsRoot.contentHeight
+                orientation: Qt.Vertical
+
+                handle: Rectangle {
+                    id: rectHandle
+                    visible: appWindow.showSplitViewHandles
+                    implicitWidth: 4
+                    implicitHeight: 4
+                    color: "#9b81e8"
+
+                    SequentialAnimation on color {
+                        running: parent.visible
+                        loops: Animation.Infinite
+
+                        ColorAnimation {
+                            to: Qt.lighter("#9b81e8", 1.3) 
+                            duration: 1500
+                            easing.type: Easing.InOutQuad
+                        }
+                        ColorAnimation {
+                            to: Qt.darker("#9b81e8", 1.3) 
+                            duration: 1500
+                            easing.type: Easing.InOutQuad
+                        }
+                    }
+                }
+
 
                 ListView {
                     id: tsRoot
                     z: 5
-                    Layout.fillWidth: true
-                    height: appWindow.timelineSegmentHeight
+                    SplitView.fillWidth: true
+                    SplitView.preferredHeight: appWindow.timelineSegmentHeight
                     orientation: ListView.Horizontal
 
                     property real start: aoiModel.start_offset_sec()
@@ -417,11 +492,10 @@ ApplicationWindow {
 
                         Component.onDestruction: {
                             layoutManager.unregister_item(ts.segmentIdx);
-                            Qt.callLater(layoutManager.updateCardLayout)
                         }
 
                         onCardVisibilityChanged: (visible) => {
-                            //timeline_segment_model.setHasCard(ts.index, visible);
+                            timeline_segment_model.setHasCard(ts.index, visible);
                             layoutManager.set_active(ts.segmentIdx, visible);
                             Qt.callLater(layoutManager.updateCardLayout)
                         }
@@ -443,91 +517,101 @@ ApplicationWindow {
                     }
                 }
 
-                Item {
-                    z: 100
-                    id: cardsConnectorRoot
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 50
+                ColumnLayout {
+                    SplitView.fillWidth: true
 
-                    Repeater {
-                        anchors.fill: parent
-                        model: layoutManager.card_layout()
+                    Item {
+                        id: cardsConnectorRoot
+                        z: 50
 
-                        delegate: CardConnector {
-                            id: cardConn
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
 
-                            required property real srcPosX
-                            required property real dstPosX
-                            required property real segmentWidth
+                        Layout.preferredHeight: appWindow.cardsConnectorHeight
 
-                            fromX: cardConn.srcPosX
-                            fromY: 40 
-                            toLeftX: cardConn.dstPosX
-                            toRightX: cardConn.dstPosX + cardConn.segmentWidth
-                            toY: 0
+                        Repeater {
+                            anchors.fill: parent
+                            model: layoutManager.card_layout()
+
+                            delegate: CardConnector {
+                                id: cardConn
+
+                                required property real srcPosX
+                                required property real dstPosX
+                                required property real segmentWidth
+
+                                fromX: cardConn.srcPosX
+                                fromY: cardsConnectorRoot.height - 10 
+                                toLeftX: cardConn.dstPosX
+                                toRightX: cardConn.dstPosX + cardConn.segmentWidth
+                                toY: 1
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: cardsRoot
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: appWindow.cardsAreaHeight
+
+                        Repeater {
+                            anchors.fill: parent
+                            model: cardList
+
+                            delegate: TopicCard {
+                                id: topicCard
+
+                                required property var layoutData
+                                required property var cardDataX
+
+                                readonly property real srcPosX: layoutData.srcPosX
+                                readonly property real cardWidth: layoutData.cardWidth
+                                readonly property int segmentIdx: cardDataX.SegmentIndex
+                                //property var cardDataX: timeline_segment_model.topic_card_data(segmentIdx)
+
+                                readonly property string displayState: cardDataX.DisplayState
+                                opacity: (appWindow.state === Constants.AppState.Search) && displayState !== "highlighted" ? 0.5 : 1.0
+
+                                Connections {
+                                    target: cardDataX
+
+                                    function onTitleChanged() {
+                                        timeline_segment_model.setTitle(segmentIdx, cardDataX.Title);
+                                    }
+                                    function onUserQuotesChanged() {
+                                        timeline_segment_model.setQuotesText(segmentIdx, cardDataX.UserQuotes);
+                                    }
+                                    function onUserNotesChanged() {
+                                        timeline_segment_model.setQuotesNote(segmentIdx, cardDataX.UserNotes);
+                                    }
+                                    function onMarkedChanged() {
+                                        timeline_segment_model.setMarked(segmentIdx, cardDataX.Marked);
+                                    }
+                                    function onThumbnailAdded(frame, pos_ms, selection_rect, overlay_src) {
+                                        // Not super clean way to propagate label to back to TopicCardData
+                                        const label = timeline_segment_model.register_video_crop(frame, pos_ms, segmentIdx, selection_rect, overlay_src); 
+                                        cardDataX.add_label(label);
+                                    }
+                                }
+
+                                onClicked: {
+                                    appWindow.currCardData = cardDataX;
+                                    drawer.open();
+                                }
+
+                                x: topicCard.srcPosX - (topicCard.cardWidth - 50) / 2 
+                                y: 0
+                                width: topicCard.cardWidth - 50
+                                cardData: topicCard.cardDataX
+                                cmap: appWindow.cmapGlobal
+                            }
                         }
                     }
                 }
-
-                Item {
-                    id: cardsRoot
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 400
-
-                    Repeater {
-                        anchors.fill: parent
-                        model: cardList
-
-                        delegate: TopicCard {
-                            id: topicCard
-
-                            required property var layoutData
-                            required property var cardDataX
-
-                            readonly property real srcPosX: layoutData.srcPosX
-                            readonly property real cardWidth: layoutData.cardWidth
-                            readonly property int segmentIdx: cardDataX.SegmentIndex
-                            //property var cardDataX: timeline_segment_model.topic_card_data(segmentIdx)
-
-                            readonly property string displayState: cardDataX.DisplayState
-                            opacity: (appWindow.state === Constants.AppState.Search) && displayState !== "highlighted" ? 0.5 : 1.0
-
-                            Connections {
-                                target: cardDataX
-
-                                function onTitleChanged() {
-                                    timeline_segment_model.setTitle(segmentIdx, cardDataX.Title);
-                                }
-                                function onUserQuotesChanged() {
-                                    timeline_segment_model.setQuotesText(segmentIdx, cardDataX.UserQuotes);
-                                }
-                                function onUserNotesChanged() {
-                                    timeline_segment_model.setQuotesNote(segmentIdx, cardDataX.UserNotes);
-                                }
-                                function onMarkedChanged() {
-                                    timeline_segment_model.setMarked(segmentIdx, cardDataX.Marked);
-                                }
-                                function onThumbnailAdded(frame, pos_ms, selection_rect, overlay_src) {
-                                    // Not super clean way to propagate label to back to TopicCardData
-                                    const label = timeline_segment_model.register_video_crop(frame, pos_ms, segmentIdx, selection_rect, overlay_src); 
-                                    cardDataX.add_label(label);
-                                }
-                            }
-
-                            onClicked: {
-                                appWindow.currCardData = cardDataX;
-                                drawer.open();
-                            }
-
-                            x: topicCard.srcPosX - (topicCard.cardWidth - 50) / 2 
-                            y: 0
-                            width: topicCard.cardWidth - 50
-                            cardData: topicCard.cardDataX
-                            cmap: appWindow.cmapGlobal
-                        }
-                    }
+                Rectangle { 
+                    SplitView.fillHeight: true 
+                    SplitView.fillWidth: true 
                 }
-                Item { Layout.fillHeight: true }
             }
         }
 
@@ -542,5 +626,16 @@ ApplicationWindow {
                 scroll.ScrollBar.horizontal.position = pos_x / tsRootx.width;
             }
         }
+    }
+
+    MultiEffect {
+        source: rootContainer
+        anchors.fill: rootContainer
+        brightness: -0.1
+        blurEnabled: true
+        blurMax: 21
+        blur: 1.0
+        visible: appWindow.hideApp
+        autoPaddingEnabled: false
     }
 }
