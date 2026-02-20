@@ -12,12 +12,37 @@ import QtQuick.Effects
 import "components"
 
 ApplicationWindow {
-    id: appwin
+    id: appWindow
     visible: true
     width: 800
     height: 1000
     color: "white"
     title: ""
+
+    // Terminal window for process output
+    property var terminalWindow: null
+
+    function openTerminalWindow() {
+        if (terminalWindow === null || !terminalWindow.visible) {
+            var component = Qt.createComponent("components/TerminalWindow.qml");
+            if (component.status === Component.Ready) {
+                terminalWindow = component.createObject(appWindow);
+                terminalWindow.clear();
+            }
+        } else {
+            terminalWindow.clear();
+            terminalWindow.raise();
+        }
+    }
+
+    Connections {
+        target: preprocessingPipeline
+        function onRunningStatusChanged() {
+            if (preprocessingPipeline.pipeline_running) {
+                appWindow.openTerminalWindow();
+            }
+        }
+    }
 
     component CustomTabButton: TabButton {
         id: tabBtn
@@ -74,7 +99,7 @@ ApplicationWindow {
             }
 
             CustomTabButton {
-                text: manifest.was_modified ? qsTr("Manifest (modified)") : qsTr("Manifest") 
+                text: qsTr("Manifest") 
                 width: implicitWidth
             }
             CustomTabButton {
@@ -113,11 +138,13 @@ ApplicationWindow {
                 Layout.fillHeight: true
             }
 
+            /*
             AudioTab {
                 id: audioTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
+            */
 
             VideoTab {
                 id: videoTab
@@ -125,6 +152,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
             }
 
+            /*
             GazeTab {
                 id: gazeTab
                 Layout.fillWidth: true
@@ -142,6 +170,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
+            */
         }
     }
 }

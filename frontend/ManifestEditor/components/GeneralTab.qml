@@ -14,43 +14,23 @@ import "."
 ColumnLayout {
     spacing: 20
 
-    FileDialog {
-        id: dialogSpeech
-        onAccepted: {
-            manifest.audio = new URL(selectedFile).pathname.slice(1);
-        }
-        nameFilters: ["WAV files (*.wav)"]
-    }
+    component DecimalSpinBox: SpinBox {
+        property int decimals: 1
+        readonly property int decimalFactor: Math.pow(10, decimals)
+        readonly property real realValue: value / decimalFactor
 
-    FileDialog {
-        id: dialogAoi
-        onAccepted: {
-            manifest.aoi = new URL(selectedFile).pathname.slice(1);
-        }
-        nameFilters: ["JSON files (*.json)"]
-    }
+        editable: true
+        stepSize: 1
 
-    FolderDialog {
-        id: dialogNotes
-        onAccepted: {
-            manifest.notes = new URL(selectedFolder).pathname.slice(1);
-        }
-    }
+        function decimalToInt(decimal) { return Math.round(decimal * decimalFactor) }
 
-    FileDialog {
-        id: dialogVideoWorkspace
-        onAccepted: {
-            manifest.video_workspace = new URL(selectedFile).pathname.slice(1);
+        textFromValue: function(value, locale) {
+            return Number(value / decimalFactor).toLocaleString(locale, 'f', decimals)
         }
-        nameFilters: ["MP4 files (*.mp4)"]
-    }
 
-    FileDialog {
-        id: dialogVideoSide
-        onAccepted: {
-            manifest.video_side = new URL(selectedFile).pathname.slice(1);
+        valueFromText: function(text, locale) {
+            return Math.round(Number.fromLocaleString(locale, text) * decimalFactor)
         }
-        nameFilters: ["MP4 files (*.mp4)"]
     }
 
     Dialog {
@@ -232,81 +212,23 @@ ColumnLayout {
 
                 Column {
                     anchors.fill: parent
+                    Repeater {
+                        anchors.fill: parent
+                        model: Object.keys(manifest.sources)
 
-                    UserFileInput {
-                        width: parent.width
-                        name: "Speech (.wav)"
-                        path: manifest.audio
-                        isDir: false
-                        fileExtensions: ["WAV files (*.wav)"]
-                        valid: manifest.is_valid_file(manifest.audio)
+                        delegate: UserFileInput {
+                            required property var modelData
 
-                        onUserPathChanged: (newPath) => {
-                            manifest.audio = newPath;
-                        }
-                    }
+                            width: parent.width
+                            name: manifest.sources[modelData].meta.display_name
+                            path: manifest.sources[modelData].path
+                            isDir: manifest.sources[modelData].meta.is_dir
+                            fileExtensions: manifest.sources[modelData].meta.file_extensions
+                            valid: isDir ? manifest.is_valid_dir(manifest.sources[modelData].path, "*") : manifest.is_valid_file(manifest.sources[modelData].path)
 
-                    UserFileInput {
-                        width: parent.width
-                        name: "Areas of Interest (.json)"
-                        path: manifest.aoi
-                        valid: manifest.is_valid_file(manifest.aoi)
-                        isDir: false
-                        fileExtensions: ["JSON files (*.json)"]
-                        onUserPathChanged: (newPath) => {
-                            manifest.aoi = newPath;
-                        }
-                    }
-
-                    UserFileInput {
-                        width: parent.width
-                        name: "Notes"
-                        path: manifest.notes
-                        valid: manifest.is_valid_dir(manifest.notes, '.docm')
-                        isDir: true
-                        onUserPathChanged: (newPath) => {
-                            manifest.notes = newPath;
-                        }
-                    }
-                }
-            }
-
-            GroupBox {
-                id: groupVideos
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                label: Text {
-                    text: "📹 Videos"
-                    font.pixelSize: 16
-                    x: groupVideos.leftPadding
-                    width: groupVideos.availableWidth
-                }
-
-                Column {
-                    anchors.fill: parent
-
-                    UserFileInput {
-                        width: parent.width
-                        name: "Workspace Video (.mp4)"
-                        path: manifest.video_workspace
-                        valid: manifest.is_valid_file(manifest.video_workspace)
-                        isDir: false
-                        fileExtensions: ["MP4 files (*.mp4)"]
-                        onUserPathChanged: (newPath) => {
-                            manifest.video_workspace = newPath;
-                        }
-                    }
-
-                    UserFileInput {
-                        width: parent.width
-                        name: "Side Video (.mp4)"
-                        path: manifest.video_side
-                        valid: manifest.is_valid_file(manifest.video_side)
-                        isDir: false
-                        fileExtensions: ["MP4 files (*.mp4)"]
-                        onUserPathChanged: (newPath) => {
-                            manifest.video_side = newPath;
+                            onUserPathChanged: (newPath) => {
+                                manifest.set_source_path(modelData, newPath);
+                            }
                         }
                     }
                 }
@@ -330,7 +252,6 @@ ColumnLayout {
 
             ScrollView {
                 Layout.fillWidth: true
-                //Layout.preferredHeight: 300
                 Layout.topMargin: 10
                 Layout.bottomMargin: 10
 
@@ -349,15 +270,15 @@ ColumnLayout {
 
                             required property string recId
                             required property string role
-                            required property string sourceGaze
-                            required property real sourceGazeOffset
-                            required property string sourceGazeHardware
+
+                            required property var sources
+                            required property var artifacts
+
                             required property int index
                             required property var model
 
                             Layout.fillWidth: true
                             Layout.preferredHeight: recContainer.implicitHeight + 25
-
                             Layout.horizontalStretchFactor: 1
 
                             radius: 5
@@ -387,18 +308,6 @@ ColumnLayout {
                                     model.recId = recIdInput.text;
                                 }
                             }
-                            /*
-                            RectangularShadow {
-                                anchors.fill: parent
-                                offset.x: 0
-                                offset.y: 0
-                                radius: parent.radius
-                                blur: 20
-                                spread: 5
-                                color: Qt.darker(parent.color, 1.1)
-                            }
-                            */
-
                             ColumnLayout {
                                 id: recContainer
 
@@ -444,15 +353,6 @@ ColumnLayout {
                                     }
                                 }
 
-                                FileDialog {
-                                    id: dialogFixations
-                                    onAccepted: {
-                                        const path = new URL(selectedFile).pathname.slice(1);
-                                        model.sourceGaze = path;
-                                    }
-                                    nameFilters: ["CSV files (*.csv)"]
-                                }
-
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 30
@@ -482,70 +382,44 @@ ColumnLayout {
                                         anchors.fill: parent
                                         spacing: 10
 
-                                        UserFileInput {
+                                        Repeater {
                                             Layout.fillWidth: true
-                                            name: "Gaze"
-                                            path: sourceGaze
-                                            valid: manifest.is_valid_dir(sourceGaze, "*")
-                                            isDir: true
-                                            onUserPathChanged: (newPath) => {
-                                                groupRec.model.sourceGaze = newPath;
-                                            }
-                                        }
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 10
+                                            Layout.fillHeight: true
 
-                                            Text {
-                                                text: "Device)"
-                                                font.bold: true
-                                            }
-                                            CustomComboBox {
-                                                Layout.fillWidth: true
-                                                id: hardwareSelection
-                                                model: manifest.supported_eye_tracking_devices()
-                                                currentIndex: manifest.supported_eye_tracking_devices().indexOf(groupRec.sourceGazeHardware)
-                                                onActivated: (index) => {
-                                                    groupRec.model.sourceGazeHardware = model[index];
+                                            model: Object.keys(groupRec.sources)
+
+                                            delegate: ColumnLayout {
+                                                required property string modelData
+
+                                                UserFileInput {
+                                                    Layout.fillWidth: true
+                                                    name: groupRec.sources[modelData].meta.display_name
+                                                    path: groupRec.sources[modelData].path
+                                                    valid: manifest.is_valid_dir(groupRec.sources[modelData].path, "*")
+                                                    isDir: groupRec.sources[modelData].meta.is_dir
+
+                                                    onUserPathChanged: (newPath) => {
+                                                        manifest.recordings.setSourcePath(groupRec.index, modelData, newPath)
+                                                    }
                                                 }
-                                            }
-                                        }
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 10
-                                            Text {
-                                                text: "Offset (sec.)"
-                                                font.bold: true
-                                            }
-                                            SpinBox {
-                                                id: offsetSpin
-                                                Layout.fillWidth: true
-                                                editable: true
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 10
+                                                    Text {
+                                                        text: "Offset (sec.)"
+                                                        font.bold: true
+                                                    }
+                                                    DecimalSpinBox {
+                                                        id: offsetSpin
+                                                        Layout.fillWidth: true
+                                                        from: 0
+                                                        value: decimalToInt(groupRec.sources[modelData].offset_sec)
+                                                        to: decimalToInt(999)
 
-                                                property int decimals: 1
-                                                readonly property int decimalFactor: Math.pow(10, decimals)
-                                                property real realValue: value / decimalFactor
-
-                                                stepSize: 1
-
-                                                function decimalToInt(decimal) {
-                                                    return decimal * decimalFactor
-                                                }
-
-                                                from: 0
-                                                value: decimalToInt(sourceGazeOffset)
-                                                to: decimalToInt(999)
-
-                                                textFromValue: function(value, locale) {
-                                                    return Number(value / decimalFactor).toLocaleString(locale, 'f', offsetSpin.decimals)
-                                                }
-
-                                                valueFromText: function(text, locale) {
-                                                    return Math.round(Number.fromLocaleString(locale, text) * decimalFactor)
-                                                }
-
-                                                onValueModified: {
-                                                    groupRec.model.sourceGazeOffset = realValue;
+                                                        onValueModified: {
+                                                            manifest.recordings.setSourceOffset(groupRec.index, modelData, realValue);
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

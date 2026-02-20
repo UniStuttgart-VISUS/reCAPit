@@ -46,7 +46,7 @@ ColumnLayout {
 
                 title: "Recording %1".arg(recId)
                 description: "Marker-based mapping of participants' fixations on the workspace area."
-                requirements: ([{name: "Gaze Data", 'satisfies': gazeDataExists}, {name: "Workspace Video", satisfies: gazeTab.videoWorkspaceExists}])
+                requirements: ([{name: "Gaze Data", 'exists': gazeDataExists}, {name: "Workspace Video", exists: gazeTab.videoWorkspaceExists}])
                 enabled: !preprocessingPipeline.pipeline_running && gazeDataExists
                 onRunTriggered: {
                     surfaceMappingRunner.isRunning = true;
@@ -97,8 +97,8 @@ ColumnLayout {
                 Layout.fillWidth: true
 
                 title: "Recording %1".arg(recId)
-                description: "Map the surface fixations (on workspace) on the areas-of-interests"
-                requirements: ([{name: "Areas-of-interests", satisfies: aoiExists}, {name: "Surface Fixations", satisfies: surfaceFixExists}])
+                description: "Map the surface fixations (in workspace video) to the areas-of-interests"
+                requirements: ([{name: "Areas-of-interests", exists: aoiExists}, {name: "Surface Fixations", exists: surfaceFixExists}])
                 enabled: !preprocessingPipeline.pipeline_running && aoiExists && surfaceFixExists
                 onRunTriggered: {
                     aoiMappingRunner.isRunning = true;
@@ -124,7 +124,7 @@ ColumnLayout {
 
         title: "Temporal AOI Distribution (Time Series)"
         description: "Map the surface fixations (on workspace) on the areas-of-interests"
-        requirements: ([{name: "Areas-of-interests", satisfies: aoiExists}, {name: "Surface Fixations", satisfies: false}])
+        requirements: ([{name: "Areas-of-interests", exists: aoiExists}, {name: "Surface Fixations", exists: false}])
         enabled: !preprocessingPipeline.pipeline_running && aoiExists
         onRunTriggered: {
             attentionRunner.isRunning = true;

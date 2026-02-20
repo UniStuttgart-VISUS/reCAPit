@@ -16,11 +16,13 @@ ColumnLayout {
 
     property real downsamplingFactor: 1
     property real minSegmentDuration: 0.5
+    property int penalization: 1
 
     property real similarityThreshold: 0.1
     property real minSegmentDuration2: 0.5
     property real gapThreshold: 0.5
-    property string openaiModel: "gpt-5o-mini"
+    property string openaiModel: "gpt-5-mini"
+    property string targetSignal: ""
 
     property alias statusInitial: initialSegmentation.isRunning
     property alias statusRefined: refinedSegmentation.isRunning
@@ -28,7 +30,6 @@ ColumnLayout {
 
     property bool initialExists: manifest.is_valid_file(manifest.segments_initial)
     property bool refinedExists: manifest.is_valid_file(manifest.segments_refined)
-
 
     Connections {
         target: preprocessingPipeline
@@ -48,17 +49,19 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Initial Segmentation"
         description: "Generate a transcript using OpenAI's Whisper speech-to-text model."
-        requirements: ([{name: "Any time series", 'satisfies': manifest.multi_time_signals.length > 0}])
+        requirements: ([{name: "Any time series", 'exists': manifest.multi_time_signals.length > 0}])
         enabled: !preprocessingPipeline.pipeline_running && manifest.multi_time_signals.length > 0
         onRunTriggered: {
             statusInitial = true;
             preprocessingPipeline.run_segment_initial(segmentsTab.targetSignal, 
+                                                      segmentsTab.penalization,
                                                       segmentsTab.downsamplingFactor,
                                                       segmentsTab.minSegmentDuration)
         }
         realParams: ([
             {name: "Signal Downsampling Factor", from: 1, to: 16, stepSize: 1, unit: ""},
             {name: "Minimum Segment Duration", from: 1, to: 120, stepSize: 1, unit: "sec."},
+            {name: "Penalization", from: 0, to: 50, stepSize: 1, unit: ""},
         ])
         selectionParams: ([{name: "Available time series", options: manifest.multi_time_signals}])
 
@@ -72,10 +75,13 @@ ColumnLayout {
             if (name === "Signal Downsampling Factor") {
                 segmentsTab.downsamplingFactor = value;
             }
+            if (name === "Penalization") {
+                segmentsTab.penalization = value;
+            }
             else if (name === "Minimum Segment Duration") {
                 segmentsTab.minSegmentDuration = value;
             }
-            else if (name === "Available target signals") {
+            else if (name === "Available time series") {
                 segmentsTab.targetSignal = value;
             }
         }
@@ -86,7 +92,7 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Refined Segmentation"
         description: "Refine previously generated segmentation using speech similarity"
-        requirements: ([{name: "initial segments", 'satisfies': initialExists}])
+        requirements: ([{name: "initial segments", 'exists': initialExists}])
         enabled: !preprocessingPipeline.pipeline_running && initialExists
         onRunTriggered: {
             statusRefined = true;
@@ -124,14 +130,14 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Segmentation Attributes"
         description: "Creates LLM-based summaries and titles for each topic segment"
-        requirements: ([{name: "refined segments", 'satisfies': refinedExists}])
-        enabled: !preprocessingPipeline.pipeline_running && refinedExists
+        requirements: ([{name: "refined segments", 'exists': refinedExists}])
+        enabled: !preprocessingPipeline.pipeline_running && (initialExists || refinedExists)
         onRunTriggered: {
-            statusRefined = true;
-            preprocessingPipeline.run_segment_attributes(segmentsTab.openaiModel, "")
+            statusAttributes = true;
+            preprocessingPipeline.run_segment_attributes("initial", segmentsTab.openaiModel, "")
         }
 
-        selectionParams: ([{name: "OpenAI model", options: ["gpt-5", "gpt-5.2", "gpt-5-mini", "gpt-5-nano"]}])
+        selectionParams: ([{name: "OpenAI model", options: ["gpt-5-mini", "gpt-5", "gpt-5.2", "gpt-5-nano"]}])
 
         pathInfo: ({path: manifest.segments_refined, is_valid: refinedExists, is_dir: false, file_extensions: ["CSV files (*.csv)"]})
 

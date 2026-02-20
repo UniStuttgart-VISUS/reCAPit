@@ -43,7 +43,7 @@ ColumnLayout {
 
         title: "Generate Transcript"
         description: "Generate a transcript using OpenAI's Whisper speech-to-text model."
-        requirements: ([{name: "Audio", 'satisfies': audioExists}])
+        requirements: ([{name: "Audio", 'exists': audioExists}])
         enabled: !preprocessingPipeline.pipeline_running && audioExists
         pathInfo: ({path: manifest.transcript, is_valid: transcriptExists, is_dir: false, file_extensions: ["CSV files (*.csv)"]})
 
@@ -72,7 +72,6 @@ ColumnLayout {
                 transcriptTab.hfToken = value;
             }
             else if (name === "Speaker Identification") {
-                print(value === "Yes")
                 transcriptTab.speakerIdentificationEnabled = value === "Yes";
             }
         }
@@ -83,11 +82,10 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Split Transcript"
         description: "Split the previously generated transcript using speaker id"
-        requirements: ([{name: "Transcript", 'satisfies': transcriptExists}])
+        requirements: ([{name: "Transcript", 'exists': transcriptExists}])
         enabled: !preprocessingPipeline.pipeline_running && transcriptExists
         onRunTriggered: {
             statusRecordingTranscript = true;
-            transcriptTab.currStdOut = "";
             preprocessingPipeline.run_transcript_recording()
         }
     }

@@ -17,16 +17,56 @@ GroupBox {
     property alias isRunning: progressBar.running
     property alias enabled: btn.enabled
     property string description
-    property var pathInfo: ({path: "", is_valid: false, is_dir: false, file_extensions: [""]})
     property var requirements
+    property var output
 
     property var realParams: []
     property var selectionParams: []
+    property var boolParams: []
+    property var intParams: []
     property var textInputParams: []
 
     signal runTriggered()
-    signal userPathChanged(string path)
     signal paramChanged(string name, var value)
+
+
+    component PillComponent: Rectangle {
+        required property string title
+        required property bool satisfied
+
+        color: "#eee"
+        radius: 10
+
+        width: rectRow.implicitWidth * 1.25
+        height: rectRow.implicitHeight * 1.25
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
+        ToolTip.visible: mouseArea.containsMouse
+        ToolTip.text: satisfied ? qsTr("OK"): qsTr("This requirement is not satisfied")
+
+        Row {
+            anchors.centerIn: parent
+            id: rectRow
+            spacing: 10
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 10
+                height: 10
+                radius: 10
+                color: satisfied ? "#0f0" : "#f00"
+            }
+
+            Text {
+                text: title
+            }
+        }
+    }
 
     component RealParamComponent: RowLayout {
         required property var paramData
@@ -43,8 +83,10 @@ GroupBox {
             from: paramData.from
             to: paramData.to
             stepSize: paramData.stepSize
+            value: paramData.value
+
             onMoved: {
-                paramChanged(paramData.name, paramSlider.value)
+                paramChanged(paramData.id, paramSlider.value)
             }
         }
 
@@ -67,9 +109,10 @@ GroupBox {
             id: paramTextField
             inputMask: paramData.inputMask
             Layout.fillWidth: true
+            text: paramData.value
 
             onEditingFinished: {
-                paramChanged(paramData.name, text)
+                paramChanged(paramData.id, text)
             }
         }
     }
@@ -87,9 +130,10 @@ GroupBox {
             id: paramSlider
             model: paramData.options
             Layout.fillWidth: true
+            currentIndex: paramData.options.indexOf(paramData.value)
 
             onActivated: {
-                paramChanged(paramData.name, currentText)
+                paramChanged(paramData.id, currentText)
             }
         }
     }
@@ -142,6 +186,7 @@ GroupBox {
             Layout.rowSpan: 2
             running: false
         }
+
     }
 
     ColumnLayout {
@@ -149,15 +194,24 @@ GroupBox {
 
         anchors.fill: parent
 
-        UserFileInput {
+        RowLayout {
             Layout.fillWidth: true
-            name: "File path"
-            path: root.pathInfo.path
-            valid: root.pathInfo.is_valid
-            isDir: root.pathInfo.is_dir
-            fileExtensions: root.pathInfo.file_extensions ?? [""]
-            onUserPathChanged: (newPath) => {
-                root.userPathChanged(newPath);
+            spacing: 10
+
+            Text {
+                text: "Input"
+                font.bold: true
+            }
+
+            Repeater {
+                Layout.fillWidth: true
+                model: root.requirements
+
+                delegate: PillComponent {
+                    required property var modelData
+                    title: modelData.name
+                    satisfied: modelData.exists
+                }
             }
         }
 
@@ -166,40 +220,18 @@ GroupBox {
             spacing: 10
 
             Text {
-                text: "Requirements"
+                text: "Output"
                 font.bold: true
             }
 
             Repeater {
                 Layout.fillWidth: true
-                model: root.requirements
+                model: root.output
 
-                delegate: Rectangle {
-                    id: rect
+                delegate: PillComponent {
                     required property var modelData
-                    color: "#eee"
-                    radius: 10
-
-                    width: rectRow.implicitWidth * 1.25
-                    height: rectRow.implicitHeight * 1.25
-
-                    Row {
-                        anchors.centerIn: parent
-                        id: rectRow
-                        spacing: 10
-
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 10
-                            height: 10
-                            radius: 10
-                            color: modelData.satisfies ? "#0f0" : "#f00"
-                        }
-
-                        Text {
-                            text: modelData.name
-                        }
-                    }
+                    title: modelData.name
+                    satisfied: modelData.exists
                 }
             }
         }
@@ -222,6 +254,15 @@ GroupBox {
                 }
                 Repeater {
                     Layout.fillWidth: true
+                    model: root.intParams
+
+                    delegate: RealParamComponent {
+                        required property var modelData
+                        paramData: modelData
+                    }
+                }
+                Repeater {
+                    Layout.fillWidth: true
                     model: root.textInputParams
 
                     delegate: TextInputParamComponent {
@@ -236,6 +277,15 @@ GroupBox {
                     delegate: SelectionParamComponent {
                         required property var modelData
                         paramData: modelData
+                    }
+                }
+                Repeater {
+                    Layout.fillWidth: true
+                    model: root.boolParams
+
+                    delegate: SelectionParamComponent {
+                        required property var modelData
+                        paramData: Object.assign({}, modelData, {options: ["yes", "no"]})
                     }
                 }
             }
