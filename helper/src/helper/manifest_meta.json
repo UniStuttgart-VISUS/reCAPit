@@ -1,0 +1,123 @@
+
+{
+    "recordings": {
+        "sources": {
+            "gaze": {
+                "display_name": "Gaze Directory",
+                "is_dir": true,
+                "file_extensions": ["All files (*)"]
+            }
+        },
+        "artifacts": {
+            "surface_fixations": {
+                "display_name": "Surface Fixations",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            },
+            "mapped_fixations": {
+                "display_name": "Mapped Fixations",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            },
+            "transcript": {
+                "display_name": "Audio Transcript",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            }
+        }
+    },
+
+    "sources": {
+        "movement_store": {
+            "display_name": "Movement Store",
+            "is_dir": true,
+            "file_extensions": ["*"]
+        },
+        "audio": {
+            "display_name": "Audio",
+            "is_dir": false,
+            "file_extensions": ["WAV files (*.wav)"]
+        },
+        "notes_snapshots": {
+            "display_name": "Note Snapshots",
+            "is_dir": true,
+            "file_extensions": ["*"]
+        },
+        "videos": {
+            "workspace": {
+                "display_name": "Workspace Video",
+                "is_dir": false,
+                "file_extensions": ["MP4 files (*.mp4)"]
+            },
+            "side": {
+                "display_name": "Side Video",
+                "is_dir": false,
+                "file_extensions": ["MP4 files (*.mp4)"]
+            }
+        },
+        "areas_of_interests": {
+            "display_name": "Areas of Interests",
+            "is_dir": false,
+            "file_extensions": ["Labelme files (*.json)"]
+        }
+    },
+
+    "artifacts": {
+        "segments": {
+            "initial": {
+                "display_name": "Initial Segments",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            },
+            "refined": {
+                "display_name": "Refined Segments",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            }
+        },
+        "surface_fixations": {
+            "display_name": "Surface Fixations",
+            "is_dir": false,
+            "file_extensions": ["CSV files (*.csv)"]
+        },
+        "mapped_fixations": {
+            "display_name": "Mapped Fixations",
+            "is_dir": false,
+            "file_extensions": ["CSV files (*.csv)"]
+        },
+        "transcript": {
+            "display_name": "Audio Transcript",
+            "is_dir": false,
+            "file_extensions": ["CSV files (*.csv)"]
+        },
+        "notes": {
+            "display_name": "Notes",
+            "is_dir": false,
+            "file_extensions": ["CSV files (*.csv)"]
+        },
+        "multi_time": {
+            "movement": {
+                "display_name": "Movement",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            },
+            "attention": {
+                "display_name": "Attention",
+                "is_dir": false,
+                "file_extensions": ["CSV files (*.csv)"]
+            }
+        },
+        "video_overlay": {
+            "attention": {
+                "display_name": "Visual Attention Overlays",
+                "is_dir": true,
+                "file_extensions": ["NPY files (*.npy)"]
+            },
+            "movement": {
+                "display_name": "Movement Overlays",
+                "is_dir": true,
+                "file_extensions": ["NPY files (*.npy)"]
+            }
+        }
+    }
+}
