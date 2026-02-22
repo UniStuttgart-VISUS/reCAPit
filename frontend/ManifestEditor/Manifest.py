@@ -75,10 +75,6 @@ class Manifest(QObject):
     def supported_languages(self) -> list[str]:
         return ManifestManager.supported_languages()
 
-    @pyqtSlot(result=list)
-    def supported_eye_tracking_devices(self) -> list[str]:
-        return ManifestManager.supported_eye_tracking_devices()
-
     @pyqtProperty('QVariantMap', notify=sourcesChanged)
     def sources(self) -> str:
         # Nested sources can be accessed using forward slash(es)
@@ -131,7 +127,6 @@ class Manifest(QObject):
     @pyqtSlot()
     def load_from_json(self) -> None:
         self._manifest_manager.load()
-        print(self._manifest_manager.get_roles())
         self._participant_roles.setStringList(self._manifest_manager.get_roles())
         self._recordings.reset()
         self.manifestChanged.emit()

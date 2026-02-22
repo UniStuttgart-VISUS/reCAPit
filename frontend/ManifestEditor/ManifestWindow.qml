@@ -44,6 +44,44 @@ ApplicationWindow {
         }
     }
 
+    footer: ToolBar {
+        RowLayout {
+            anchors.fill: parent
+            ToolButton {
+                text: qsTr("👁 Show console")
+                onClicked: {
+                    appWindow.openTerminalWindow();
+                }
+            }
+            Label {
+                text: preprocessingPipeline.current_process_info.args
+                elide: Label.ElideRight
+                horizontalAlignment: Qt.AlignHCenter
+                verticalAlignment: Qt.AlignVCenter
+                Layout.fillWidth: true
+            }
+            ToolButton {
+                text: qsTr("❌ Kill current process")
+                enabled: preprocessingPipeline.pipeline_running
+                onClicked: {
+                    preprocessingPipeline.terminate_current_process();
+                }
+            }
+        }
+
+        background: Rectangle {
+            implicitHeight: 30
+            color: "#f8f8f8"
+            Rectangle {
+                width: parent.width
+                height: 1
+                anchors.top: parent.top
+                color: "transparent"
+                border.color: "indigo"
+            }
+        }
+    }
+
     component CustomTabButton: TabButton {
         id: tabBtn
 
@@ -138,39 +176,40 @@ ApplicationWindow {
                 Layout.fillHeight: true
             }
 
-            /*
-            AudioTab {
+            ScriptsTab {
                 id: audioTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                targetScriptDir: "transcript"
             }
-            */
 
-            VideoTab {
+            ScriptsTab {
                 id: videoTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                targetScriptDir: "video/workspace"
             }
 
-            /*
-            GazeTab {
+            ScriptsTab {
                 id: gazeTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                targetScriptDir: "gaze"
             }
 
-            NotesTab {
+            ScriptsTab {
                 id: notesTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                targetScriptDir: "notes"
             }
 
-            SegmentsTab {
-                id: segmentsTab
+            ScriptsTab {
+                id: segmentationTab
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                targetScriptDir: "segmentation"
             }
-            */
         }
     }
 }

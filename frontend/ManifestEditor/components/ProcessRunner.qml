@@ -24,11 +24,12 @@ GroupBox {
     property var selectionParams: []
     property var boolParams: []
     property var intParams: []
-    property var textInputParams: []
+    property var textParams: []
 
     signal runTriggered()
     signal paramChanged(string name, var value)
 
+    clip: true
 
     component PillComponent: Rectangle {
         required property string title
@@ -89,11 +90,9 @@ GroupBox {
                 paramChanged(paramData.id, paramSlider.value)
             }
         }
-
         Text {
             text: "%1 %2".arg(paramSlider.value).arg(paramData.unit)
         }
-
     }
 
     component TextInputParamComponent: RowLayout {
@@ -189,11 +188,8 @@ GroupBox {
 
     }
 
-    ColumnLayout {
+    contentItem: ColumnLayout {
         spacing: 10
-
-        anchors.fill: parent
-
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -242,7 +238,7 @@ GroupBox {
 
             title: "Parameters"
             ColumnLayout {
-                anchors.fill: parent
+                width: parent.width
                 Repeater {
                     Layout.fillWidth: true
                     model: root.realParams
@@ -263,7 +259,7 @@ GroupBox {
                 }
                 Repeater {
                     Layout.fillWidth: true
-                    model: root.textInputParams
+                    model: root.textParams
 
                     delegate: TextInputParamComponent {
                         required property var modelData

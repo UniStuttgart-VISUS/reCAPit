@@ -14,10 +14,18 @@ notes_scripts_dir = Path('../preprocessing/notes').resolve()
 segmentation_scripts_dir = Path('../preprocessing/segmentation').resolve()
 
 
+def get_merged_scripts_info(target_dirs: list[str]) -> list[dict]:
+    scripts_info = []
+    for dir_name in target_dirs:
+        with open(scripts_root / dir_name / 'scripts_info.json') as file:
+            scripts_info.extend(json.load(file))
+    return scripts_info
+
 def get_argument_configs(script_info: dict) -> dict[str, dict]:
     bool_configs = {}
     int_configs = {}
     real_configs = {}
+    string_configs = {}
     selection_configs = {}
 
     for arg_name, arg_data in script_info['script_args'].items():
@@ -29,12 +37,19 @@ def get_argument_configs(script_info: dict) -> dict[str, dict]:
         if arg_data['type'] == 'bool':
             arg_data['config']['value'] = 'yes' if arg_data['default'] else 'no'
             bool_configs[arg_name] = arg_data['config']
+
         elif arg_data['type'] == 'real':
             arg_data['config']['value'] = arg_data['default']
             real_configs[arg_name] = arg_data['config']
+
         elif arg_data['type'] == 'int':
             arg_data['config']['value'] = arg_data['default']
             int_configs[arg_name] = arg_data['config']
+
+        elif arg_data['type'] == 'string':
+            arg_data['config']['value'] = arg_data['default']
+            string_configs[arg_name] = arg_data['config']
+
         elif arg_data['type'] == 'selection':
             arg_data['config']['value'] = arg_data['default']
             selection_configs[arg_name] = arg_data['config']
@@ -43,6 +58,7 @@ def get_argument_configs(script_info: dict) -> dict[str, dict]:
         'bool': bool_configs,
         'int': int_configs,
         'real': real_configs,
+        'string': string_configs,
         'selection': selection_configs,
     }
 
@@ -59,22 +75,19 @@ class ProcessingScriptsModel(QAbstractListModel):
     DependenciesSatisfiedRole = Qt.ItemDataRole.UserRole + 10
     OutputRole = Qt.ItemDataRole.UserRole + 11
     ScriptTargetRole = Qt.ItemDataRole.UserRole + 12
+    ScriptDirRole = Qt.ItemDataRole.UserRole + 13
 
     def __init__(self, scripts_info: dict, manifest: Manifest.Manifest, parent: object = None) -> None:
         super().__init__(parent)
 
-        # TODO @moe: This works for now but doing a full reset
-        # every time a property changes is overkill
-        manifest.manifestChanged.connect(self.reset)
-
         self.manifest_manager = manifest.get_manifest_manager()
         self.scripts_info = scripts_info
+        self.is_running = [False] * len(self.scripts_info)
         self.reset()
 
     @pyqtSlot()
     def reset(self) -> None:
         self.beginResetModel()
-        self.is_running = [False] * len(self.scripts_info)
         # We inject additional parameters at runtime.
         # For example, with scripts targeting recordings, we need an additional recording selection  # noqa: E501
         self.add_dynamic_args()
@@ -104,41 +117,45 @@ class ProcessingScriptsModel(QAbstractListModel):
     @pyqtSlot(str, result=int)
     def str2role(self, role_str: str) -> int:  # noqa: N802
         return {
-            'titleX': self.TitleRole,
-            'descriptionX': self.DescriptionRole,
-            'dependenciesX': self.DependenciesRole,
-            'realParamsX': self.RealParamsRole,
-            'intParamsX': self.IntParamsRole,
-            'boolParamsX': self.BoolParamsRole,
-            'selectionParamsX': self.SelectionParamsRole,
-            'isRunningX': self.IsRunningRole,
-            'dependenciesSatisfiedX': self.DependenciesSatisfiedRole,
-            'outputX': self.OutputRole,
+            'scriptTitle': self.TitleRole,
+            'scriptDescription': self.DescriptionRole,
+            'scriptDependencies': self.DependenciesRole,
+            'scriptRealParams': self.RealParamsRole,
+            'scriptIntParams': self.IntParamsRole,
+            'scriptBoolParams': self.BoolParamsRole,
+            'scriptTextParams': self.TextParamsRole,
+            'scriptSelectionParams': self.SelectionParamsRole,
+            'scriptRunning': self.IsRunningRole,
+            'scriptDependenciesSatisfied': self.DependenciesSatisfiedRole,
+            'scriptOutput': self.OutputRole,
             'scriptTarget': self.ScriptTargetRole,
+            'scriptDir': self.ScriptDirRole,
         }.get(role_str, -1)
 
     def roleNames(self) -> dict[int, bytes]:  # noqa: N802
         return {
-            self.TitleRole: b'titleX',
-            self.DescriptionRole: b'descriptionX',
-            self.DependenciesRole: b'dependenciesX',
-            self.RealParamsRole: b'realParamsX',
-            self.IntParamsRole: b'intParamsX',
-            self.BoolParamsRole: b'boolParamsX',
-            self.SelectionParamsRole: b'selectionParamsX',
-            self.IsRunningRole: b'isRunningX',
-            self.DependenciesSatisfiedRole: b'dependenciesSatisfiedX',
-            self.OutputRole: b'outputX',
+            self.TitleRole: b'scriptTitle',
+            self.DescriptionRole: b'scriptDescription',
+            self.DependenciesRole: b'scriptDependencies',
+            self.RealParamsRole: b'scriptRealParams',
+            self.IntParamsRole: b'scriptIntParams',
+            self.BoolParamsRole: b'scriptBoolParams',
+            self.TextParamsRole: b'scriptTextParams',
+            self.SelectionParamsRole: b'scriptSelectionParams',
+            self.IsRunningRole: b'scriptRunning',
+            self.DependenciesSatisfiedRole: b'scriptDependenciesSatisfied',
+            self.OutputRole: b'scriptOutput',
             self.ScriptTargetRole: b'scriptTarget',
+            self.ScriptDirRole: b'scriptDir',
         }
 
-    def all_data_exist(self, row: int, data_key: str) -> bool:
-        data_exist = self.eval_data_exist(row, data_key)
+    def is_all_data_valid(self, row: int, data_key: str) -> bool:
+        data_exist = self.eval_data_validity(row, data_key)
         sources_exist = all(d['exists'] for d in data_exist['sources'])
         artifacts_exist = all(d['exists'] for d in data_exist['artifacts'])
         return sources_exist and artifacts_exist
 
-    def eval_data_exist(self, row: int, data_key: str) -> dict:
+    def eval_data_validity(self, row: int, data_key: str) -> dict:
         data = self.scripts_info[row].get(data_key, {})
 
         global_data = {
@@ -195,7 +212,7 @@ class ProcessingScriptsModel(QAbstractListModel):
     @pyqtSlot(int, str, 'QVariant')
     def set_script_arg(self, row: int, arg_id: str, value: object) -> None:
         arg_type = self.scripts_info[row]['script_args'][arg_id]['type']
-        coerce = {'real': float, 'int': int, 'selection': str, 'bool': str}
+        coerce = {'real': float, 'int': int, 'selection': str, 'bool': str, 'string': str}
         self.script_configs[row][arg_type][arg_id]['value'] = coerce[arg_type](value)
 
         if arg_id == '--rec_id':
@@ -219,7 +236,7 @@ class ProcessingScriptsModel(QAbstractListModel):
             cmd.append(str(c['id']))
             cmd.append(str(c['value']))
 
-        for c in self.data(index, ProcessingScriptsModel.IntParamsRole):
+        for c in self.data(index, ProcessingScriptsModel.TextParamsRole):
             cmd.append(str(c['id']))
             cmd.append(str(c['value']))
 
@@ -242,9 +259,9 @@ class ProcessingScriptsModel(QAbstractListModel):
         if role == self.DescriptionRole:
             return self.scripts_info[row]['description']
         if role == self.DependenciesSatisfiedRole:
-            return self.all_data_exist(row, 'dependencies')
+            return self.is_all_data_valid(row, 'dependencies')
         if role == self.DependenciesRole:
-            return self.eval_data_exist(row, 'dependencies')
+            return self.eval_data_validity(row, 'dependencies')
         if role == self.RealParamsRole:
             return list(self.script_configs[row]['real'].values())
         if role == self.IntParamsRole:
@@ -253,22 +270,35 @@ class ProcessingScriptsModel(QAbstractListModel):
             return list(self.script_configs[row]['bool'].values())
         if role == self.SelectionParamsRole:
             return list(self.script_configs[row]['selection'].values())
+        if role == self.TextParamsRole:
+            return list(self.script_configs[row]['string'].values())
         if role == self.IsRunningRole:
             return self.is_running[row]
         if role == self.OutputRole:
-            return self.eval_data_exist(row, 'output')
+            return self.eval_data_validity(row, 'output')
         if role == self.ScriptTargetRole:
             return self.scripts_info[row]['script_target']
+        if role == self.ScriptDirRole:
+            return self.scripts_info[row]['script_dir']
         return None
 
     @pyqtSlot(int)
     def toggle_running(self, row: int) -> bool:
         index = self.createIndex(row, 0)
         self.is_running[row] = not self.is_running[row]
-        self.dataChanged.emit(index, index)
+        self.dataChanged.emit(index, index, [self.IsRunningRole])
+
+    @pyqtSlot(int, bool)
+    def set_running(self, row: int, is_running:bool) -> bool:
+        index = self.createIndex(row, 0)
+        if self.is_running[row] != is_running:
+            self.is_running[row] = is_running
+            self.dataChanged.emit(index, index, [self.IsRunningRole])
+
 
 class ProcessManager(QObject):
     completed = pyqtSignal(int)
+    started = pyqtSignal()
     stdOutLine = pyqtSignal(str)  # noqa: N815
     stdErrLine = pyqtSignal(str)  # noqa: N815
 
@@ -284,6 +314,7 @@ class ProcessManager(QObject):
         self.process.setWorkingDirectory(cwd)
         self.process.readyReadStandardOutput.connect(self._on_stdout)
         self.process.readyReadStandardError.connect(self._on_stderr)
+        self.process.started.connect(self.started)
         self.process.finished.connect(self.completed)
         self.process.start(cmd[0], cmd[1:])
 
@@ -302,16 +333,18 @@ class ProcessManager(QObject):
 
     def cleanup(self) -> None:
         if self.is_running():
+            print('is running')
             self.process.terminate()
             if not self.process.waitForFinished(3000):
                 self.process.kill()
+        else:
+            print('is not running')
 
 
 class PreprocessingPipeline(QObject):
     stdOutLine = pyqtSignal(str)  # noqa: N815
     stdErrLine = pyqtSignal(str)  # noqa: N815
     runningStatusChanged = pyqtSignal()  # noqa: N815
-    scriptCompleted = pyqtSignal(str)  # noqa: N815
 
     def __init__(self, manifest: Manifest.Manifest, meta_file: Path, root_dir: Path, parent: object = None) -> None:
         super().__init__(parent)
@@ -323,16 +356,24 @@ class PreprocessingPipeline(QObject):
         self.process_manager.stdOutLine.connect(self.stdOutLine)
         self.process_manager.stdErrLine.connect(self.stdErrLine)
 
-        self.scriptCompleted.connect(self.runningStatusChanged)
+        self.process_manager.started.connect(self.runningStatusChanged)
+        self.process_manager.completed.connect(self.runningStatusChanged)
 
-        with open(scripts_root / 'video' / 'scripts_info.json') as file:
-            self.scripts_info = json.load(file)
-            self.scripts_model = ProcessingScriptsModel(self.scripts_info, manifest)
+        self.scripts_info = get_merged_scripts_info(['video', 'transcript', 'gaze',
+                                                     'notes', 'segmentation'])
+        self.scripts_model = ProcessingScriptsModel(self.scripts_info, manifest)
 
+        # TODO @moe: This works for now but doing a full reset
+        # every time a property changes is overkill
+        manifest.manifestChanged.connect(self.scripts_model.reset)
 
     @pyqtSlot(result=ProcessingScriptsModel)
     def get_scripts_model(self) -> ProcessingScriptsModel:
         return self.scripts_model
+
+    @pyqtSlot()
+    def terminate_current_process(self) -> None:
+        self.process_manager.cleanup()
 
     @pyqtSlot(int)
     def run_script(self, script_idx: int) -> None:
@@ -346,18 +387,34 @@ class PreprocessingPipeline(QObject):
         ]
 
         cmd.extend(self.scripts_model.get_cmd_args(script_idx))
+        print(' '.join(cmd))
 
         script_dir = scripts_root / script_info['script_dir']
-        print(script_dir)
-        print(cmd)
-        """
-        toggle_script_running = partial(self.scripts_model.toggle_running, script_idx)
-        toggle_script_running()
+        set_running_false = partial(self.scripts_model.set_running, script_idx, False)
+
+        self.process_manager.completed.disconnect()
+        self.process_manager.completed.connect(self.runningStatusChanged)
+        self.process_manager.completed.connect(set_running_false)
+
+        self.scripts_model.set_running(script_idx, True)
         self.process_manager.start_process(cmd, str(script_dir))
-        self.process_manager.completed.connect(toggle_script_running)
-        self.runningStatusChanged.emit()
-        """
+
 
     @pyqtProperty(bool, notify=runningStatusChanged)
-    def pipeline_running(self) -> str:
+    def pipeline_running(self) -> bool:
         return self.process_manager.is_running()
+
+    @pyqtProperty('QVariantMap', notify=runningStatusChanged)
+    def current_process_info(self) -> dict[str, str]:
+        if self.process_manager.is_running():
+            pid = self.process_manager.process.processId()
+            args = ' '.join(self.process_manager.process.arguments())
+            program = self.process_manager.process.program()
+        else:
+            pid = -1
+            program = ''
+            args = ''
+
+        return {'pid': pid, 'program': program, 'args': args}
+
+

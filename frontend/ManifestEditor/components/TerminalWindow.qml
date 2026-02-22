@@ -10,7 +10,7 @@ Window {
     color: "#1e1e1e"
     title: "Process Output"
 
-    property bool autoClose: true
+    property bool autoClose: false
 
     function appendLine(text, color) {
         outputModel.append({line: text, lineColor: color});
