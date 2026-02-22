@@ -80,6 +80,22 @@ class Recording:
     def rec_role(self, value: str) -> None:
         self.rec_data['role'] = value
 
+    def get_artifact(self, name: str, as_path: bool = True) -> Any:
+        try:
+            artifacts = self.get_artifacts(with_meta=False, as_path=as_path)
+            return artifacts[name]
+        except KeyError as e:
+            msg = f'{name} is not a registered artifact'
+            raise ManifestError(msg) from e
+
+    def get_source(self, name: str, as_path: bool = True) -> Any:
+        try:
+            sources = self.get_sources(with_meta=False, as_path=as_path)
+            return sources[name]
+        except KeyError as e:
+            msg = f'{name} is not a registered source'
+            raise ManifestError(msg) from e
+
     def get_artifacts(self, as_path: bool = True, with_meta: bool = True) -> dict:  # noqa: FBT001, FBT002
         try:
             artifacts = deepcopy(self.rec_data['artifacts'])
@@ -457,11 +473,7 @@ class ManifestManager:
 
     @staticmethod
     def supported_languages() -> list[str]:
-        return ['auto', 'english', 'german', 'french', 'spanish', 'italian']
-
-    @staticmethod
-    def supported_eye_tracking_devices() -> list[str]:
-        return ['pupil-labs-invisible', 'pupil-labs-neon']
+        return ['english', 'german', 'french', 'spanish', 'italian']
 
 
 if __name__ == '__main__':
