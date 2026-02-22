@@ -1,4 +1,5 @@
-// VideoPlayer.qml
+// CustomVideo.qml
+// Video player component that uses an external SharedMediaPlayer
 
 import QtQuick
 import QtQuick.Window
@@ -15,18 +16,12 @@ Rectangle {
     id: videoRoot
 
     required property var colormapAOIs
+    required property SharedMediaPlayer mediaPlayer
 
-    required property string topDownSource
-    required property list<string> peripheralSources
-
-    property alias playbackState: video.playbackState
-    property int startPosition
-    property int endPosition
-    property real currentPosition
-    property var active: false
-    property int selectionMode: 0
-    property var videoSink
     property var videoOverlaySources
+
+    property var active: false
+    property int selectionMode: Constants.CropSelectionMode.Inactive
 
     property bool aoiOverlayEnabled: false
 
@@ -35,9 +30,8 @@ Rectangle {
     property alias selectionWidth: selectionRect.width
     property alias selectionHeight: selectionRect.height
 
-    property bool hasVideoOverlays: Object.keys(videoOverlaySources).length > 0
+    property bool hasVideoOverlays: videoOverlaySources ? Object.keys(videoOverlaySources).length > 0 : false
     property string activeVideoOverlay: "None"
-    property bool videoInFullscreen: false
 
     signal selectionChanged(var frame, real pos, real xpos, real ypos, real width, real height, string overlay_src)
     signal videoEnterFullscreen()
@@ -46,78 +40,131 @@ Rectangle {
     radius: 5
     focus: true
 
+    function jumpToPosition(posMsec) {
+        mediaPlayer.jumpToPosition(posMsec);
+    }
+
     function setPosition(posMsec) {
-        video.setPosition(posMsec);
+        mediaPlayer.setPosition(posMsec);
     }
 
     onActiveChanged: {
         if (!active) {
-            video.pause();
+            mediaPlayer.pause();
         }
     }
 
-    onStartPositionChanged: {
-        video.setPosition(startPosition);
-        currentPosition = 0;
+    onVisibleChanged: {
+        if (visible) {
+            // When this view becomes visible, connect the mediaPlayer to our VideoOutput
+            mediaPlayer.videoOutput = videoOutput;
+        }
     }
 
-    MediaPlayer {
-        id: video
-
-        property real savedPosition: -1
-        property int savedPlaybackState: -1
-
-        source: videoRoot.topDownSource
-        videoOutput: videoRoot.videoInFullscreen ? videoFullOutput : videoOutput
-        audioOutput: AudioOutput {
-            volume: 1.0
+    Component.onCompleted: {
+        if (visible) {
+            mediaPlayer.videoOutput = videoOutput;
         }
+    }
 
-        onPositionChanged: (pos) => {
-            if (pos > endPosition) {
-                video.pause();
-            }
-            currentPosition = (pos - startPosition) / (endPosition - startPosition);
-            //const gaze_idx = Math.floor(0.001 * position * 4);
-        }
+    component FrameOverlays: Item {
+        required property var vidOut
 
-        onMediaStatusChanged: (status) => {
-            if (status === MediaPlayer.LoadedMedia && video.savedPosition !== -1) {
-                video.setPosition(video.savedPosition);
-                /*
-                if (video.savedPlaybackState === MediaPlayer.PlayingState) {
-                    video.play();
+        Rectangle {
+            width: Math.max(parent.width * 0.20, 150)
+            height: Math.max(parent.width * 0.05, 30)
+
+            anchors.left: parent.left
+            anchors.top: parent.top
+
+            anchors.topMargin: 25
+
+            color: "#88000000"
+
+            topRightRadius: 5
+            bottomRightRadius: 5
+
+            visible: videoRoot.selectionMode !== Constants.CropSelectionMode.Inactive
+
+            Label {
+                anchors.fill: parent
+                anchors.margins: parent.width * 0.05
+
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+
+                color: "#fff"
+                text: {
+                    switch(videoRoot.selectionMode) {
+                        case Constants.CropSelectionMode.ActiveNoCorner:
+                            return " Set 1st corner"
+                        case Constants.CropSelectionMode.ActiveFirstCorner:
+                            return " Set 2nd corner"
+                    }
+                    return "";
                 }
-                */
-            }
-        }
-    }
+                fontSizeMode: Text.Fit
 
-    Window {
-        id: winRoot
-        visibility: videoRoot.videoInFullscreen ? Window.FullScreen : Window.Hidden
-        color: "black"
-        title: "Video Fullscreen"
-
-        VideoOutput {
-            id: videoFullOutput
-            anchors.fill: parent
-        }
-
-        Shortcut {
-            sequence: "Escape"
-            onActivated: videoRoot.videoInFullscreen = false
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                video.playbackState == MediaPlayer.PlayingState ? video.pause() : video.play()
+                minimumPixelSize: 10
+                font.pixelSize: 121
+                font.bold: true
             }
         }
 
-        onClosing: {
-            videoRoot.videoInFullscreen = false;
+        Item {
+            id: aoiFills
+
+            function scalePoints(norm_points, contentRect) {
+                return norm_points.map(p => {
+                    p.x = p.x*contentRect.width + contentRect.x;
+                    p.y = p.y*contentRect.height + contentRect.y;
+                    return p;
+                });
+            }
+
+            Repeater {
+                model: aoiModel.Labels()
+                delegate: Shape {
+                    required property string modelData;
+                    anchors.fill: parent
+
+                    function makeColorTransparent(rgb_hex, alpha_hex) {
+                        return "#" + alpha_hex + rgb_hex.slice(1);
+                    }
+
+                    ShapePath {
+                        fillColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "88" : "00")
+                        strokeColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "ff" : "00")
+                        strokeWidth: 1
+
+                        PathPolyline {
+                            path: aoiFills.scalePoints(aoiModel.AoiPolygonPoints(modelData), vidOut.contentRect);
+                        }
+                    }
+                }
+            }
+        }
+
+        Image {
+            width: vidOut.contentRect.width
+            height: vidOut.contentRect.height
+            x: vidOut.contentRect.x
+            y: vidOut.contentRect.y
+            source: (hasVideoOverlays && activeVideoOverlay in videoOverlaySources) ? videoOverlaySources[activeVideoOverlay] : ""
+            // Only show overlays on top-down video
+            visible: hasVideoOverlays && activeVideoOverlay !== "None" && bar.currentIndex === 0
+        }
+
+        Item {
+            id: gazeOverlay
+            // Only show heatmap on top-down video
+            visible: bar.currentIndex === 0
+
+            width: vidOut.contentRect.width
+            height: vidOut.contentRect.height
+
+            x: vidOut.contentRect.x
+            y: vidOut.contentRect.y
         }
     }
 
@@ -128,10 +175,10 @@ Rectangle {
             id: bar
             Layout.fillWidth: true
 
+            currentIndex: mediaPlayer.currentSourceIndex
+
             onCurrentIndexChanged: {
-                video.savedPosition = video.position;
-                video.savedPlaybackState = video.playbackState
-                video.source = (bar.currentIndex === 0) ? videoRoot.topDownSource : videoRoot.peripheralSources[bar.currentIndex - 1]
+                mediaPlayer.currentSourceIndex = bar.currentIndex;
             }
 
             CustomTabButton {
@@ -139,10 +186,9 @@ Rectangle {
             }
 
             Repeater {
-                model: videoRoot.peripheralSources
+                model: mediaPlayer.peripheralSources
                 delegate: CustomTabButton {
                     text: String.fromCodePoint(0x1F4F7) + " %1. Side Camera".arg(index+1)
-                    //enabled: videoRoot.hasGazeHeatmap
                 }
             }
 
@@ -150,12 +196,6 @@ Rectangle {
                 color: "black"
                 radius: 5
             }
-            /*
-            CustomTabButton {
-                text: "Movement"
-                enabled: videoRoot.hasMoveHeatmap
-            }
-            */
         }
 
         Rectangle {
@@ -164,8 +204,6 @@ Rectangle {
             Layout.fillHeight: true
 
             color: "black"
-            //border.color: "red"
-            //border.width: videoRoot.selectionMode > 0 ? 3 : 0
 
             VideoOutput {
                 id: videoOutput
@@ -173,61 +211,9 @@ Rectangle {
                 fillMode: VideoOutput.PreserveAspectFit
             }
 
-            Item {
-                id: aoiFills
+            FrameOverlays {
                 anchors.fill: parent
-
-                function scalePoints(norm_points, contentRect) {
-                    return norm_points.map(p => {
-                        p.x = p.x*contentRect.width + contentRect.x;
-                        p.y = p.y*contentRect.height + contentRect.y;
-                        return p;
-                    });
-                }
-
-                Repeater {
-                    model: aoiModel.Labels()
-                    delegate: Shape {
-                        required property string modelData;
-                        anchors.fill: parent
-
-                        function makeColorTransparent(rgb_hex, alpha_hex) {
-                            return "#" + alpha_hex + rgb_hex.slice(1);
-                        }
-
-                        ShapePath {
-                            fillColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "88" : "00")
-                            strokeColor: makeColorTransparent(videoRoot.colormapAOIs[modelData], videoRoot.aoiOverlayEnabled ? "ff" : "00")
-                            strokeWidth: 1
-
-                            PathPolyline {
-                                path: aoiFills.scalePoints(aoiModel.AoiPolygonPoints(modelData), videoOutput.contentRect);
-                            }
-                        }
-                    }
-                }
-            }
-
-            Image {
-                width: videoOutput.contentRect.width
-                height: videoOutput.contentRect.height
-                x: videoOutput.contentRect.x
-                y: videoOutput.contentRect.y
-                source: (hasVideoOverlays && activeVideoOverlay in videoOverlaySources) ? videoOverlaySources[activeVideoOverlay] : ""
-                // Only show overlays on top-down video
-                visible:  hasVideoOverlays && activeVideoOverlay !== "None" && bar.currentIndex === 0
-            }
-
-            Item {
-                id: gazeOverlay
-                // Only show heatmap on top-down video
-                visible: bar.currentIndex === 0
-
-                width: videoOutput.contentRect.width
-                height: videoOutput.contentRect.height
-
-                x: videoOutput.contentRect.x
-                y: videoOutput.contentRect.y
+                vidOut: videoOutput
             }
 
             Rectangle {
@@ -250,23 +236,23 @@ Rectangle {
                 property int anchorY;
 
                 onClicked: (mouse) => {
-                    if (videoRoot.selectionMode === 0) {
-                        video.playbackState == MediaPlayer.PlayingState ? video.pause() : video.play()
+                    if (videoRoot.selectionMode === Constants.CropSelectionMode.Inactive) {
+                        mediaPlayer.togglePlayPause();
                     }
-                    else if (videoRoot.selectionMode === 1) {
+                    else if (videoRoot.selectionMode === Constants.CropSelectionMode.ActiveNoCorner) {
                         selectionRect.x = mouse.x;
                         selectionRect.y = mouse.y;
                         selectionRect.width = 0;
                         selectionRect.height = 0;
                         mouseArea.anchorX = mouse.x;
                         mouseArea.anchorY = mouse.y;
-                        videoRoot.selectionMode = 2;
+                        videoRoot.selectionMode = Constants.CropSelectionMode.ActiveFirstCorner;
                     }
-                    else {
+                    else if (videoRoot.selectionMode === Constants.CropSelectionMode.ActiveFirstCorner){
                         const cr = videoOutput.contentRect;
                         if (mouse.button === Qt.LeftButton) {
                             videoRoot.selectionChanged(videoOutput.videoSink, 
-                                                    video.position,
+                                                    mediaPlayer.position,
                                                     (selectionRect.x - cr.x) / cr.width, 
                                                     (selectionRect.y - cr.y) / cr.height, 
                                                     selectionRect.width / cr.width, 
@@ -275,12 +261,12 @@ Rectangle {
                         }
                         selectionRect.width = 0;
                         selectionRect.height = 0;
-                        videoRoot.selectionMode = 1;
+                        videoRoot.selectionMode = Constants.CropSelectionMode.Inactive;
                     }
                 }
 
                 onPositionChanged: (mouse) => {
-                    if (videoRoot.selectionMode == 2) {
+                    if (videoRoot.selectionMode == Constants.CropSelectionMode.ActiveFirstCorner) {
                         selectionRect.width = Math.abs(mouse.x - mouseArea.anchorX);
                         selectionRect.height = Math.abs(mouse.y - mouseArea.anchorY)
 
@@ -307,29 +293,31 @@ Rectangle {
             Layout.leftMargin: 10
             Layout.rightMargin: 10
 
-            progressValue: videoRoot.currentPosition
-            progressDisplayText: Utils.timeFormat(1e-3 * video.position)
+            progressValue: videoRoot.mediaPlayer.currentPosition
+            progressDisplayText: Utils.timeFormat(1e-3 * mediaPlayer.position)
 
-            mediaStatusIcon: (video.playbackState === MediaPlayer.PlayingState) ? "../icons/media_pause.png" : "../icons/media_play.png"
-            videoOverlaySources: Object.keys(videoRoot.videoOverlaySources).concat(["None"])
+            mediaStatusIcon: (mediaPlayer.playbackState === MediaPlayer.PlayingState) ? "../icons/media_pause.png" : "../icons/media_play.png"
+            videoOverlaySources: videoRoot.videoOverlaySources ? Object.keys(videoRoot.videoOverlaySources).concat(["None"]) : ["None"]
             overlaySrcIcon: "../icons/gear.png"
-            cropIcon: videoRoot.selectionMode === 0 ? "../icons/box_inactive.png" : "../icons/box_active.png"
+            cropIcon: videoRoot.selectionMode === Constants.CropSelectionMode.Inactive ? "../icons/pen.png" : "../icons/pen_blue.png"
             aoiIcon: videoRoot.aoiOverlayEnabled ? "../icons/aoi_active.png" : "../icons/aoi_inactive.png"
-            fullScreenIcon: "../icons/fullscreen.png"
+            fullScreenIcon: "../icons/box_inactive.png"
 
             onProgressChanged: (pos) => {
-                video.setPosition(startPosition + pos * (endPosition - startPosition));
+                mediaPlayer.setPositionNormalized(pos);
             }
 
             onVideoEnterFullscreen: {
-                videoRoot.videoInFullscreen = true;
+                videoRoot.videoEnterFullscreen();
             }
 
             onFrameCropToggled: {
-                if (videoRoot.selectionMode == 0)
-                    videoRoot.selectionMode = 1;
+                if (videoRoot.selectionMode === Constants.CropSelectionMode.Inactive) {
+                    videoRoot.selectionMode = Constants.CropSelectionMode.ActiveNoCorner;
+                    mediaPlayer.pause();
+                }
                 else
-                    videoRoot.selectionMode = 0;
+                    videoRoot.selectionMode = Constants.CropSelectionMode.Inactive;
 
                 selectionRect.width = 0;
                 selectionRect.height = 0;
@@ -344,7 +332,7 @@ Rectangle {
             }
 
             onVideoStatusToggled: {
-                video.playbackState === MediaPlayer.PlayingState ? video.pause() : video.play()
+                mediaPlayer.togglePlayPause();
             }
         }
     }

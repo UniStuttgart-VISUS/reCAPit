@@ -16,12 +16,58 @@ Drawer {
     required property var cardData 
 
     property var drawerOpened: false
+    property bool videoInFullscreen: false
 
     signal saveChanges(string title, string quotes, string notes)
 
     background: Rectangle {
         color: "#f0f0f0"
     }
+
+    // Single shared MediaPlayer instance for both inline and fullscreen views
+    SharedMediaPlayer {
+        id: sharedPlayer
+        topDownSource: aoiModel.VideoSourceTopDown()
+        peripheralSources: aoiModel.VideoSourcesPeripheral()
+        startPosition: drawer.cardData.PosStartSec() * 1000
+        endPosition: drawer.cardData.PosEndSec() * 1000
+    }
+
+    Window {
+        id: winRoot
+        visibility: drawer.videoInFullscreen ? Window.FullScreen : Window.Hidden
+        color: "black"
+        title: "Video Fullscreen"
+
+        CustomVideo {
+            id: videoFull
+            anchors.fill: parent
+
+            mediaPlayer: sharedPlayer
+            videoOverlaySources: drawer.cardData.VideoOverlays()
+            active: drawer.drawerOpened && drawer.videoInFullscreen
+            colormapAOIs: drawer.colormap
+            visible: drawer.videoInFullscreen
+
+            onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
+                drawer.cardData.thumbnailAdded(frame, pos_ms, Qt.rect(xpos, ypos, width, height), overlay_src); 
+            }
+
+            onVideoEnterFullscreen: {
+                drawer.videoInFullscreen = false;
+            }
+        }
+
+        Shortcut {
+            sequence: "Escape"
+            onActivated: drawer.videoInFullscreen = false;
+        }
+
+        onClosing: {
+            drawer.videoInFullscreen = false;
+        }
+    }
+
 
     function formattedDialogue(utterance_speaker_pairs, target_tokens) {
         var dialogueStr = "";
@@ -83,6 +129,8 @@ Drawer {
         }
 
         ScrollView {
+            id: scrollView
+
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.verticalStretchFactor: 2
@@ -99,16 +147,18 @@ Drawer {
                     Layout.preferredWidth: 550
                     Layout.preferredHeight: 550
 
+                    mediaPlayer: sharedPlayer
                     videoOverlaySources: drawer.cardData.VideoOverlays()
-                    startPosition: drawer.cardData.PosStartSec() * 1000
-                    endPosition: drawer.cardData.PosEndSec() * 1000
-                    active: drawer.drawerOpened
-                    topDownSource: aoiModel.VideoSourceTopDown()
-                    peripheralSources: aoiModel.VideoSourcesPeripheral()
+                    active: drawer.drawerOpened && !drawer.videoInFullscreen
                     colormapAOIs: drawer.colormap
+                    visible: !drawer.videoInFullscreen
 
                     onSelectionChanged: (frame, pos_ms, xpos, ypos, width, height, overlay_src) => {
                         drawer.cardData.thumbnailAdded(frame, pos_ms, Qt.rect(xpos, ypos, width, height), overlay_src); 
+                    }
+
+                    onVideoEnterFullscreen: {
+                        drawer.videoInFullscreen = true;
                     }
                 }
 
@@ -161,35 +211,13 @@ Drawer {
                                 Rectangle {
                                     id: rectImg
                                     anchors.fill: parent
-                                    //border.width: 2
-
                                     MouseArea {
                                         hoverEnabled: true
                                         anchors.fill: parent
                                         onClicked: { 
                                             timeline_segment_model.deregister_video_crop(drawer.cardData.SegmentIndex, index);
                                         }
-                                        /*
-                                        onEntered: {
-                                            effect.saturation = -1.0 
-                                        }
-                                        onExited: {
-                                            effect.saturation = 0.0
-                                        }
-                                        */
                                     }
-                                    /*
-                                    MultiEffect {
-                                        id: effect
-                                        anchors.fill: imgThumb
-                                        source: imgThumb
-                                        saturation: -1.0   // normal color at start
-                                        Behavior on saturation {
-                                            NumberAnimation { duration: 500; easing.type: Easing.InOutQuad }
-                                        }
-                                    }
-                                    */
-
                                     Image {
                                         id: imgThumb
                                         visible: true
@@ -256,8 +284,10 @@ Drawer {
 
                     onLinkActivated: (link) => {
                         const idx = parseInt(link);
-                        const time_ms = dialogue[idx].start_time * 1000
-                        video.setPosition(time_ms);
+                        const time_ms = drawer.cardData.Dialogue[idx].start_ts * 1000
+
+                        scrollView.ScrollBar.vertical.position = 0;
+                        sharedPlayer.jumpToPosition(time_ms);
                     }
 
                     labels: []
