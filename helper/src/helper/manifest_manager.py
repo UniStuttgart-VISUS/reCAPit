@@ -180,6 +180,7 @@ class ManifestManager:
     def __enter__(self) -> 'ManifestManager':  # noqa: PYI034
         self.file = open(self.path, 'r' if self.read_only else 'r+')
         self.manifest_json = json.load(self.file)
+        self.recordings.clear()
 
         for rec in self.manifest_json['recordings']:
             self.recordings.append(Recording(rec, self.manifest_meta['recordings']))
@@ -199,6 +200,14 @@ class ManifestManager:
             self.file.truncate()
         self.file.close()
 
+    def reload_from_file(self) -> None:
+        if self.file is None:
+            raise RuntimeError
+        # We discard all the changes made to the manifest!
+        self.file.close()
+        self.__enter__()
+
+    @DeprecationWarning
     def load(self) -> dict[str, Any]:
         with open(self.path, encoding='utf-8') as f:
             self.manifest_json = json.load(f)
@@ -258,6 +267,7 @@ class ManifestManager:
             # TODO @me: Sources should be set in the UI not here
             'sources': {
                 'gaze': {'path': 'undefined', 'offset_sec': 0},
+                'faces': {'path': 'undefined'},
             },
             'artifacts': {},
         }, self.manifest_meta['recordings'])
