@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--root_dir', type=Path, required=True)
-    parser.add_argument('--gpt_model', default='gpt-5o-mini', required=False)
+    parser.add_argument('--gpt_model', default='gpt-5-mini', required=False)
     parser.add_argument('--target_segments', default='refined', choices=('initial', 'refined'), required=False)
     parser.add_argument('--openai_api_key', required=False, type=str)
     args = parser.parse_args()

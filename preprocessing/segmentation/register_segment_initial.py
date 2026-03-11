@@ -6,6 +6,8 @@ import scipy
 import numpy as np
 import scipy.signal
 import logging
+
+from itertools import pairwise
 from pathlib import Path
 from helper.manifest_manager import ManifestManager
 
@@ -64,18 +66,36 @@ if __name__ == '__main__':
     out_path = args.root_dir / 'initial.csv'
 
     with ManifestManager(args.manifest, args.root_dir) as man:
+        # Columns: start timestamp [sec],end timestamp [sec],text,speaker
+        transcript = pd.read_csv(man.get_transcript()['path'], encoding='utf-8-sig')
+
         mtv = pd.read_csv(man.get_multi_time(args.input_signal)['path'], encoding='utf-8-sig')
         result = mvt_segmentation(mtv, man.get_duration_sec(), args.penalization,
                                   downsampling_factor=args.downsampling_factor,
                                   min_dur_sec=2*args.min_dur_sec, show_plot=True)
         records = []
 
-        for segment_start, segment_end in zip(result[:-1], result[1:]):
+        for segment_start, segment_end in pairwise(result):
             mtv_segment = mtv.iloc[segment_start*args.downsampling_factor:segment_end*args.downsampling_factor]
 
             start_ts = mtv_segment.iloc[0]['timestamp [sec]']
             end_ts = mtv_segment.iloc[-1]['timestamp [sec]']
-            records.append((start_ts, end_ts, end_ts - start_ts))
+
+            mask_left = transcript['start timestamp [sec]'] >= start_ts
+            mask_right = transcript['end timestamp [sec]'] <= end_ts
+            mask = mask_left & mask_right
+
+            if not mask.any():
+                logger.warning(f'No transcript rows found between {start_ts} and {end_ts}')
+                continue
+
+            aligned_start_ts = transcript.loc[mask_left, 'start timestamp [sec]'].iloc[0]
+            aligned_end_ts = transcript.loc[mask_right, 'end timestamp [sec]'].iloc[-1]
+
+            logger.info('start (unaligned): %f; start (aligned): %f', start_ts, aligned_start_ts)
+            logger.info('end (unaligned): %f; end (aligned): %f', end_ts, aligned_end_ts)
+
+            records.append((aligned_start_ts, aligned_end_ts, aligned_end_ts - aligned_start_ts))
 
         out = pd.DataFrame.from_records(data=records, columns=['start timestamp [sec]', 'end timestamp [sec]', 'duration [sec]'])
         out.to_csv(out_path, index=None, encoding='utf-8-sig')

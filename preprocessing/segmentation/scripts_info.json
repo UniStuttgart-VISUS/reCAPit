@@ -1,0 +1,104 @@
+[
+    {
+        "script_dir": "segmentation",
+        "script_name": "register_segment_base.py",
+        "script_target": "world",
+        "script_args": {},
+        "title": "Create Base Segment",
+        "description": "Creates a single segment spanning the full session duration as a baseline segmentation",
+        "dependencies": {},
+        "output": {
+            "artifacts": ["segments/base"]
+        }
+    },
+    {
+        "script_dir": "segmentation",
+        "script_name": "register_segment_initial.py",
+        "script_target": "world",
+        "script_args": {
+            "--input_signal": {
+                "type": "selection",
+                "default": "",
+                "config": {"name": "Input Signal", "options": "multi_time"}
+            },
+            "--downsampling_factor": {
+                "type": "int",
+                "default": 5,
+                "config": {"name": "Downsampling Factor", "from": 1, "to": 20, "stepSize": 1, "unit": ""}
+            },
+            "--penalization": {
+                "type": "int",
+                "default": 10,
+                "config": {"name": "Penalization", "from": 1, "to": 100, "stepSize": 1, "unit": ""}
+            },
+            "--min_dur_sec": {
+                "type": "real",
+                "default": 15,
+                "config": {"name": "Min. Segment Duration", "from": 5, "to": 300, "stepSize": 5, "unit": "sec."}
+            }
+        },
+        "title": "Initial Segmentation",
+        "description": "Segments the session into coarse phases using change-point detection on an attention or movement signal, aligned to transcript boundaries",
+        "dependencies": {
+            "artifacts": ["transcript"]
+        },
+        "output": {
+            "artifacts": ["segments/initial"]
+        }
+    },
+    {
+        "script_dir": "segmentation",
+        "script_name": "register_segment_attributes.py",
+        "script_target": "world",
+        "script_args": {
+            "--target_segments": {
+                "type": "selection",
+                "default": "",
+                "config": {"name": "Target Segments", "options": "segments"}
+            },
+            "--gpt_model": {
+                "type": "selection",
+                "default": "gpt-5-mini",
+                "config": {"name": "GPT Model", "options": ["gpt-5-mini", "gpt-5-nano", "gpt-5", "gpt-5.2"]}
+            }
+        },
+        "title": "Segment Attributes",
+        "description": "Generates AI-powered titles and summaries for each segment and computes speech statistics (overlap, turn count) using a transcript",
+        "dependencies": {
+            "artifacts": ["transcript"]
+        },
+        "output": {
+            "artifacts": []
+        }
+    },
+    {
+        "script_dir": "segmentation",
+        "script_name": "register_segment_refine.py",
+        "script_target": "world",
+        "script_args": {
+            "--similarity_threshold": {
+                "type": "real",
+                "default": 0.5,
+                "config": {"name": "Similarity Threshold", "from": 0.1, "to": 1.0, "stepSize": 0.05, "unit": ""}
+            },
+            "--gap_threshold": {
+                "type": "real",
+                "default": 1.0,
+                "config": {"name": "Gap Threshold", "from": 0.1, "to": 10, "stepSize": 0.1, "unit": "sec."}
+            },
+            "--min_dur_sec": {
+                "type": "real",
+                "default": 15,
+                "config": {"name": "Min. Segment Duration", "from": 5, "to": 300, "stepSize": 5, "unit": "sec."}
+            }
+        },
+        "title": "Refined Segmentation",
+        "description": "Sub-divides initial segments using semantic similarity of transcript chunks to produce finer-grained topic boundaries",
+        "dependencies": {
+            "artifacts": ["segments/initial", "transcript"]
+        },
+        "output": {
+            "artifacts": ["segments/refined"]
+        }
+    }
+]
