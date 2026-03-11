@@ -22,22 +22,22 @@ if __name__ == '__main__':
         transcript = pd.read_csv(man.get_transcript()['path'])
 
         for rec in tqdm(man.get_recordings(), disable=True):
-            out_dir = rec_root / rec['id']
+            out_dir = rec_root / rec.rec_id
             out_path = out_dir / 'transcript.csv'
             out_dir.mkdir(exist_ok=True, parents=False)
-            transcript_rec = transcript[transcript['speaker'] == rec['id']].copy()
+            transcript_rec = transcript[transcript['speaker'] == rec.rec_id].copy()
             transcript_rec['event data'] = transcript_rec['text']
             transcript_rec['event type'] = 'speech'
-            transcript_rec['event subtype'] = rec['role']
+            transcript_rec['event subtype'] = rec.rec_role
 
             if transcript_rec.empty:
-                logger.error(f'Speaker with id "{rec['id']}" does not exist in transcript!')
+                logger.error(f'Speaker with id "{rec.rec_id}" does not exist in transcript!')
                 sys.exit(1)
 
             transcript_rec = transcript_rec.drop(['text', 'speaker'], axis=1)
             transcript_rec.to_csv(out_path, index=None, encoding='utf-8-sig')
 
-            rec['artifacts']['transcript'] = {'path': str(out_path), 'categories': 'roles'}
-            logger.info(f'Registered "transcript" as an artifact in recording "{rec["id"]}"')
+            rec.register_artifact('transcript', {'path': str(out_path), 'categories': 'roles'})
+            logger.info(f'Registered "transcript" as an artifact in recording "{rec.rec_id}"')
 
     sys.exit(0)
