@@ -9,7 +9,7 @@ from helper.manifest_manager import ManifestManager
 from pathlib import Path
 from eye_tracking_recording import eye_tracking_recording_factory, EyeTrackingRecording
 
-from utils import draw_gaze, draw_tags, draw_coord_label, draw_progress_bar
+from utils import draw_gaze, draw_tags, draw_coord_label, draw_progress_bar, remove_time_offset, trim
 from pupil_apriltags import Detector
 
 
@@ -55,7 +55,7 @@ def calc_surface_fixations(recording: EyeTrackingRecording,
             fx, fy = curr_fix[['fixation x [px]', 'fixation y [px]']]
             progress = frame_pos / frame_count
 
-            if found_mapping and False:
+            if found_mapping:
                 sx, sy = sm.map_coord(fx, fy)
                 warped = sm.map_frame(undistorted)
                 draw_gaze(warped, sx, sy)
@@ -79,33 +79,25 @@ def calc_surface_fixations(recording: EyeTrackingRecording,
                                                           'within_surface', 'mapped x [px]', 'mapped y [px]'])
 
 
-def remove_time_offset(surface_fixations: pd.DataFrame, rec_offset: float) -> None:
-    surface_fixations['start timestamp [sec]'] = surface_fixations['start timestamp [sec]'] - rec_offset
-    surface_fixations['end timestamp [sec]'] = surface_fixations['end timestamp [sec]'] - rec_offset
-
-
-def trim(surface_fixations: pd.DataFrame, duration_sec: float) -> pd.DataFrame:
-    mask = (surface_fixations['start timestamp [sec]'] >= 0) & (surface_fixations['end timestamp [sec]'] <= duration_sec)
-    return surface_fixations[mask]
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--root_dir', type=Path, required=True)
     parser.add_argument('--rec_id', type=str, required=True)
     parser.add_argument('--min_tags', type=int, required=True)
-    parser.add_argument('--april_tag_family', type=str, choices=['tag36h11'])
+    parser.add_argument('--device_name', type=str, required=True)
+    parser.add_argument('--april_tag_family', type=str, choices=['tag36h11'], required=True)
     parser.add_argument('--show_output', action='store_true', help='Displays streamed gaze/video data')
     args = parser.parse_args()
 
     with ManifestManager(args.manifest, args.root_dir) as man:
         rec = man.get_recording(args.rec_id)
-        if 'gaze' not in rec['sources']:
+        if not rec.has_source('gaze'):
             sys.exit()
 
         workspace_video = man.get_video('workspace')
-        gaze_info = rec['sources']['gaze']
-        rec_dir = args.root_dir / rec['id']
+        gaze_info = rec.get_source('gaze')
+        rec_dir = args.root_dir / rec.rec_id
         rec_dir.mkdir(exist_ok=True, parents=False)
         duration_sec = man.get_duration_sec()
 
@@ -124,7 +116,7 @@ if __name__ == '__main__':
                                                               show_output=args.show_output)
         sm = MarkerMapper(ref_tags, ref_size)
 
-        et_recording = eye_tracking_recording_factory(Path(gaze_info['path']), gaze_info['hardware'])
+        et_recording = eye_tracking_recording_factory(Path(gaze_info['path']), args.device_name)
         rec_info = et_recording.get_recording_info()
 
         surface_fixations = calc_surface_fixations(et_recording, at_detector, sm,
@@ -136,4 +128,4 @@ if __name__ == '__main__':
 
         out_path_surf = rec_dir / 'surface_fixations.csv'
         surface_fixations.to_csv(out_path_surf, index=None)
-        rec['artifacts']['surface_fixations'] = {'path': str(out_path_surf), 'offset_sec': 0.0}
+        rec.register_artifact('surface_fixations', {'path': str(out_path_surf), 'offset_sec': 0.0})

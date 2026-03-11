@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from pathlib import Path
-from helper.manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager, Recording
 
 
 class ProgressiveVisualizer:
@@ -61,53 +61,70 @@ def compute_attention_signals(dfs, min_timestamp, max_timestamp, bin_width_sec=1
     data_table = pd.concat(dfs)
     data_table = data_table[(data_table['start timestamp [sec]'] >= min_timestamp) & (data_table['end timestamp [sec]'] <= max_timestamp)]
     data_table = data_table[['start timestamp [sec]', 'end timestamp [sec]', 'event subtype']]
+    data_table['duration [sec]'] = data_table['end timestamp [sec]'] - data_table['start timestamp [sec]']
 
     if data_table.empty:
         msg = 'Provided recordings exhibit no gaze data!'
         raise ValueError(msg)
 
     time_series = {c: [] for c in data_table['event subtype'].unique()}
-    
+
     # Initialize progressive visualizer if debug mode is enabled
     visualizer = None
     if debug:
         total_bins = int((max_timestamp - min_timestamp) / bin_width_sec)
         visualizer = ProgressiveVisualizer(list(time_series.keys()), bin_width_sec, total_bins)
 
-    # Main computation loop
-    bin_idx = 0
-    for start_sec in tqdm(np.arange(min_timestamp, max_timestamp, bin_width_sec)):
-        df_copy = data_table.copy(True)
-        df_copy['start timestamp [sec]'] = df_copy['start timestamp [sec]'].clip(start_sec, start_sec + bin_width_sec)
-        df_copy['end timestamp [sec]'] = df_copy['end timestamp [sec]'].clip(start_sec, start_sec + bin_width_sec)
-        df_copy['duration [sec]'] = df_copy['end timestamp [sec]'] - df_copy['start timestamp [sec]']
+    segment_starts = np.arange(min_timestamp, max_timestamp, 0.1)
 
-        out = df_copy.groupby('event subtype').agg("sum")
-        for c in time_series:
-            norm_aoi_dur = out.loc[c, 'duration [sec]'] / (num_dfs*bin_width_sec) 
-            time_series[c].append(norm_aoi_dur if c in out.index else 0)
+    for bin_idx, start_sec in tqdm(enumerate(segment_starts)):
+        end_sec = start_sec + bin_width_sec
+        df_bin = data_table[(data_table['start timestamp [sec]'] >= start_sec) &
+                            (data_table['end timestamp [sec]'] <= end_sec)]
+
+        out = df_bin.groupby('event subtype', observed=False)['duration [sec]'].sum()
+        for c, ts in time_series.items():
+            ts.append(out.loc[c] / (num_dfs*bin_width_sec) if c in out.index else 0)
 
         # Update visualization if enabled
         if visualizer and visualizer.should_update(bin_idx):
             visualizer.update(time_series, bin_idx)
 
-        bin_idx += 1
-
     time_series = {c: np.array(v) for c, v in time_series.items()}
     return pd.DataFrame.from_dict(time_series)
 
 
-def recordings_map_fixations(recordings:list) -> list[pd.DataFrame]:
+def recordings_map_fixations(recordings:list[Recording], fixation_key: str) -> list[pd.DataFrame]:
     all_mapped_fixation = []
 
     for rec in tqdm(recordings, disable=False):
-        if 'mapped_fixations' not in rec['artifacts']:
+        if not rec.has_artifact(fixation_key, as_path=False):
             continue
-        mapped_fix = pd.read_csv(rec['artifacts']['mapped_fixations']['path'])
+        mapped_fix = pd.read_csv(rec.get_artifact(fixation_key, as_path=False)['path'])
         all_mapped_fixation.append(mapped_fix)
-
     return all_mapped_fixation
 
+
+def export_attention(recordings: list[Recording], fixation_key: str, categories: str) -> None:
+    mapped_fix = recordings_map_fixations(recordings, fixation_key)
+    out_path = args.root_dir / f'attention{fixation_key}.csv'
+
+    if len(mapped_fix) == 0:
+        logging.warning(f'No recording has {fixation_key} fixations registered')
+        return
+
+    attention_signals = compute_attention_signals(
+        mapped_fix,
+        min_timestamp=0,
+        max_timestamp=man.get_duration_sec(),
+        bin_width_sec=args.window_size_sec,
+        debug=args.debug,
+        debug_dir=args.root_dir,
+    )
+    attention_signals.to_csv(out_path, index=None)
+    man.register_multi_time(f'attention_{fixation_key}', {'path': str(out_path),
+                                                          'categories': categories})
+    logging.info('Registered "multi_time/attention" as an global artifact')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -120,18 +137,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     with ManifestManager(args.manifest, args.root_dir) as man:
-        mapped_fix = recordings_map_fixations(man.get_recordings())
+        recordings = man.get_recordings()
 
-        out_path = args.root_dir / 'attention.csv'
-        attention_signals = compute_attention_signals(
-            mapped_fix,
-            min_timestamp=0,
-            max_timestamp=man.get_duration_sec(),
-            bin_width_sec=args.window_size_sec,
-            debug=args.debug,
-            debug_dir=args.root_dir,
-        )
-        attention_signals.to_csv(out_path, index=None)
-
-        man.register_multi_time('attention', {'path': str(out_path), 'categories': 'areas_of_interests'})
-        logging.info('Registered "multi_time/attention" as an global artifact')
+        export_attention(recordings, 'mapped_fixations', 'areas_of_interests')
+        export_attention(recordings, 'face_fixations', 'recordings')

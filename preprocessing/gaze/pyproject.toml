@@ -11,7 +11,10 @@ dependencies = [
     "helper",
     "matplotlib>=3.10.8",
     "pupil-apriltags>=1.0.4.post11",
-    "opencv-python>=4.13.0.90",
+    "onnxruntime-gpu>=1.24.2",
+    "insightface>=0.7.3",
+    "opencv-python>=4.13.0.92",
+    "zarr>=3.1.5",
 ]
 
 [tool.uv.sources]

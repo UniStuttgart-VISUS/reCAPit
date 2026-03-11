@@ -1,0 +1,143 @@
+[
+    {
+        "script_dir": "gaze",
+        "script_name": "register_face_fixations.py",
+        "script_target": "world",
+        "script_args": {
+            "--rec_id": {
+                "type": "selection",
+                "default": "",
+                "config": {"name": "Recording Id", "options": "recordings"}
+            },
+            "--show_output": {
+                "type": "bool",
+                "default": true,
+                "config": {"name": "Show output"}
+            },
+            "--device_name": {
+                "type": "selection",
+                "default": "pupil-labs-invisible",
+                "config": {"name": "Device Name", "options": ["pupil-labs-invisible", "pupil-labs-neon"]}
+            },
+            "--gaze_radius": {
+                "type": "real",
+                "default": 25.0,
+                "config": {"name": "Gaze Radius", "from": 1, "to": 100, "stepSize": 1, "unit": "px"}
+            },
+            "--bbox_scale_horizontal": {
+                "type": "real",
+                "default": 1.0,
+                "config": {"name": "BBox Scale Horizontal", "from": 0.1, "to": 5.0, "stepSize": 0.1, "unit": ""}
+            },
+            "--bbox_scale_vertical": {
+                "type": "real",
+                "default": 1.0,
+                "config": {"name": "BBox Scale Vertical", "from": 0.1, "to": 5.0, "stepSize": 0.1, "unit": ""}
+            }
+        },
+        "title": "Map Gaze to Faces",
+        "description": "Detects faces in the scene camera video and maps eye-tracking fixations to identified persons",
+        "dependencies": {
+            "recordings": {
+                "sources": ["gaze", "faces"]
+            }
+        },
+        "output": {
+            "recordings": {
+                "artifacts": ["face_fixations"]
+            }
+        }
+    },
+    {
+        "script_dir": "gaze",
+        "script_name": "register_surface_fixations.py",
+        "script_target": "world",
+        "script_args": {
+            "--rec_id": {
+                "type": "selection",
+                "default": "",
+                "config": {"name": "Recording Id", "options": "recordings"}
+            },
+            "--show_output": {
+                "type": "bool",
+                "default": false
+            },
+            "--min_tags": {
+                "type": "int",
+                "default": 3,
+                "config": {"name": "Minimum Visible Tags", "from": 1, "to": 10, "stepSize": 1, "unit": ""}
+            },
+            "--april_tag_family": {
+                "type": "selection",
+                "default": "tag36h11",
+                "config": {"name": "April Tag Family", "options": ["tag36h11"]}
+            },
+            "--device_name": {
+                "type": "selection",
+                "default": "pupil-labs-invisible",
+                "config": {"name": "Device Name", "options": ["pupil-labs-invisible", "pupil-labs-neon"]}
+            }
+        },
+        "title": "Map Gaze to Surface",
+        "description": "Maps eye-tracking fixations onto the workspace surface using AprilTag markers for spatial calibration",
+        "dependencies": {
+            "sources": ["videos/workspace"],
+            "recordings": {
+                "sources": ["gaze"]
+            }
+        },
+        "output": {
+            "recordings": {
+                "artifacts": ["surface_fixations"]
+            }
+        }
+    },
+    {
+        "script_dir": "gaze",
+        "script_name": "register_mapped_fixations.py",
+        "script_target": "world",
+        "script_args": {
+            "--rec_id": {
+                "type": "selection",
+                "default": "",
+                "config": {"name": "Recording Id", "options": "recordings"}
+            }
+        },
+        "title": "AOI Mapping",
+        "description": "Maps surface fixations to the defined areas-of-interest (AOIs) on the workspace",
+        "dependencies": {
+            "sources": ["areas_of_interests"],
+            "recordings": {
+                "artifacts": ["surface_fixations"]
+            }
+        },
+        "output": {
+            "recordings": {
+                "artifacts": ["mapped_fixations"]
+            }
+        }
+    },
+    {
+        "script_dir": "gaze",
+        "script_name": "register_attention.py",
+        "script_target": "world",
+        "script_args": {
+            "--window_size_sec": {
+                "type": "real",
+                "default": 0.5,
+                "config": {"name": "Window Size", "from": 0.1, "to": 10, "stepSize": 0.1, "unit": "sec."}
+            },
+            "--debug": {
+                "type": "bool",
+                "default": false,
+                "config": {"name": "Show Debug Visualization"}
+            }
+        },
+        "title": "Compute Attention Signals",
+        "description": "Aggregates per-recording mapped fixations into normalized attention time-series for each area-of-interest",
+        "dependencies": {},
+        "output": {
+            "artifacts": ["multi_time/attention"]
+        }
+    }
+]
