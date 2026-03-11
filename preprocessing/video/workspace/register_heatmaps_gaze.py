@@ -9,7 +9,7 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 from utils import *
-from helper.manifest_manager import ManifestManager
+from helper.manifest_manager import ManifestManager, Recording
 
 
 def create_heatmap_splatting(pos_x, pos_y, weights, size, kernel_size=151):
@@ -26,16 +26,16 @@ def create_heatmap_splatting(pos_x, pos_y, weights, size, kernel_size=151):
     return heatmap
 
 
-def fix_in_range(recordings, from_time_sec, to_time_sec):
+def fix_in_range(recordings: list[Recording], from_time_sec, to_time_sec):
     fix_pos_x = []
     fix_pos_y = []
     fix_dur_ms = []
 
     for rec in recordings:
-        if 'mapped_fixations' not in rec['artifacts']:
+        if not rec.has_artifact('mapped_fixations', as_path=False):
             continue
 
-        surface_fix = pd.read_csv(rec['artifacts']['mapped_fixations']['path'])
+        surface_fix = pd.read_csv(rec.get_artifact('mapped_fixations', as_path=False)['path'])
         surface_fix['duration [ms]'] = 1e3 * (surface_fix['end timestamp [sec]'] - surface_fix['start timestamp [sec]'])
 
         within_range = (surface_fix['start timestamp [sec]'] >= from_time_sec) & (surface_fix['end timestamp [sec]'] <= to_time_sec) 
@@ -56,7 +56,7 @@ def fix_in_range(recordings, from_time_sec, to_time_sec):
     return fix_pos_x, fix_pos_y, fix_dur_ms
 
     
-def gaze_heatmap(cap, recordings, start_timestamps, end_timestamps, kernel_size):
+def gaze_heatmap(cap, recordings: list[Recording], start_timestamps, end_timestamps, kernel_size):
     frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH)) 
     frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
 

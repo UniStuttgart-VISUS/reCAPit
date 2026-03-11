@@ -95,7 +95,7 @@ if __name__ == '__main__':
         out_dir = root_dir / 'move'
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        aois = get_aois(man.get_areas_of_interests()['path'])
+        aois = get_aois(man.get_source('areas_of_interests')['path'])
 
         cap = cv.VideoCapture(man.get_video('workspace')['path'])
         dur_sec = int(cap.get(cv.CAP_PROP_FRAME_COUNT) / cap.get(cv.CAP_PROP_FPS)) 

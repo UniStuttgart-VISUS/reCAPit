@@ -33,7 +33,7 @@ if __name__ == '__main__':
         width = z.attrs['width']
         height = z.attrs['height']
 
-        aois = get_aois(man.get_areas_of_interests()['path'])
+        aois = get_aois(man.get_source('areas_of_interests')['path'])
         masks = get_masks(aois, source_width, source_height)
         masks = {label: cv.resize(mask, dsize=(width, height)) for label, mask in masks.items()}
 

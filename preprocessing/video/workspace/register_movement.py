@@ -13,6 +13,44 @@ from helper.manifest_manager import ManifestManager
 
 logger = logging.getLogger(__name__)
 
+def setup_zarr_array(frame_size: tuple[float, float],
+                     frame_count: int,
+                     fps: float,
+                     downsampling_spatial:float,
+                     downsampling_temporal:float,
+                     path: Path) -> zarr.Array:
+
+    if path.is_dir():
+        shutil.rmtree(path)
+
+    frame_width, frame_height = frame_size
+
+    out_fps = fps / downsampling_temporal
+    out_frame_count = int(frame_count * out_fps / fps)
+    out_frame_width = int(frame_width / downsampling_spatial)
+    out_frame_height = int(frame_height / downsampling_spatial)
+
+    z = zarr.create_array(
+        store=path,
+        shape=(out_frame_count+1, out_frame_height, out_frame_width),
+        chunks=(16, out_frame_height, out_frame_width),
+        dtype='uint8',
+        compressors=zarr.codecs.BloscCodec(
+            cname='zstd',
+            clevel=1,
+            shuffle=zarr.codecs.BloscShuffle.bitshuffle,
+        ),
+    )
+
+    z.attrs['source_path'] = str(video_info['path'])
+    z.attrs['source_fps'] = fps
+    z.attrs['source_width'] = frame_width
+    z.attrs['source_height'] = frame_height
+    z.attrs['width'] = out_frame_width
+    z.attrs['height'] = out_frame_height
+    z.attrs['fps'] = out_fps
+
+    return z
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -36,48 +74,25 @@ if __name__ == '__main__':
         frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
 
-        out_fps = fps / args.downsampling_temporal
-        out_frame_count = int(frame_count * out_fps / fps)
-        out_frame_width = int(frame_width / args.downsampling_spatial)
-        out_frame_height = int(frame_height / args.downsampling_spatial)
+        out_path = args.root_dir / 'movement_store.zarr'
+
+        z = setup_zarr_array((frame_width, frame_height),
+                             frame_count, fps,
+                             args.downsampling_spatial,
+                             args.downsampling_temporal,
+                             out_path)
 
         logger.info(f'Video Info: {frame_width}x{frame_height}, {fps} FPS, {frame_count} total frames')
 
-        back_sub = cv.createBackgroundSubtractorKNN(history=3000, dist2Threshold=1000, detectShadows=False)
+        back_sub = cv.createBackgroundSubtractorKNN(history=3000, dist2Threshold=1000, detectShadows=args.detect_shadows)
         hand_detector = hand_detection.HandDetector(num_hands=10, model_asset_path='hand_landmarker_latest.task')
 
         if args.store_video:
             fourcc = cv.VideoWriter_fourcc(*'avc1')
             writer = cv.VideoWriter(str(args.root_dir / 'activity_knn.mp4'), fourcc=fourcc, fps=fps, frameSize=(frame_width, frame_height))
 
-        out_path = args.root_dir / 'movement_store.zarr'
 
-        if out_path.is_dir():
-            shutil.rmtree(out_path)
-
-        z = zarr.create_array(
-            store=out_path,
-            shape=(out_frame_count+1, out_frame_height, out_frame_width),
-            chunks=(16, out_frame_height, out_frame_width),
-            dtype='uint8',
-            compressors=zarr.codecs.BloscCodec(
-                cname='zstd',
-                clevel=1,
-                shuffle=zarr.codecs.BloscShuffle.bitshuffle,
-            ),
-        )
-
-        z.attrs['source_path'] = str(video_info['path'])
-        z.attrs['source_fps'] = fps
-        z.attrs['source_width'] = frame_width
-        z.attrs['source_height'] = frame_height
-        z.attrs['width'] = out_frame_width
-        z.attrs['height'] = out_frame_height
-        z.attrs['fps'] = out_fps
-
-        logger.info(z.info)
-
-        with tqdm(total=out_frame_count, unit='frames', unit_scale=args.downsampling_temporal, disable=False) as t:
+        with tqdm(total=z.shape[0], unit='frames', unit_scale=args.downsampling_temporal, disable=False) as t:
             while True:
                 ret, img = cap.read()
                 if not ret:
